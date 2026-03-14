@@ -1,2 +1,70 @@
 # Pvz-Gardendless-harmony
 Pvz Gardendless的鸿蒙移植版
+PvZ2 Gardendless for HarmonyOS
+植物大战僵尸 2 无花园版｜鸿蒙原生适配开源项目
+
+项目简介
+本项目基于 pvzge.com 原版 PvZ2 Gardendless（植物大战僵尸 2 无花园重制版），完整迁移并深度适配 HarmonyOS NEXT / OpenHarmony 平台，采用纯鸿蒙原生架构开发，保留原版核心玩法与工具链，为鸿蒙设备提供流畅、完整的游戏体验。
+非 EA/PopCap 官方产品，为爱好者社群开源移植项目
+一次开发，多端部署：支持鸿蒙手机、平板等设备
+原生性能优化：Cocos Creator 鸿蒙适配 + ArkUI 原生界面
+核心特性
+✅ 鸿蒙原生适配：基于 HarmonyOS NEXT Stage 模型，纯血鸿蒙运行✅ 完整功能保留：游戏本体、在线图鉴、存档编辑器、MOD 工具链✅ 原生体验优化：触控适配、分辨率自适应、性能与功耗调优✅ 模块化架构：游戏引擎层、工具层、UI 层解耦，易于二次开发✅ 开源可定制：全源码开放，支持自定义植物 / 僵尸 / 关卡
+技术栈
+操作系统：HarmonyOS NEXT / OpenHarmony 5.0+
+开发语言：ArkTS、TypeScript、C++
+UI 框架：ArkUI（声明式）
+游戏引擎：Cocos Creator 鸿蒙适配版
+工程工具：DevEco Studio 5.0+、OHPM 包管理
+通信桥：Cocos ↔ ArkTS 反射互调、Node-API
+快速开始
+环境准备
+安装 DevEco Studio 5.0+
+配置 HarmonyOS NEXT SDK（API 12+）
+安装 Cocos Creator 3.8.6+（鸿蒙发布支持）
+构建运行
+bash
+运行
+# 克隆仓库
+git clone https://github.com/你的用户名/PvZ2-Gardendless-HarmonyOS.git
+cd PvZ2-Gardendless-HarmonyOS
+
+# 使用DevEco Studio打开工程
+# 连接鸿蒙设备或启动模拟器
+# 点击“运行”生成HAP并安装
+目录说明
+plaintext
+PvZ2-Gardendless-HarmonyOS/
+├── AppScope/           # 应用全局配置
+├── entry/              # 主Entry模块（HAP）
+│   ├── src/main/
+│   │   ├── ets/        # ArkTS 业务逻辑与UI
+│   │   ├── cpp/        # Cocos 原生引擎与桥接
+│   │   └── resources/  # 资源文件
+├── pvzge-game/         # 移植后的游戏核心工程
+├── docs/               # 适配文档、FAQ
+└── README.md
+功能模块
+游戏核心：完整关卡、植物、僵尸、战斗系统
+在线图鉴：植物 / 僵尸属性、ID、CodeName 查询
+存档编辑器：存档读取、修改、导出、备份
+MOD 工具：GE Patcher 鸿蒙适配版，资源自定义
+设置中心：画质、音效、触控、帧率等调节
+贡献指南
+欢迎提交 Issue、PR 参与共建：
+Fork 本仓库
+创建功能分支（feature/xxx 或 fix/xxx）
+遵循 ArkTS 代码规范与鸿蒙工程规范
+提交 PR 并附清晰说明
+等待评审与合并
+许可证
+本移植项目：MIT License
+原版 PvZ2 Gardendless：遵循 pvzge.com 社群授权协议
+游戏素材版权归原作者所有，本项目仅用于学习与交流
+免责声明
+本项目为非官方开源移植作品，仅供学习与技术交流使用，严禁用于商业用途。使用本项目需遵守当地法律法规与原版社群协议，因使用产生的任何风险由使用者自行承担。
+🌟 如果本项目对你有帮助，欢迎 Star、Fork、分享！📧 联系与反馈：GitHub Issues 或 项目讨论区
+你可以直接替换的信息
+项目仓库地址：你的用户名 → 你的 GitHub 用户名
+徽章链接：按需更新 Stars、许可证等
+联系方式：补充你的社群 / 邮箱

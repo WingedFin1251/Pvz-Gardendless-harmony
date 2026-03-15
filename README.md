@@ -25,21 +25,42 @@ cd PvZ2-Gardendless-HarmonyOS
 
 ### 目录说明
 ```
-PvZ2-Gardendless-HarmonyOS/
-├── AppScope/           # 应用全局配置
-├── entry/              # 主Entry模块（HAP）
-│   ├── src/main/
-│   │   ├── ets/        # ArkTS 业务逻辑与UI
-│   │   ├── cpp/        # Cocos 原生引擎与桥接
-│   │   └── resources/  # 资源文件
-├── pvzge-game/         # 移植后的游戏核心工程
-├── docs/               # 适配文档、FAQ
-└── README.md
+entry/
+├── src/main/
+│   ├── ets/
+│   │   ├── entryability/
+│   │   │   └── EntryAbility.ets                 # 主Ability（全屏、横屏配置）
+│   │   ├── pages/
+│   │   │   └── Index.ets                         # 主页（Web组件、桥接、拦截器）
+│   │   └── entrybackupability/
+│   │       └── EntryBackupAbility.ets             # 备份扩展能力（可选）
+│   ├── resources/
+│   │   ├── base/
+│   │   │   ├── element/
+│   │   │   │   └── string.json                    # 模块级字符串（如ability名称）
+│   │   │   ├── media/
+│   │   │   │   ├── foreground.png                 # 图标前景
+│   │   │   │   ├── background.png                 # 图标背景
+│   │   │   │   └── layered_image.json             # 分层图标配置文件
+│   │   │   └── profile/
+│   │   │       └── main_pages.json                 # 页面路由配置
+│   │   └── rawfile/                                 # 游戏静态资源
+│   │       ├── index.html                           # 游戏入口
+│   │       ├── style.css                            # 样式
+│   │       ├── src/                                  # 核心JS文件夹
+│   │       │   ├── polyfills.bundle.js
+│   │       │   ├── system.bundle.js
+│   │       │   └── import-map.json
+│   │       ├── cocos-js/                             # Cocos引擎文件
+│   │       │   └── ... (多个js/wasm文件)
+│   │       ├── assets/                               # 游戏资源
+│   │       │   └── ... (图片、音频等)
+│   │       ├── cloudSaver.js                         # 云存档模块
+│   │       ├── tmpPatch.js                            # 临时补丁（可能未使用）
+│   │       └── touchpatch.js                          # 触摸/导出补丁（核心）
+│   └── module.json5                                   # 模块配置（设备类型、权限、横屏等）
+└── ...
 ```
-
-## 功能模块
-1. **游戏核心**：完整关卡、植物、僵尸、战斗系统
-2. **在线图鉴**：植物/僵尸属性、ID、CodeName查询
 
 
 ## 贡献指南

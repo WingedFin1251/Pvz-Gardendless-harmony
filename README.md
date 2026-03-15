@@ -6,19 +6,6 @@
 - 一次开发，多端部署：支持鸿蒙手机、平板等设备
 - 原生性能优化：Cocos Creator 鸿蒙适配 + ArkUI 原生界面
 
-## 核心特性
-✅ **鸿蒙原生适配**：基于HarmonyOS NEXT Stage模型，纯血鸿蒙运行
-✅ **完整功能保留**：游戏本体、在线图鉴、存档编辑器、MOD工具链
-✅ **模块化架构**：游戏引擎层、工具层、UI层解耦，易于二次开发
-✅ **开源可定制**：全源码开放，支持自定义植物/僵尸/关卡
-
-## 技术栈
-- 操作系统：HarmonyOS NEXT / OpenHarmony 5.0+
-- 开发语言：ArkTS、TypeScript、C++
-- UI框架：ArkUI（声明式）
-- 游戏引擎：Cocos Creator 鸿蒙适配版
-- 工程工具：DevEco Studio 5.0+、OHPM包管理
-
 ## 快速开始
 ### 环境准备
 1. 安装 [DevEco Studio 5.0+](https://developer.harmonyos.com/cn/develop/deveco-studio)
@@ -53,8 +40,6 @@ PvZ2-Gardendless-HarmonyOS/
 ## 功能模块
 1. **游戏核心**：完整关卡、植物、僵尸、战斗系统
 2. **在线图鉴**：植物/僵尸属性、ID、CodeName查询
-
-
 
 
 ## 贡献指南

@@ -1,170 +1,95 @@
 import { webview } from '@kit.ArkWeb';
-
-// 触摸 polyfill 脚本（请将完整脚本粘贴在此）
-const TOUCH_POLYFILL_SCRIPT = `
-(function() {
-  // 存储当前活动的触摸点
-  const activeTouches = new Map(); // identifier -> { clientX, clientY, target }
-  let lastPinchDistance = null;     // 上次两指距离，用于计算滚轮 delta
-
-  // 辅助函数：计算两指中心点
-  function getTouchCenter(touches) {
-    if (touches.length === 0) return null;
-    let sumX = 0, sumY = 0;
-    for (let t of touches) {
-      sumX += t.clientX;
-      sumY += t.clientY;
-    }
-    return { x: sumX / touches.length, y: sumY / touches.length };
-  }
-
-  // 辅助函数：计算两指距离
-  function getDistance(t1, t2) {
-    const dx = t1.clientX - t2.clientX;
-    const dy = t1.clientY - t2.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  // 辅助函数：派发鼠标事件
-  function dispatchMouseEvent(type, clientX, clientY, target, button = 0, buttons = 1) {
-    const event = new MouseEvent(type, {
-      view: window,
-      bubbles: true,
-      cancelable: true,
-      clientX: clientX,
-      clientY: clientY,
-      button: button,
-      buttons: buttons
-    });
-    target.dispatchEvent(event);
-  }
-
-  // 辅助函数：派发滚轮事件
-  function dispatchWheelEvent(clientX, clientY, deltaY, target) {
-    const event = new WheelEvent('wheel', {
-      view: window,
-      bubbles: true,
-      cancelable: true,
-      clientX: clientX,
-      clientY: clientY,
-      deltaY: deltaY
-    });
-    target.dispatchEvent(event);
-  }
-
-  // 阻止页面默认滚动/缩放，确保游戏独占触摸事件
-  document.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    const touches = e.touches;
-
-    if (touches.length === 1) {
-      // 单指：模拟 mousedown
-      const touch = touches[0];
-      const target = touch.target;
-      dispatchMouseEvent('mousedown', touch.clientX, touch.clientY, target, 0, 1);
-      activeTouches.set(touch.identifier, { clientX: touch.clientX, clientY: touch.clientY, target });
-    } else if (touches.length === 2) {
-      // 双指：记录初始距离
-      const t1 = touches[0], t2 = touches[1];
-      lastPinchDistance = getDistance(t1, t2);
-      activeTouches.set(t1.identifier, { clientX: t1.clientX, clientY: t1.clientY, target: t1.target });
-      activeTouches.set(t2.identifier, { clientX: t2.clientX, clientY: t2.clientY, target: t2.target });
-    }
-  }, { passive: false });
-
-  document.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    const touches = e.touches;
-
-    if (touches.length === 1) {
-      // 单指移动：模拟 mousemove
-      const touch = touches[0];
-      const target = touch.target;
-      dispatchMouseEvent('mousemove', touch.clientX, touch.clientY, target, 0, 1);
-      if (activeTouches.has(touch.identifier)) {
-        activeTouches.set(touch.identifier, { clientX: touch.clientX, clientY: touch.clientY, target });
-      }
-    } else if (touches.length === 2) {
-      // 双指移动：根据距离变化模拟滚轮
-      const t1 = touches[0], t2 = touches[1];
-      const currentDistance = getDistance(t1, t2);
-      if (lastPinchDistance !== null) {
-        const deltaDistance = currentDistance - lastPinchDistance;
-        const center = getTouchCenter([t1, t2]);
-        if (center) {
-          // 使用第一个 touch 的目标作为事件目标（一般相同）
-          const target = t1.target;
-          // 系数 5 可调整滚轮灵敏度
-          dispatchWheelEvent(center.x, center.y, deltaDistance * 5, target);
-        }
-      }
-      lastPinchDistance = currentDistance;
-      // 更新存储
-      [t1, t2].forEach(t => {
-        if (activeTouches.has(t.identifier)) {
-          activeTouches.set(t.identifier, { clientX: t.clientX, clientY: t.clientY, target: t.target });
-        }
-      });
-    }
-  }, { passive: false });
-
-  document.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    const changedTouches = e.changedTouches;
-
-    for (let i = 0; i < changedTouches.length; i++) {
-      const touch = changedTouches[i];
-      const target = touch.target;
-      dispatchMouseEvent('mouseup', touch.clientX, touch.clientY, target, 0, 0);
-      activeTouches.delete(touch.identifier);
-    }
-
-    // 如果剩余触摸少于2，重置 pinch 状态
-    if (e.touches.length < 2) {
-      lastPinchDistance = null;
-    }
-  }, { passive: false });
-
-  document.addEventListener('touchcancel', (e) => {
-    e.preventDefault();
-    const changedTouches = e.changedTouches;
-
-    for (let i = 0; i < changedTouches.length; i++) {
-      const touch = changedTouches[i];
-      const target = touch.target;
-      dispatchMouseEvent('mouseup', touch.clientX, touch.clientY, target, 0, 0);
-      activeTouches.delete(touch.identifier);
-    }
-
-    if (e.touches.length < 2) {
-      lastPinchDistance = null;
-    }
-  }, { passive: false });
-})();
-`;
+import { common } from '@kit.AbilityKit';
+import fs from '@ohos.file.fs';
+import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelper
 
 @Entry
 @Component
 struct CocosJSApp {
   private webController: webview.WebviewController = new webview.WebviewController();
+  private downloadDelegate: webview.WebDownloadDelegate = new webview.WebDownloadDelegate();
+  private filePickerHelper?: FilePickerHelper;
+  private tempDownloadPath: string = '';
+  private finalSaveUri: string = '';
+  private isDownloading: boolean = false;
+  private timeoutId?: number;
+
+  @State downloadStatus: string = '';
+  @State statusOpacity: number = 1;
+  @State isLoading: boolean = true;
+  @State progress: number = 0;
+  @State webReady: boolean = false;
+
+  aboutToAppear() {
+    const context = getContext(this) as common.UIAbilityContext;
+    this.filePickerHelper = new FilePickerHelper(context);
+    // 可选：请求文件读写权限（如果需要）
+    // this.requestStoragePermission();
+  }
+
+  aboutToDisappear() {
+    if (this.timeoutId) clearTimeout(this.timeoutId);
+  }
+
+  private showStatusMessage(message: string, duration: number = 3000) {
+    if (this.timeoutId) clearTimeout(this.timeoutId);
+    this.statusOpacity = 1;
+    this.downloadStatus = message;
+    this.timeoutId = setTimeout(() => {
+      animateTo({ duration: 300 }, () => { this.statusOpacity = 0; });
+      setTimeout(() => {
+        this.downloadStatus = '';
+        this.statusOpacity = 1;
+      }, 300);
+      this.timeoutId = undefined;
+    }, duration);
+  }
 
   build() {
     Column() {
+      if (this.downloadStatus) {
+        Text(this.downloadStatus)
+          .fontSize(14)
+          .padding(8)
+          .backgroundColor('#f0f0f0')
+          .width('100%')
+          .textAlign(TextAlign.Center)
+          .opacity(this.statusOpacity)
+          .animation({ duration: 300, curve: Curve.Linear })
+      }
+
+      if (this.isLoading && this.progress < 100) {
+        Progress({ value: this.progress, total: 100, type: ProgressType.Linear })
+          .width('100%').height(4).color('#0A59F7')
+      }
+
       Web({ src: "https://cocos.local/index.html", controller: this.webController })
         .width('100%')
         .height('100%')
+        .backgroundColor(Color.Black)
         .javaScriptAccess(true)
         .domStorageAccess(true)
-        .onControllerAttached(() => {
-          webview.WebviewController.setWebDebuggingAccess(true);
+        .enableWebAVSession(false)
+        .onPageBegin(() => {
+          this.isLoading = true;
+          this.webReady = false;
         })
+        .onProgressChange((event) => { this.progress = event.newProgress; })
         .onPageEnd(() => {
-          // 注入触摸 polyfill
-          if (this.webController) {
-            this.webController.runJavaScript(TOUCH_POLYFILL_SCRIPT)
-              .then(() => console.log('触摸 polyfill 注入成功'))
-              .catch((err: Error) => console.error('注入失败:', err));
+          this.isLoading = false;
+          this.webReady = true;
+          // 注册下载委托
+          this.setupDownloadDelegate();
+          try {
+            this.webController.setDownloadDelegate(this.downloadDelegate);
+            console.log('下载委托已注册');
+          } catch (err) {
+            console.error('注册下载委托失败:', err);
           }
+          // Cookie 持久化（可选）
+          try {
+            webview.WebCookieManager.saveCookieAsync(() => console.log('Cookie 已保存'));
+          } catch (err) { console.error('保存 Cookie 失败', err); }
         })
         .onInterceptRequest((event) => {
           if (!event) return null;
@@ -194,6 +119,152 @@ struct CocosJSApp {
     .height('100%')
     .padding(0)
     .margin(0)
+  }
+
+  private setupDownloadDelegate() {
+    this.downloadDelegate.onBeforeDownload(async (webDownloadItem: webview.WebDownloadItem) => {
+      if (this.isDownloading) {
+        console.log('已有下载任务在处理中');
+        return;
+      }
+      this.isDownloading = true;
+      this.showStatusMessage('正在准备下载...', 5000);
+
+      try {
+        let fileName = webDownloadItem.getSuggestedFileName();
+        if (!fileName || fileName.includes(' ')) {
+          const url = webDownloadItem.getUrl();
+          fileName = this.extractFileNameFromUrl(url) || `download_${Date.now()}`;
+          fileName = fileName.replace(/[\\/:*?"<>|]/g, '_');
+        }
+
+        const saveUri = await this.filePickerHelper?.selectSavePath(fileName);
+        if (!saveUri) {
+          this.showStatusMessage('已取消下载', 2000);
+          webDownloadItem.cancel();
+          this.isDownloading = false;
+          return;
+        }
+        this.finalSaveUri = saveUri;
+
+        const context = getContext(this) as common.UIAbilityContext;
+        const tempPath = `${context.cacheDir}/${fileName}`;
+        this.tempDownloadPath = tempPath;
+
+        this.showStatusMessage(`下载中: ${fileName}`, 10000);
+        webDownloadItem.start(tempPath);
+      } catch (err) {
+        console.error('处理下载任务失败:', err);
+        this.showStatusMessage('下载失败', 3000);
+        this.isDownloading = false;
+      }
+    });
+
+    this.downloadDelegate.onDownloadUpdated((webDownloadItem: webview.WebDownloadItem) => {
+      const percent = webDownloadItem.getPercentComplete();
+      if (this.downloadStatus.startsWith('下载中')) {
+        this.downloadStatus = `下载中: ${percent}%`;
+      }
+    });
+
+    this.downloadDelegate.onDownloadFailed(() => {
+      this.showStatusMessage('下载失败', 3000);
+      this.isDownloading = false;
+      if (this.tempDownloadPath) {
+        try { fs.unlinkSync(this.tempDownloadPath); } catch (e) {}
+      }
+    });
+
+    this.downloadDelegate.onDownloadFinish(async () => {
+      console.log('下载完成，开始复制到公共目录');
+      if (!this.tempDownloadPath || !this.finalSaveUri) {
+        this.showStatusMessage('下载失败，保存路径无效', 3000);
+        this.isDownloading = false;
+        return;
+      }
+
+      const getFileNameFromPath = (path: string): string => path.split('/').pop() || 'file';
+
+      const createDirectoryIfNotExists = (uri: string): boolean => {
+        try {
+          try { if (fs.statSync(uri).isDirectory()) return true; } catch (e) {}
+          fs.mkdirSync(uri, true);
+          console.info(`目录创建成功: ${uri}`);
+          return true;
+        } catch (err) {
+          console.error(`创建目录失败: ${uri}`, err);
+          return false;
+        }
+      };
+
+      const ensureParentDirectoryExists = (fileUri: string): boolean => {
+        const lastSlash = fileUri.lastIndexOf('/');
+        if (lastSlash <= 0) return true;
+        const parentDir = fileUri.substring(0, lastSlash);
+        return createDirectoryIfNotExists(parentDir);
+      };
+
+      const cleanPath = (path: string): string =>
+      path.replace(/\/com\.example\.doubao\/com\.example\.doubao\//g, '/com.example.doubao/')
+        .replace(/\/com\.example\.doubao\/\//g, '/com.example.doubao/');
+
+      let destUri = cleanPath(this.finalSaveUri);
+      let retry = false;
+      let success = false;
+
+      do {
+        try {
+          if (!ensureParentDirectoryExists(destUri)) break;
+          const destFile = fs.openSync(destUri, fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC | fs.OpenMode.CREATE);
+          const srcFile = fs.openSync(this.tempDownloadPath, fs.OpenMode.READ_ONLY);
+          fs.copyFileSync(srcFile.fd, destFile.fd);
+          fs.closeSync(srcFile);
+          fs.closeSync(destFile);
+          fs.unlinkSync(this.tempDownloadPath);
+          const stat = fs.statSync(destUri);
+          this.showStatusMessage(`下载完成，大小: ${(stat.size / 1024).toFixed(1)} KB`, 2000);
+          success = true;
+          break;
+        } catch (err) {
+          if (!retry && err.message.includes('Is a directory')) {
+            const fileName = getFileNameFromPath(this.tempDownloadPath);
+            destUri = `${this.finalSaveUri}/${fileName}`;
+            destUri = cleanPath(destUri);
+            retry = true;
+            continue;
+          }
+          console.error('复制文件失败:', err);
+          // 备选：保存到应用私有目录
+          const context = getContext(this) as common.UIAbilityContext;
+          const backupPath = `${context.filesDir}/${getFileNameFromPath(this.tempDownloadPath)}`;
+          try {
+            fs.copyFileSync(this.tempDownloadPath, backupPath);
+            fs.unlinkSync(this.tempDownloadPath);
+            this.showStatusMessage(`已保存到应用目录: ${backupPath}`, 3000);
+            success = true;
+          } catch (backupErr) {
+            this.showStatusMessage('保存失败，请重试', 3000);
+          }
+          break;
+        }
+      } while (true);
+
+      if (!success && this.tempDownloadPath) {
+        try { fs.unlinkSync(this.tempDownloadPath); } catch (e) {}
+      }
+      this.isDownloading = false;
+      this.tempDownloadPath = '';
+      this.finalSaveUri = '';
+    });
+  }
+
+  private extractFileNameFromUrl(url: string): string | null {
+    try {
+      const segments = url.split('/');
+      const fileName = segments[segments.length - 1].split('?')[0];
+      if (fileName && fileName.includes('.')) return decodeURIComponent(fileName);
+      return null;
+    } catch { return null; }
   }
 
   private getMimeType(fileName: string): string {

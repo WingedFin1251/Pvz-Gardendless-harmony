@@ -11,6 +11,7 @@
 您可以使用[小白调试助手Auto-installer](https://github.com/likuai2010/auto-installer)进行安装。
 > [!NOTE]
 > 在 HarmonyOS NEXT 中，通过自签名方式侧载的 App 默认有效期为 14 天，进行[开发者实名认证](https://developer.huawei.com/consumer/cn/verified/enrollment)后，可将有效期延长至 180 天。
+
 前往 [Release](https://github.com/WingedFin1251/Pvz-Gardendless-harmony/releases)页面下载hap包
 
 ## 快速开始

@@ -2,6 +2,8 @@ import { webview } from '@kit.ArkWeb';
 import { common } from '@kit.AbilityKit';
 import fs from '@ohos.file.fs';
 import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelper
+import preferences from '@ohos.data.preferences';
+
 
 @Entry
 @Component
@@ -13,6 +15,8 @@ struct CocosJSApp {
   private finalSaveUri: string = '';
   private isDownloading: boolean = false;
   private timeoutId?: number;
+  private resourceCache: Map<string, Uint8Array> = new Map();
+  private prefs?: preferences.Preferences;
 
   @State downloadStatus: string = '';
   @State statusOpacity: number = 1;
@@ -20,16 +24,65 @@ struct CocosJSApp {
   @State progress: number = 0;
   @State webReady: boolean = false;
 
-  aboutToAppear() {
+  async aboutToAppear() {
     const context = getContext(this) as common.UIAbilityContext;
     this.filePickerHelper = new FilePickerHelper(context);
-    // 可选：请求文件读写权限（如果需要）
-    // this.requestStoragePermission();
+
+    // 初始化 Preferences
+    try {
+      this.prefs = await preferences.getPreferences(context, 'game_save');
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`初始化 Preferences 失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
+  // 在 onControllerAttached 中注册代理
+  private registerNativeStorage() {
+    try {
+      this.webController.registerJavaScriptProxy(
+        this,
+        'NativeStorage',
+        ['saveToNative', 'loadFromNative']
+      );
+      this.webController.refresh();
+    } catch (err) {
+      console.error('注册 NativeStorage 失败', err);
+    }
   }
 
   aboutToDisappear() {
     if (this.timeoutId) clearTimeout(this.timeoutId);
+    this.resourceCache.clear();
+    console.info('Resource cache cleared');
   }
+
+  // 保存方法
+  public async saveToNative(key: string, value: string): Promise<void> {
+    if (!this.prefs) return;
+    try {
+      await this.prefs.put(key, value);
+      await this.prefs.flush();
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`保存 ${key} 失败: ${error.message}`);
+    }
+  }
+
+  // 读取方法
+  public async loadFromNative(key: string): Promise<string> {
+    if (!this.prefs) return '';
+    try {
+      const value = await this.prefs.get(key, '') as string;
+      return value;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取 ${key} 失败: ${error.message}`);
+      return '';
+    }
+  }
+
+
 
   private showStatusMessage(message: string, duration: number = 3000) {
     if (this.timeoutId) clearTimeout(this.timeoutId);
@@ -63,13 +116,20 @@ struct CocosJSApp {
           .width('100%').height(4).color('#0A59F7')
       }
 
-      Web({ src: "https://cocos.local/index.html", controller: this.webController })
+      Web({ src: "https://cocos.local/index.html",
+        controller: this.webController,
+        renderMode: RenderMode.ASYNC_RENDER // 放在构造函数参数中
+      })
         .width('100%')
         .height('100%')
         .backgroundColor(Color.Black)
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .enableWebAVSession(false)
+        .onControllerAttached(() => {
+          this.registerNativeStorage();  // 注册 localStorage 持久化代理
+          // ... 其他代码
+        })
         .onPageBegin(() => {
           this.isLoading = true;
           this.webReady = false;
@@ -97,6 +157,7 @@ struct CocosJSApp {
           if (url.startsWith("https://cocos.local/")) {
             let rawFilePath = decodeURIComponent(url.replace("https://cocos.local/", ""));
             rawFilePath = rawFilePath.split('?')[0];
+
             try {
               const mimeType = this.getMimeType(rawFilePath);
               const response = new WebResourceResponse();
@@ -132,7 +193,7 @@ struct CocosJSApp {
 
       try {
         let fileName = webDownloadItem.getSuggestedFileName();
-        if (!fileName || fileName.includes(' ')) {
+        if (!fileName || fileName.includes('�')) {
           const url = webDownloadItem.getUrl();
           fileName = this.extractFileNameFromUrl(url) || `download_${Date.now()}`;
           fileName = fileName.replace(/[\\/:*?"<>|]/g, '_');

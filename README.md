@@ -6,6 +6,12 @@
 - 一次开发，多端部署：支持鸿蒙手机、平板等设备
 - 原生性能优化：Cocos Creator 鸿蒙适配 + ArkUI 原生界面
 
+## 安装方法
+
+您可以使用[小白调试助手Auto-installer](https://github.com/likuai2010/auto-installer)进行安装。
+> [!NOTE]
+> 在HarmonyOS NEXT使用自签名的方式进行侧载的App默认只有14天的有效期，进行[开发者实名认证](https://developer.huawei.com/consumer/cn/verified/enrollment)后即可将有效期提升至180天。
+
 ## 快速开始
 ### 环境准备
 1. 安装 [DevEco Studio 5.0+](https://developer.harmonyos.com/cn/develop/deveco-studio)

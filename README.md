@@ -23,7 +23,7 @@
 ### 构建运行
 ```bash
 # 克隆仓库
-git clone https://github.com/你的用户名/PvZ2-Gardendless-HarmonyOS.git
+git clone https://github.com/WingedFin1251/PvZ2-Gardendless-HarmonyOS.git
 cd PvZ2-Gardendless-HarmonyOS
 
 # 使用DevEco Studio打开工程

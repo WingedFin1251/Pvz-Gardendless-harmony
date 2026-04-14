@@ -80,7 +80,7 @@ entry/
 5. 等待评审与合并
 
 ## 许可证
-- 本移植项目：**Apache-2.0 license**
+- 本移植项目：**GPL-3.0 license**
 - 原版 PvZ2 Gardendless：遵循 [pvzge.com](https://pvzge.com/) 社群授权协议
 - 原版 Gardendless链接：[pvzge_web](https://github.com/Gzh0821/pvzge_web)
 - 游戏素材版权归原作者所有，本项目仅用于学习与交流

@@ -21,24 +21,25 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 
-  // 全屏设置 - 使用 try-catch + return 消除警告
-  private setFullScreen(mainWindow: window.Window): void {
+  // 全屏设置（异步）
+  private async setFullScreen(mainWindow: window.Window): Promise<void> {
     try {
-      mainWindow.setWindowLayoutFullScreen(true);
+      await mainWindow.setWindowLayoutFullScreen(true);
+      await mainWindow.setWindowSystemBarEnable([]);   // 隐藏状态栏和导航栏
       mainWindow.setWindowBackgroundColor('#000000');
+      hilog.info(DOMAIN, 'testTag', '全屏沉浸设置成功');
     } catch (err) {
-      hilog.error(DOMAIN, 'testTag', '设置全屏或背景色失败: %{public}s', (err as BusinessError).message);
-      return; // 明确已处理异常
+      hilog.error(DOMAIN, 'testTag', '设置全屏或系统栏失败: %{public}s', (err as BusinessError).message);
     }
   }
 
-  // 横屏设置 - 同样处理异常
-  private setLandscapeOrientation(mainWindow: window.Window): void {
+  // 横屏设置（异步）
+  private async setLandscapeOrientation(mainWindow: window.Window): Promise<void> {
     try {
-      mainWindow.setPreferredOrientation(window.Orientation.LANDSCAPE);
+      await mainWindow.setPreferredOrientation(window.Orientation.LANDSCAPE);
+      hilog.info(DOMAIN, 'testTag', '横屏设置成功');
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', '设置横屏方向失败: %{public}s', (err as BusinessError).message);
-      return;
     }
   }
 
@@ -46,16 +47,14 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
     // 获取主窗口，设置全屏 + 横屏
-    windowStage.getMainWindow().then((mainWindow) => {
-      try {
-        this.setFullScreen(mainWindow);
-        this.setLandscapeOrientation(mainWindow);   // 关键：启动时横屏
-      } catch (err) {
-        hilog.error(DOMAIN, 'testTag', '设置窗口属性时发生同步异常: %{public}s', (err as BusinessError).message);
-      }
-    }).catch((err: BusinessError) => {
-      hilog.error(DOMAIN, 'testTag', '获取主窗口失败: %{public}s', err.message);
-    });
+    windowStage.getMainWindow()
+      .then(async (mainWindow) => {
+        await this.setFullScreen(mainWindow);
+        await this.setLandscapeOrientation(mainWindow);
+      })
+      .catch((err: BusinessError) => {
+        hilog.error(DOMAIN, 'testTag', '获取主窗口失败: %{public}s', err.message);
+      });
 
     // 加载页面
     windowStage.loadContent('pages/Index', (err) => {

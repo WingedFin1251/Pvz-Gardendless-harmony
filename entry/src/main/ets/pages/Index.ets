@@ -122,6 +122,7 @@ struct CocosJSApp {
       })
         .width('100%')
         .height('100%')
+        .mediaPlayGestureAccess(false) // 添加此行，设置为 false 以允许自动播放
         .backgroundColor(Color.Black)
         .javaScriptAccess(true)
         .domStorageAccess(true)

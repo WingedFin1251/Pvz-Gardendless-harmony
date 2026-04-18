@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
 
-  <title>PvZ2 Gardendless Online | 0.8.1</title>
+  <title>Cocos Creator | PvZ2_Gardendless</title>
 
   <!--http://www.html5rocks.com/en/mobile/mobifying/-->
   <meta name="viewport"
@@ -36,52 +36,13 @@
 
   <link rel="stylesheet" type="text/css" href="style.css" />
 
-  <script>
-    (function () {
-      const isGitHubPages = window.location.hostname === 'play.pvzge.com';
+  <script type="module" crossorigin src="./assets/index-Dou5Aj4b.js"></script>
+  <!-- 添加自定义补丁 -->
+  <script src="touchPatch.js"></script>
+  <!-- 如果需要云存档，取消注释下一行 -->
+  <script src="cloudSaver.js" type="module"></script>
 
-      if (isGitHubPages) {
-        // 加载 Google Analytics
-        const gtagScript = document.createElement('script');
-        gtagScript.async = true;
-        gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-FNC28KV0ZR';
-        document.head.appendChild(gtagScript);
 
-        window.dataLayer = window.dataLayer || [];
-        function gtag() { dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'G-FNC28KV0ZR');
-
-        const adsenseScript = document.createElement('script');
-        adsenseScript.async = true;
-        adsenseScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7637695321442015';
-        adsenseScript.crossOrigin = 'anonymous';
-        document.head.appendChild(adsenseScript);
-
-        const fundingScript = document.createElement('script');
-        fundingScript.async = true;
-        fundingScript.src = 'https://fundingchoicesmessages.google.com/i/pub-7637695321442015?ers=1';
-        document.head.appendChild(fundingScript);
-
-        (function () {
-          function signalGooglefcPresent() {
-            if (!window.frames['googlefcPresent']) {
-              if (document.body) {
-                const iframe = document.createElement('iframe');
-                iframe.style = 'width: 0; height: 0; border: none; z-index: -1000; left: -1000px; top: -1000px;';
-                iframe.style.display = 'none';
-                iframe.name = 'googlefcPresent';
-                document.body.appendChild(iframe);
-              } else {
-                setTimeout(signalGooglefcPresent, 0);
-              }
-            }
-          }
-          signalGooglefcPresent();
-        })();
-      }
-    })();
-  </script>
 
 </head>
 
@@ -104,12 +65,10 @@
   <!-- Import map -->
   <script src="src/import-map.json" type="systemjs-importmap" charset="utf-8"> </script>
 
-  <script>
-    System.import('./index.js').catch(function (err) { console.error(err); })
-  </script>
-  <script src="cloudSaver.js" type="module"></script>
-  <script src="tmpPatch.js"></script>
-  <script src="touchPatch.js"></script>
+
+  <!-- <script src="addon/patcher.js" type="module"></script> -->
+
+
 </body>
 
 </html>

@@ -1,3 +1,17 @@
+// ==================== 检测 GP-Next 面板 ====================
+function isGpPanelElement(target) {
+    let el = target;
+    while (el && el !== document.body) {
+        // 根据实际面板根元素的选择器判断
+        if (el.id === 'gp-overlay' || (el.classList && el.classList.contains('gp-open'))) {
+            return true;
+        }
+        el = el.parentElement;
+    }
+    return false;
+}
+
+// ==================== 触摸转鼠标事件（原版逻辑，增加面板判断） ====================
 function createEvent(event, type, button) {
     let touches = event.changedTouches,
         first = touches[0];
@@ -23,10 +37,12 @@ let delay_time = 16;
 let lastY = null;
 
 document.addEventListener("touchstart", (event) => {
+    // 如果触摸点在 GP 面板内，直接放行（不阻止，不转换）
+    if (isGpPanelElement(event.target)) {
+        return;
+    }
+
     if (event.touches.length === 3) {
-        const touch1 = event.touches[0];
-        const touch2 = event.touches[1];
-        const touch3 = event.touches[2];
         setTimeout(() => {
             event.changedTouches[0].target.dispatchEvent(createEvent(event, "mousedown", 2));
         }, delay_time);
@@ -48,7 +64,11 @@ document.addEventListener("touchstart", (event) => {
     event.preventDefault();
     event.stopPropagation();
 }, true);
+
 document.addEventListener("touchmove", (event) => {
+    if (isGpPanelElement(event.target)) {
+        return;
+    }
 
     if (event.touches.length === 2) {
         const touch1 = event.touches[0];
@@ -80,18 +100,24 @@ document.addEventListener("touchmove", (event) => {
     event.preventDefault();
     event.stopPropagation();
 }, true);
-document.addEventListener("touchend", (event) => {
-    lastY = null;
 
+document.addEventListener("touchend", (event) => {
+    if (isGpPanelElement(event.target)) {
+        return;
+    }
+
+    lastY = null;
     setTimeout(() => {
         event.changedTouches[0].target.dispatchEvent(createEvent(event, "mouseup"));
     }, delay_time);
-    event.preventDefault();
+    // 只有可取消的事件才调用 preventDefault，避免警告
+    if (event.cancelable) {
+        event.preventDefault();
+    }
     event.stopPropagation();
 }, true);
 
-console.log('[TouchPatch] 触摸转鼠标事件已启用，导出功能由鸿蒙下载委托处理');
-
+console.log('[TouchPatch] 触摸转鼠标事件已启用，GP 面板内触摸自动放行');
 // ==================== localStorage 持久化（同步到鸿蒙） ====================
 (function() {
     // 需要持久化的 key 列表（根据游戏实际使用的 key 填写）

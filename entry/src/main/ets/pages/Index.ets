@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import fs from '@ohos.file.fs';
 import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelper
 import preferences from '@ohos.data.preferences';
+import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 
 
 @Entry
@@ -176,7 +177,30 @@ struct CocosJSApp {
           }
           return null;
         })
+      Button('F10')
+        .position({ x: '100%', y: '100%' })
+        .translate({ x: '-100%', y: '-100%' })   // 相对于右下角偏移，使按钮完全在右下角
+        .width(40)                               // 宽度缩小
+        .height(28)                              // 高度缩小
+        .fontSize(8)                            // 字体缩小
+        .backgroundColor('#000000')              // 黑色背景
+        .borderRadius(6)                         // 小圆角
+        .onClick(() => {
+          this.webController.runJavaScript(`
+      (function() {
+        if (window.gpNext && typeof window.gpNext.open === 'function') {
+          window.gpNext.open();
+        } else {
+          var ev = new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, bubbles: true });
+          document.dispatchEvent(ev);
+        }
+      })();
+    `).catch((err: Error) => {
+            console.error('打开面板失败', err.message);
+          });
+        })
     }
+
     .width('100%')
     .height('100%')
     .padding(0)

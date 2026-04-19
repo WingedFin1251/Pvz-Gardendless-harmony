@@ -3,6 +3,8 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { webview } from '@kit.ArkWeb';  // 新增导入，用于 WebView 性能优化
+import { launchAcceleration } from '@kit.GraphicsAccelerateKit'; // 游戏启动加速
+import { assetDownloadManager } from '@kit.GraphicsAccelerateKit'; // 资源加速
 
 const DOMAIN = 0x0000;
 

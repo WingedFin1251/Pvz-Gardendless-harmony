@@ -177,27 +177,29 @@ struct CocosJSApp {
           }
           return null;
         })
-      Button('F10')
-        .position({ x: '100%', y: '100%' })
-        .translate({ x: '-100%', y: '-100%' })   // 相对于右下角偏移，使按钮完全在右下角
-        .width(40)                               // 宽度缩小
-        .height(28)                              // 高度缩小
-        .fontSize(8)                            // 字体缩小
-        .backgroundColor('#000000')              // 黑色背景
-        .borderRadius(6)                         // 小圆角
+      Button()
+        .position({ x: 0, y: 0 })
+        .width(20)
+        .height(20)
+        .backgroundColor(Color.Transparent)
         .onClick(() => {
-          this.webController.runJavaScript(`
-      (function() {
-        if (window.gpNext && typeof window.gpNext.open === 'function') {
-          window.gpNext.open();
-        } else {
-          var ev = new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, bubbles: true });
-          document.dispatchEvent(ev);
-        }
-      })();
-    `).catch((err: Error) => {
-            console.error('打开面板失败', err.message);
-          });
+          // 打开 GP-Next 面板
+          try {
+            this.webController.runJavaScript(`
+            (function() {
+              if (window.gpNext && typeof window.gpNext.open === 'function') {
+                window.gpNext.open();
+              } else if (typeof window.Zt === 'function') {
+                window.Zt();
+              } else {
+                var ev = new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, bubbles: true });
+                document.dispatchEvent(ev);
+              }
+            })();
+          `);
+          } catch (error) {
+            console.error('执行打开面板脚本失败:', error);
+          }
         })
     }
 

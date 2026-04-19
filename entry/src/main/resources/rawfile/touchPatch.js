@@ -118,7 +118,7 @@ document.addEventListener("touchend", (event) => {
 }, true);
 
 console.log('[TouchPatch] 触摸转鼠标事件已启用，GP 面板内触摸自动放行');
-// ==================== localStorage 持久化（同步到鸿蒙） ====================
+
 (function() {
     // 需要持久化的 key 列表（根据游戏实际使用的 key 填写）
     const PERSIST_KEYS = [

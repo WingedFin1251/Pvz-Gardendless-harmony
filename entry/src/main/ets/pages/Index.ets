@@ -179,8 +179,8 @@ struct CocosJSApp {
         })
       Button()
         .position({ x: 0, y: 0 })
-        .width(20)
-        .height(20)
+        .width(30)
+        .height(30)
         .backgroundColor(Color.Transparent)
         .onClick(() => {
           // 打开 GP-Next 面板

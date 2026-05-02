@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import fs from '@ohos.file.fs';
 import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelper
 import preferences from '@ohos.data.preferences';
+import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 
 
 @Entry
@@ -122,6 +123,7 @@ struct CocosJSApp {
       })
         .width('100%')
         .height('100%')
+        .mediaPlayGestureAccess(false) // 添加此行，设置为 false 以允许自动播放
         .backgroundColor(Color.Black)
         .javaScriptAccess(true)
         .domStorageAccess(true)
@@ -175,7 +177,32 @@ struct CocosJSApp {
           }
           return null;
         })
+      Button()
+        .position({ x: 0, y: 0 })
+        .width(30)
+        .height(30)
+        .backgroundColor(Color.Transparent)
+        .onClick(() => {
+          // 打开 GP-Next 面板
+          try {
+            this.webController.runJavaScript(`
+            (function() {
+              if (window.gpNext && typeof window.gpNext.open === 'function') {
+                window.gpNext.open();
+              } else if (typeof window.Zt === 'function') {
+                window.Zt();
+              } else {
+                var ev = new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, bubbles: true });
+                document.dispatchEvent(ev);
+              }
+            })();
+          `);
+          } catch (error) {
+            console.error('执行打开面板脚本失败:', error);
+          }
+        })
     }
+
     .width('100%')
     .height('100%')
     .padding(0)

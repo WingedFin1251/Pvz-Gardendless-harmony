@@ -3,7 +3,7 @@
     "bundleName": "com.Pvz2.gardendless",
     "vendor": "example",
     "versionCode": 1000000,
-    "versionName": "0.8.1.1",
+    "versionName": "0.8.2",
     "icon": "$media:layered_image",
     "label": "$string:app_name"
   }

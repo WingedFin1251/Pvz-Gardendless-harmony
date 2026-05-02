@@ -23,6 +23,8 @@
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "orientation": "landscape",
+        "supportWindowMode": ["fullscreen", "split", "floating"],   // 支持小窗
+        "preferMultiWindowOrientation": "landscape",
         "skills": [
           {
             "entities": [

@@ -26,7 +26,11 @@ struct CocosJSApp {
   @State webReady: boolean = false;
 
   async aboutToAppear() {
-    const context = getContext(this) as common.UIAbilityContext;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (!context) {
+      console.error('获取 Context 失败');
+      return;
+    }
     this.filePickerHelper = new FilePickerHelper(context);
 
     // 初始化 Preferences
@@ -90,7 +94,7 @@ struct CocosJSApp {
     this.statusOpacity = 1;
     this.downloadStatus = message;
     this.timeoutId = setTimeout(() => {
-      animateTo({ duration: 300 }, () => { this.statusOpacity = 0; });
+      this.getUIContext()?.animateTo({ duration: 300 }, () => { this.statusOpacity = 0; });
       setTimeout(() => {
         this.downloadStatus = '';
         this.statusOpacity = 1;
@@ -182,10 +186,10 @@ struct CocosJSApp {
         .width(30)
         .height(30)
         .backgroundColor(Color.Transparent)
-        .onClick(() => {
+        .onClick(async () => {
           // 打开 GP-Next 面板
           try {
-            this.webController.runJavaScript(`
+            await this.webController.runJavaScript(`
             (function() {
               if (window.gpNext && typeof window.gpNext.open === 'function') {
                 window.gpNext.open();
@@ -235,7 +239,8 @@ struct CocosJSApp {
         }
         this.finalSaveUri = saveUri;
 
-        const context = getContext(this) as common.UIAbilityContext;
+        const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext;
+        if (!context) return;
         const tempPath = `${context.cacheDir}/${fileName}`;
         this.tempDownloadPath = tempPath;
 
@@ -323,7 +328,11 @@ struct CocosJSApp {
           }
           console.error('复制文件失败:', err);
           // 备选：保存到应用私有目录
-          const context = getContext(this) as common.UIAbilityContext;
+          const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext;
+          if (!context) {
+            this.showStatusMessage('保存失败，上下文无效', 3000);
+            break;
+          }
           const backupPath = `${context.filesDir}/${getFileNameFromPath(this.tempDownloadPath)}`;
           try {
             fs.copyFileSync(this.tempDownloadPath, backupPath);

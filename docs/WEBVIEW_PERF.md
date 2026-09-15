@@ -68,7 +68,7 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 
 同一份游戏内容、同一份构建配置（两版 `src/settings.json` **逐字节相同**），但**导出设置不同**：
 
-| | 基础版（上游负载） | GP-Next 版（loader/分包 + 优化负载） |
+| | 基础版（原仓库负载） | GP-Next 版（loader/分包 + 优化负载） |
 |:---|:---|:---|
 | 纹理 | `.png` **619 个 / 796.9 MB** | `.astc` **619 个 / 161.1 MB** |
 | 音频 | `.mp3` **4185 个 / 330.7 MB** | `.ogg` **4185 个 / 153.8 MB** |
@@ -93,7 +93,8 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 结论：
 
 - **GP-Next 版负载已做过纹理/音频压缩（ASTC + OGG），总体积约为基础版的 45%。**
-- **基础版的负载是上游发布产物**，作为上游镜像**不应重新编码**（那会脱离上游、也无法再用 git 比对）。
+- **基础版的负载是原版游戏的发布产物**，作为原仓库的负载**不应重新编码**
+  （重新导出会与仓库中的负载不一致，也无法再逐字节比对版本差异）。
 
 ---
 
@@ -106,7 +107,7 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 | 1 | `Index.ets` → `getMimeType()` | `default: return 'text/plain'`，未覆盖 `mp3 / ogg / ttf / bin / pvr / pkm / astc` | 330 MB 音频与压缩纹理以 `text/plain` 下发。Cocos 走 WebAudio `decodeAudioData`（arraybuffer）不看 MIME，故当前未暴露问题，但 `<audio>` 等路径存在风险，属定时炸弹 | 补齐扩展名映射；`default` 改为 `application/octet-stream` |
 | 2 | `Index.ets` → `onInterceptRequest()` | 二进制响应同样调用 `setResponseEncoding('utf-8')` | 语义错误（对 PNG/MP3/WASM 等二进制设文本编码） | 仅对文本类响应设置编码 |
 | 3 | `Index.ets` + `utils/ResourceManager.ets` | 拦截器只调用 `getCachedSync()`（纯读），**从未调用 `get()` / `preload()`**；唯一写入点位于 `ResourceManager` 私有加载流程内 → **缓存恒为空**，`getCacheStats()` 恒为 0 项 | 该 LRU 目前是纯装饰（含每请求一次 Map 查询与误导性的统计日志） | 二选一：**接入**（注意默认 80 MB 上限会被 2~3 个大纹理塞满，需先调上限/准入策略，否则会挤掉更多资源）或**移除** |
-| 4 | `utils/PerformanceMonitor.ets` | 全工程从未实例化（上游文档也注明「未集成」） | 无影响，但属死代码 | 需要监控时再接入，否则一并清理 |
+| 4 | `utils/PerformanceMonitor.ets` | 全工程从未实例化（原仓库文档也注明「未集成」） | 无影响，但属死代码 | 需要监控时再接入，否则一并清理 |
 | 5 | `Index.ets` → `onInterceptRequest()` | 全部 8000+ 个资源请求都经 JS 侧拦截 + `$rawfile()` 逐次读取 | 启动期 I/O 路径长（每次请求一次 JS→原生往返） | **待实测**：接入 §4 的预取/预编译后再评估 |
 
 ---
@@ -140,7 +141,7 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 | **P1** | 启动路径实测：`prefetchResource` / `precompileJavaScript` / `prepareForPageLoad` | 直击「JS 编译 + I/O 往返」，收益待实测 |
 | **P2** | GP-Next 版 110 MB 内容包的读取时机优化 | 若在启动期读取即是大开销，先测 |
 | **P3** | 内核策略：保持系统默认；targetSdk ≥ 23 后再评估 `ARKWEB_EVERGREEN` | 当前已是最优默认 |
-| — | **不做**：基础版负载重编码、pin M114 | 与镜像定位冲突 / 反优化 |
+| — | **不做**：基础版负载重编码、pin M114 | 与原仓库定位冲突 / 反优化 |
 
 验收指标（建议固定场景、固定温度区间，每项 ≥3 次取中位数）：
 

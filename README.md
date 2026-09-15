@@ -19,6 +19,20 @@
 
 ---
 
+## 安装（面向使用者）
+
+| 方式 | 说明 |
+|:---|:---|
+| 小白调试助手 Auto-installer | 使用 [likuai2010/auto-installer](https://github.com/likuai2010/auto-installer) 侧载 HAP，无需 DevEco Studio |
+| 上游 Release 的 HAP | 从上游 [Release](https://github.com/WingedFin1251/Pvz-Gardendless-harmony/releases) 页面下载。注意上游 HAP 的包名 / 应用名是 `Gardendless`，与本应用的 `com.gardendless.lite` **不同**，因此两者可共存、但无法互相覆盖安装 |
+
+> [!NOTE]
+> HarmonyOS NEXT 中通过自签名侧载的应用默认有效期为 **14 天**；完成
+> [开发者实名认证](https://developer.huawei.com/consumer/cn/verified/enrollment) 后可延长至 **180 天**。
+> 本仓库尚未发布自己的 Release，自行构建见下文「快速开始」。
+
+---
+
 ## ⚠️ 重要：游戏资源不在本仓库中
 
 `entry/src/main/resources/rawfile/` 下的**游戏负载不纳入版本管理**，仓库只保留两个手写壳层文件：
@@ -162,10 +176,16 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 
 ## 许可与致谢
 
-- **原作**：[PvZ2 Gardendless](https://pvzge.com/)（植物大战僵尸 2 无花园重制版），**非 EA / PopCap 官方产品**。
+- **原作**：[PvZ2 Gardendless](https://pvzge.com/)（植物大战僵尸 2 无花园重制版），
+  原版 Gardendless 仓库 [Gzh0821/pvzge_web](https://github.com/Gzh0821/pvzge_web)，
+  遵循 pvzge.com 社群授权协议。**非 EA / PopCap 官方产品**。
 - **上游移植**：[WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)，
   本仓库由其派生。
-- **许可证**：上游公开仓库声明为 **GPL-3.0**。本仓库目前**未包含 `LICENSE` 文件**；
-  作为 GPL-3.0 的衍生作品对外分发时，需以 GPL-3.0 授权并同时提供完整对应源码。
-  正式发布前建议补齐 `LICENSE`。
-- **游戏资源**：`rawfile/` 下的游戏负载为第三方内容，**不随本仓库分发**。
+- **许可证**：本仓库以 **GPL-3.0** 授权，完整许可文本见 [`LICENSE`](LICENSE)。
+  作为 GPL-3.0 的衍生作品对外分发时，须同时提供完整对应源码；本仓库已包含全部壳层源码，
+  游戏负载为第三方内容、不随仓库分发（见上文说明）。
+- **游戏素材**：版权归原作者所有，仅用于学习与技术交流。
+- **贡献**：欢迎 Issue / PR。Fork 后新建分支（`feature/xxx`、`fix/xxx`），
+  遵循 ArkTS 与鸿蒙工程规范，提交 PR 时附清晰说明。
+- **免责声明**：本项目为非官方开源移植作品，仅供学习与技术交流，**严禁用于商业用途**；
+  使用需遵守当地法律法规与原版社群协议，因使用产生的风险由使用者自行承担。

@@ -11,10 +11,13 @@
 **/.test
 /.appanalyzer
 
-# 签名密钥与口令文件，禁止提交
+# 签名密钥与口令文件（含 DevEco 的 p12 / cer / p7b 签名材料），禁止提交
 *.jks
 *.keystore
 keystore.properties
+*.p12
+*.cer
+*.p7b
 
 # 游戏负载（第三方 Cocos 构建产物）不纳入版本管理，仅保留手写壳层文件。
 # 注意：必须用 /* 只匹配直接子项；写成 /** 或忽略整个 rawfile/ 目录会使下面的反选失效。

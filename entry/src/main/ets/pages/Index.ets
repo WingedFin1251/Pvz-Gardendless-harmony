@@ -66,10 +66,23 @@ struct CocosJSApp {
       this.prefs = await preferences.getPreferences(context, 'game_save');
       // 恢复"铺满画面"偏好（安卓版用 SharedPreferences 记忆同一设置）
       this.isFillScreen = await this.prefs.get(PREF_WEB_FULLSCREEN, false) as boolean;
+      // aboutToAppear 是异步的，首次布局触发的 onAreaChange 很可能先于这里完成，
+      // 故读完偏好必须重算一次，否则保存过的"铺满"在启动时会被静默忽略。
+      this.applyAspectRatio();
     } catch (err) {
       const error = err as BusinessError;
       console.error(`初始化 Preferences 失败: code=${error.code}, message=${error.message}`);
     }
+  }
+
+  /**
+   * 把 Area 的 Length 值安全转成 vp 数值。
+   * 运行时该值可能是 '720.00vp' 这类带单位字符串，`Number()` 会得到 NaN 并污染布局，
+   * 故用 parseFloat 兜底；解析失败返回 0，随后退化为 100% 铺满。
+   */
+  private parseVp(value: Length): number {
+    const n = Number.parseFloat(value.toString());
+    return Number.isNaN(n) ? 0 : n;
   }
 
   /**
@@ -372,9 +385,10 @@ struct CocosJSApp {
     .height('100%')
     .backgroundColor(Color.Black)   // 比例留边时四周的黑边
     .onAreaChange((_oldArea: Area, newArea: Area) => {
-      // 用实际容器尺寸而非 display 尺寸：小窗 / 分屏 / 2in1 窗口模式下同样正确
-      const w = Number(newArea.width);
-      const h = Number(newArea.height);
+      // 用实际容器尺寸而非 display 尺寸：小窗 / 分屏 / 2in1 窗口模式下同样正确。
+      // width/height 静态类型是 Length，可能是带单位字符串，故统一走 parseVp 兜底。
+      const w = this.parseVp(newArea.width);
+      const h = this.parseVp(newArea.height);
       if (w !== this.containerW || h !== this.containerH) {
         this.containerW = w;
         this.containerH = h;

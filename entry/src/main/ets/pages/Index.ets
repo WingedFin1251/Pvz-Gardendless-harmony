@@ -9,6 +9,9 @@ import { ResourceManager } from '../utils/ResourceManager';
 // GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
 const GP_BUTTON_SIZE: number = 44;
 const GP_BUTTON_MARGIN: number = 12;
+// 无操作后自动贴边隐藏：延迟（ms）；隐藏后仍留在屏幕内、可点击的宽度（vp）
+const GP_BUTTON_HIDE_DELAY: number = 4000;
+const GP_BUTTON_SLIVER: number = 16;
 
 // 画面比例约束区间 3:2 ~ 17:9（逻辑对齐安卓版 AspectRatioFrameLayout）。
 // 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
@@ -31,6 +34,7 @@ struct CocosJSApp {
   private finalSaveUri: string = '';
   private isDownloading: boolean = false;
   private timeoutId?: number;
+  private hideButtonTimer?: number;
   private prefs?: preferences.Preferences;
 
   @State downloadStatus: string = '';
@@ -48,6 +52,8 @@ struct CocosJSApp {
   @State webY: number = 0;
   // true：Web 铺满整屏；false：约束在 3:2 ~ 17:9，超出部分留黑边
   @State isFillScreen: boolean = false;
+  // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
+  @State gpButtonHidden: boolean = false;
 
   async aboutToAppear() {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -73,6 +79,9 @@ struct CocosJSApp {
       const error = err as BusinessError;
       console.error(`初始化 Preferences 失败: code=${error.code}, message=${error.message}`);
     }
+
+    // 启动后开始计时：无操作一段时间后把 GP 按钮贴边隐藏
+    this.scheduleGpHide();
   }
 
   /**
@@ -138,6 +147,30 @@ struct CocosJSApp {
     }
   }
 
+  /** 让 GP 按钮在无操作一段时间后自动贴边隐藏；任何与它的交互都会重新计时 */
+  private scheduleGpHide(): void {
+    if (this.hideButtonTimer !== undefined) {
+      clearTimeout(this.hideButtonTimer);
+    }
+    this.hideButtonTimer = setTimeout(() => {
+      this.hideButtonTimer = undefined;
+      this.setGpButtonHidden(true);
+    }, GP_BUTTON_HIDE_DELAY);
+  }
+
+  /** 显示 / 贴边隐藏 GP 按钮（带过渡动画）；唤出后重新计时 */
+  private setGpButtonHidden(hidden: boolean): void {
+    if (this.gpButtonHidden === hidden) {
+      return;
+    }
+    this.getUIContext()?.animateTo({ duration: 220, curve: Curve.EaseInOut }, () => {
+      this.gpButtonHidden = hidden;
+    });
+    if (!hidden) {
+      this.scheduleGpHide();
+    }
+  }
+
   // 在 onControllerAttached 中注册代理
   private registerNativeStorage() {
     try {
@@ -154,6 +187,10 @@ struct CocosJSApp {
 
   aboutToDisappear() {
     if (this.timeoutId) clearTimeout(this.timeoutId);
+    if (this.hideButtonTimer !== undefined) {
+      clearTimeout(this.hideButtonTimer);
+      this.hideButtonTimer = undefined;
+    }
 
     // 资源缓存统计
     const cacheStats = ResourceManager.getInstance().getCacheStats();
@@ -353,11 +390,24 @@ struct CocosJSApp {
         .borderWidth(1)
         .borderColor('#40FFFFFF')
         .margin({ right: GP_BUTTON_MARGIN, bottom: GP_BUTTON_MARGIN })
+        // 贴边隐藏：向右移出屏幕，只留 GP_BUTTON_SLIVER 宽度可点；同时降低不透明度
+        .translate({ x: this.gpButtonHidden ? (GP_BUTTON_MARGIN + GP_BUTTON_SIZE - GP_BUTTON_SLIVER) : 0 })
+        .opacity(this.gpButtonHidden ? 0.45 : 1)
         .accessibilityText('打开 GP-Next 面板（长按切换铺满 / 留边）')
         .gesture(LongPressGesture().onAction(() => {
+          if (this.gpButtonHidden) {   // 已隐藏时长按先唤出，避免误触切换
+            this.setGpButtonHidden(false);
+            return;
+          }
+          this.scheduleGpHide();
           this.toggleFillScreen();
         }))
         .onClick(async () => {
+          if (this.gpButtonHidden) {   // 已隐藏时单击先唤出
+            this.setGpButtonHidden(false);
+            return;
+          }
+          this.scheduleGpHide();       // 可见态：执行动作并重新计时
           // 打开 GP-Next 面板
           try {
             // 切换 GP-Next 面板显隐。

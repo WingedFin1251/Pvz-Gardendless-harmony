@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-lite_O0cEj_awA24D37sKJVhKA9XL71guxi7amaxnIMytSZY=.cer",
+          "certpath": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-gpnext_xSCoXOsIfAh1eW7aW79bBRmkD483o8W8u3RYF1OE9YU=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B9D47671D179B6235360EA43417FF0AB4556B3BCCC087473BA3718BA214BC7E62AE30A7F6F1AECA",
-          "profile": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-lite_O0cEj_awA24D37sKJVhKA9XL71guxi7amaxnIMytSZY=.p7b",
+          "keyPassword": "0000001BD1D52BC9871D8B0698F3FAC2E54E7891CD8A455F3557EF89036B1420B25A309F4357123D1E9CE7",
+          "profile": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-gpnext_xSCoXOsIfAh1eW7aW79bBRmkD483o8W8u3RYF1OE9YU=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-lite_O0cEj_awA24D37sKJVhKA9XL71guxi7amaxnIMytSZY=.p12",
-          "storePassword": "0000001B071208080E32D15237DB0B9BA0B7BF9B4541899BF2BFFC7C5DB543D706F741F3D9ADF11BF3214A"
+          "storeFile": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-gpnext_xSCoXOsIfAh1eW7aW79bBRmkD483o8W8u3RYF1OE9YU=.p12",
+          "storePassword": "0000001B6F275E11D2BDE20DB7270CE94F833D40966DBA3E649B1FA63E7407E1B33C3E942B87AFD6950E16"
         }
       }
     ],

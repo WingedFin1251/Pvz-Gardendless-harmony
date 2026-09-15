@@ -24,3 +24,7 @@ keystore.properties
 
 # 本机 AI 工具配置（含绝对路径），不纳入版本管理
 /.claude/
+
+# 安卓参考实现（第三方工程，GPL-3.0，仅本地参考）。
+# 通配带版本号的目录名，如 gardendless-android-0.14.0/。
+/gardendless-android*/

@@ -9,9 +9,11 @@ import { ResourceManager } from '../utils/ResourceManager';
 // GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
 const GP_BUTTON_SIZE: number = 44;
 const GP_BUTTON_MARGIN: number = 12;
-// 无操作后自动贴边隐藏：延迟（ms）；隐藏后仍留在屏幕内、可点击的宽度（vp）
+// 无操作后自动贴边隐藏：延迟（ms）；隐藏后仍留在屏幕内、可见且可点的宽度（vp）
 const GP_BUTTON_HIDE_DELAY: number = 4000;
-const GP_BUTTON_SLIVER: number = 16;
+const GP_BUTTON_SLIVER: number = 26;
+// 隐藏态额外的触摸容差（vp）：把命中区域向屏幕内扩展，缓解贴边后不好点（可见态不扩展）
+const GP_BUTTON_TOUCH_PAD: number = 10;
 
 // 画面比例约束区间 3:2 ~ 17:9（逻辑对齐安卓版 AspectRatioFrameLayout）。
 // 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
@@ -169,6 +171,15 @@ struct CocosJSApp {
     if (!hidden) {
       this.scheduleGpHide();
     }
+  }
+
+  /**
+   * GP 按钮的命中区域：隐藏态向屏幕内扩 GP_BUTTON_TOUCH_PAD，补偿贴边后可见面积小、
+   * 容易点不中的问题；可见态保持与按钮等大，避免在画面上留下不可见的死区。
+   */
+  private gpButtonResponseRegion(): Rectangle {
+    const pad = this.gpButtonHidden ? GP_BUTTON_TOUCH_PAD : 0;
+    return { x: -pad, y: -pad, width: GP_BUTTON_SIZE + pad * 2, height: GP_BUTTON_SIZE + pad * 2 };
   }
 
   // 在 onControllerAttached 中注册代理
@@ -393,6 +404,8 @@ struct CocosJSApp {
         // 贴边隐藏：向右移出屏幕，只留 GP_BUTTON_SLIVER 宽度可点；同时降低不透明度
         .translate({ x: this.gpButtonHidden ? (GP_BUTTON_MARGIN + GP_BUTTON_SIZE - GP_BUTTON_SLIVER) : 0 })
         .opacity(this.gpButtonHidden ? 0.45 : 1)
+        // 隐藏态扩大命中区域，缓解"贴边后点不到"；可见态不扩展
+        .responseRegion(this.gpButtonResponseRegion())
         .accessibilityText('打开 GP-Next 面板（长按切换铺满 / 留边）')
         .gesture(LongPressGesture().onAction(() => {
           if (this.gpButtonHidden) {   // 已隐藏时长按先唤出，避免误触切换

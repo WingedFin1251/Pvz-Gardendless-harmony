@@ -1,0 +1,10 @@
+{
+  "app": {
+    "bundleName": "com.gardendless.lite",
+    "vendor": "example",
+    "versionCode": 1000007,
+    "versionName": "0.14.0",
+    "icon": "$media:layered_image",
+    "label": "$string:app_name"
+  }
+}

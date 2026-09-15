@@ -71,8 +71,8 @@ export class ResourceManager {
   ) {
     // 合并配置
     this.config = {
-      maxSize: 50 * 1024 * 1024, // 50MB
-      maxItems: 100,
+      maxSize: 80 * 1024 * 1024, // 80MB（Cocos游戏资源量大，需更大缓存）
+      maxItems: 300,
       defaultPriority: 5,
       cleanupThreshold: 0.8 // 达到80%时开始清理
     };
@@ -146,7 +146,29 @@ export class ResourceManager {
   }
 
   /**
-   * 获取资源
+   * 同步获取缓存的资源（仅查询已缓存项，不触发异步加载）
+   * 用于拦截器等需要同步返回的场景
+   */
+  public getCachedSync(path: string): Uint8Array | null {
+    const item = this.cache.get(path);
+    if (item && item.data) {
+      item.accessCount++;
+      item.lastAccessTime = Date.now();
+      return item.data;
+    }
+    return null;
+  }
+
+  /**
+   * 将资源直接添加到缓存（同步入口，供外部在加载后立即缓存）
+   * 内部会检查大小/数量限制，超出限制则跳过
+   */
+  public cacheResource(path: string, data: Uint8Array): void {
+    this.addToCache(path, data);
+  }
+
+  /**
+   * 获取资源（异步，缓存未命中时触发加载）
    */
   public async getResource(path: string): Promise<Uint8Array | null> {
     // 检查缓存
@@ -328,7 +350,8 @@ export class ResourceManager {
         if (!this.context) {
           throw new Error('Context not set. Please call setContext() before loading resources.');
         }
-        const data = await this.context.resourceManager.getRawFile(path);
+        // getRawFile 自 API 9 起废弃，官方建议使用 getRawFileContent 替代（返回类型同为 Uint8Array）
+        const data = await this.context.resourceManager.getRawFileContent(path);
         clearTimeout(timeoutId);
         resolve(data);
       } catch (error) {
@@ -340,6 +363,12 @@ export class ResourceManager {
 
   private addToCache(path: string, data: Uint8Array): void {
     const resourceType = this.detectResourceType(path);
+
+    // 跳过音频类型：浏览器音频引擎流式播放，不会重复请求，缓存无收益且挤占关键资源空间
+    if (resourceType === ResourceType.AUDIO) {
+      return;
+    }
+
     const itemSize = data.byteLength;
 
     // 检查资源是否过大

@@ -415,8 +415,10 @@ export class PerformanceMonitor {
       warnings.push(`渲染时间过长警告: ${this.metrics.renderTime} ms/帧 (阈值: ${this.config.warningThresholds.renderTime} ms)`);
     }
     
-    if (this.metrics.cacheHitRate < 50) {
-      warnings.push(`缓存命中率低警告: ${this.metrics.cacheHitRate}%`);
+    // 仅在有足够样本量时才告警（避免冷缓存期刷屏）
+    const totalCacheOps = this.cacheHits + this.cacheMisses;
+    if (totalCacheOps > 100 && this.metrics.cacheHitRate < 50) {
+      warnings.push(`缓存命中率低警告: ${this.metrics.cacheHitRate}% (采样: ${totalCacheOps}次)`);
     }
     
     if (warnings.length > 0) {

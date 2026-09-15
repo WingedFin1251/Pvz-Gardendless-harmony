@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
 
-  <title>PvZ2 Gardendless Online | 0.14.0</title>
+  <title>Cocos Creator | PvZ2_Gardendless</title>
 
   <!--http://www.html5rocks.com/en/mobile/mobifying/-->
   <meta name="viewport"
@@ -37,57 +37,31 @@
   <link rel="stylesheet" type="text/css" href="style.css" />
 
   <script>
-    (function () {
-      const isGitHubPages = window.location.hostname === 'play.pvzge.com';
 
-      if (isGitHubPages) {
-        // 加载 Google Analytics
-        const gtagScript = document.createElement('script');
-        gtagScript.async = true;
-        gtagScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-FNC28KV0ZR';
-        document.head.appendChild(gtagScript);
+    (function(){'use strict';console.log('[Tauri Polyfill] Initializing...');const storage={files:new Map(),directories:new Set(['gp-next','gp-next/packs','gp-next/patches','gp-next/__gpn_edits']),init(){try{const saved=localStorage.getItem('__tauri_fs_mock');if(saved){const data=JSON.parse(saved);this.files=new Map(Object.entries(data))}}catch(e){console.warn('[Polyfill] Failed to restore files:',e)}this.ensureDefaultFiles()},ensureDefaultFiles(){const defaultSettings={version:1,packOrder:[],disabledPacks:[],scrollSensitivity:{enabled:true,wheel:1,discreteMinIntervalMs:0}};if(!this.files.has('gp-next/settings.json')){this.files.set('gp-next/settings.json',JSON.stringify(defaultSettings,null,2))}},save(){try{const data=Object.fromEntries(this.files);localStorage.setItem('__tauri_fs_mock',JSON.stringify(data))}catch(e){console.warn('[Polyfill] Failed to save files:',e)}},readFile(path){const normalized=this.normalizePath(path);const content=this.files.get(normalized);if(content===undefined){throw new Error(`File not found:${path}`)}return content},writeFile(path,content){const normalized=this.normalizePath(path);this.files.set(normalized,content);this.save()},deleteFile(path){const normalized=this.normalizePath(path);this.files.delete(normalized);this.save()},readDir(path){const normalized=this.normalizePath(path);const files=[];const prefix=normalized+(normalized.endsWith('/')?'':'/');for(const filePath of this.files.keys()){if(filePath.startsWith(prefix)){const relative=filePath.substring(prefix.length);const firstPart=relative.split('/')[0];if(!files.includes(firstPart)){files.push({name:firstPart,isFile:!relative.includes('/')&&!firstPart.includes('.')})}}}for(const dir of this.directories){if(dir.startsWith(prefix)){const name=dir.substring(prefix.length).split('/')[0];if(name&&!files.some(f=>f.name===name)){files.push({name,isFile:false})}}}return files},exists(path){const normalized=this.normalizePath(path);return this.files.has(normalized)||this.directories.has(normalized)},createDir(path,recursive=true){const normalized=this.normalizePath(path);this.directories.add(normalized);this.save()},normalizePath(path){let normalized=path.replace(/^gp-next[\\/]?/i,'');normalized=normalized.replace(/\\/g,'/');return normalized}};let callbackId=0;const callbacks=new Map();function transformCallback(callback,once=false){const id=++callbackId;callbacks.set(id,{callback,once});return id}function handleCallback(id,payload){const entry=callbacks.get(id);if(entry){entry.callback(payload);if(entry.once){callbacks.delete(id)}}}async function invokeTauriAPI(cmd,args){console.debug(`[Tauri API]${cmd}`,args);await new Promise(resolve=>setTimeout(resolve,10));try{switch(cmd){case'plugin:fs|read_text_file':return storage.readFile(args.path);case'plugin:fs|read_file':const content=storage.readFile(args.path);return new TextEncoder().encode(content).buffer;case'plugin:fs|write_text_file':storage.writeFile(args.headers.path,args.payload);return null;case'plugin:fs|read_dir':return storage.readDir(args.path);case'plugin:fs|exists':return storage.exists(args.path);case'plugin:fs|mkdir':storage.createDir(args.path,args.options?.recursive);return null;case'plugin:fs|remove':storage.deleteFile(args.path);return null;case'plugin:dialog|save':const defaultPath=args.options?.defaultPath||'download.json';const fileName=prompt('保存文件为:',defaultPath);if(fileName){return fileName}return null;case'plugin:window|get_all_windows':return[{label:'main'}];case'plugin:window|inner_size':return{width:window.innerWidth,height:window.innerHeight};case'plugin:window|outer_size':return{width:window.outerWidth,height:window.outerHeight};case'plugin:window|inner_position':return{x:window.screenX,y:window.screenY};case'plugin:window|outer_position':return{x:window.screenX,y:window.screenY};case'plugin:window|is_fullscreen':return!!document.fullscreenElement;case'plugin:window|is_maximized':return false;case'plugin:window|is_minimized':return false;case'plugin:window|is_focused':return document.hasFocus();case'plugin:window|scale_factor':return window.devicePixelRatio||1;case'plugin:window|set_fullscreen':if(args.value){}else{}return null;case'plugin:window|set_size':console.warn('[Polyfill] Cannot set window size in browser');return null;case'plugin:window|set_position':console.warn('[Polyfill] Cannot set window position in browser');return null;case'plugin:window|center':console.warn('[Polyfill] Cannot center window in browser');return null;case'plugin:window|close':window.close();return null;case'plugin:window|hide':console.warn('[Polyfill] Cannot hide window in browser');return null;case'plugin:window|show':console.warn('[Polyfill] Cannot show window in browser');return null;case'plugin:path|resolve_directory':if(args.directory===14){return'/gp-next'}return'/';case'plugin:path|basename':return args.path.split(/[/\\]/).pop();case'plugin:path|dirname':const parts=args.path.split(/[/\\]/);parts.pop();return parts.join('/');case'plugin:opener|open_url':window.open(args.url,'_blank');return null;case'plugin:opener|open_path':console.warn('[Polyfill] Cannot open system path:',args.path);return null;case'plugin:drpc|spawn_thread':console.log('[Polyfill] Discord RPC would spawn with ID:',args.id);return null;case'plugin:drpc|destroy_thread':console.log('[Polyfill] Discord RPC would destroy');return null;case'plugin:drpc|is_running':return false;case'plugin:drpc|set_activity':console.log('[Polyfill] Discord RPC would set activity:',args.activityJson);return null;case'plugin:image|from_bytes':case'plugin:image|from_path':return{rid:Date.now()};case'plugin:image|rgba':return new Uint8Array([0,0,0,0]);case'plugin:image|size':return{width:64,height:64};case'plugin:event|listen':const eventId=transformCallback(args.handler);return eventId;case'plugin:event|unlisten':callbacks.delete(args.eventId);return null;case'plugin:event|emit':console.log('[Polyfill] Event emitted:',args.event,args.payload);return null;default:console.warn(`[Polyfill]Unknown Tauri command:${cmd}`,args);return null}}catch(error){console.error(`[Polyfill]Error in ${cmd}:`,error);throw error;}}if(!window.__TAURI_INTERNALS__){window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'}},transformCallback:transformCallback,invoke:async function(cmd,args={}){try{return await invokeTauriAPI(cmd,args)}catch(error){console.warn(`[Polyfill]API call failed,returning default:${cmd}`,error);return getDefaultResponse(cmd)}}}}function getDefaultResponse(cmd){if(cmd.includes('read_text_file')||cmd.includes('read_file')){return'{}'}if(cmd.includes('read_dir')){return[]}if(cmd.includes('exists')){return false}if(cmd.includes('is_')){return false}return null}window.__TAURI_IPC_KEY__='__TAURI_IPC_KEY__';if(!window.__TAURI__){window.__TAURI__={window:{getCurrent:()=>({label:'main',listen:(event,handler)=>{console.log(`[Polyfill]Listening to event:${event}`);return()=>{}}})},fs:{readTextFile:(path)=>storage.readFile(path),writeTextFile:(path,content)=>storage.writeFile(path,content)}}}if(!window.electron){window.electron={shell:{openExternal:async(url)=>{window.open(url,'_blank');return true}},ipcRenderer:{send:(channel,...args)=>{console.log(`[Electron Mock]send:${channel}`,args)},sendSync:(channel,...args)=>{console.log(`[Electron Mock]sendSync:${channel}`,args);return null},on:(channel,handler)=>{console.log(`[Electron Mock]on:${channel}`)}}}}storage.init();window.__tauriPolyfillDebug={storage:storage,listFiles:()=>Array.from(storage.files.keys()),clearStorage:()=>{storage.files.clear();storage.save();console.log('[Polyfill] Storage cleared')},exportData:()=>{const data=Object.fromEntries(storage.files);console.log('[Polyfill] Exporting data:',data);return data}};console.log('[Tauri Polyfill] Initialized successfully');console.log('[Tauri Polyfill] Use window.__tauriPolyfillDebug for debugging')})();
 
-        window.dataLayer = window.dataLayer || [];
-        function gtag() { dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'G-FNC28KV0ZR');
-
-        const adsenseScript = document.createElement('script');
-        adsenseScript.async = true;
-        adsenseScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2336226859954206';
-        adsenseScript.crossOrigin = 'anonymous';
-        document.head.appendChild(adsenseScript);
-
-        const fundingScript = document.createElement('script');
-        fundingScript.async = true;
-        fundingScript.src = 'https://fundingchoicesmessages.google.com/i/pub-2336226859954206?ers=1';
-        document.head.appendChild(fundingScript);
-
-        (function () {
-          function signalGooglefcPresent() {
-            if (!window.frames['googlefcPresent']) {
-              if (document.body) {
-                const iframe = document.createElement('iframe');
-                iframe.style = 'width: 0; height: 0; border: none; z-index: -1000; left: -1000px; top: -1000px;';
-                iframe.style.display = 'none';
-                iframe.name = 'googlefcPresent';
-                document.body.appendChild(iframe);
-              } else {
-                setTimeout(signalGooglefcPresent, 0);
-              }
-            }
-          }
-          signalGooglefcPresent();
-        })();
-      }
-    })();
   </script>
 
-  <!-- GP-Next 前端入口（Vite 构建的 wrapper）：负责挂载面板、注册热键监听、并加载 Electron 垫片。
-       它依赖外部已启动的 Cocos 引擎（读取 window.cc），所以下方的 System.import('./index.js') 必须保留。
-       ⚠️ 上游每次发版都会覆盖 index.html，此引用会被抹掉，需重新注入（与 touchPatch.js 同一情况）。 -->
-  <script type="module" crossorigin src="./assets/index-lw1dPoCM.js"></script>
-
+  <script type="module" crossorigin src="/assets/index-lw1dPoCM.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/logger-_0kcFG-y.js">
+  <link rel="modulepreload" crossorigin href="/assets/preload-helper-zJ_50EbN.js">
+  <link rel="modulepreload" crossorigin href="/assets/core-w4ZWUd33.js">
+  <link rel="modulepreload" crossorigin href="/assets/event-BfHUMTdO.js">
+  <link rel="modulepreload" crossorigin href="/assets/dist-js-BfJhZoDA.js">
+  <link rel="modulepreload" crossorigin href="/assets/tmpPatch-CtikiTaf.js">
+  <link rel="modulepreload" crossorigin href="/assets/dist-js-0iP-ySAk.js">
+  <link rel="modulepreload" crossorigin href="/assets/dist-js-BGE0QZXM.js">
+  <link rel="modulepreload" crossorigin href="/assets/config-Bq3bsbg4.js">
+  <link rel="modulepreload" crossorigin href="/assets/file-loader-CwId5kgu.js">
+  <link rel="modulepreload" crossorigin href="/assets/client-edition-SrmZ2USc.js">
+  <link rel="modulepreload" crossorigin href="/assets/engine-DlroBfK2.js">
+  <link rel="modulepreload" crossorigin href="/assets/isolation-DLKV_2pB.js">
+  <link rel="modulepreload" crossorigin href="/assets/settings-store-ClY3sNI-.js">
+  <link rel="modulepreload" crossorigin href="/assets/components-CBbpXSWx.js">
+  <link rel="modulepreload" crossorigin href="/assets/i18n-lC03d84Z.js">
+  <link rel="modulepreload" crossorigin href="/assets/toast-CnLSOsm-.js">
+  <link rel="modulepreload" crossorigin href="/assets/data-drawer-BsCG_WPg.js">
+  <link rel="modulepreload" crossorigin href="/assets/overlay-OPYtWvZu.js">
 </head>
 
 <body>
@@ -101,7 +75,7 @@
   <!-- Polyfills bundle. -->
 
   <script src="src/polyfills.bundle.js" charset="utf-8"> </script>
-
+  <script src="touchPatch.js"></script>
 
   <!-- SystemJS support. -->
   <script src="src/system.bundle.js" charset="utf-8"> </script>
@@ -109,11 +83,10 @@
   <!-- Import map -->
   <script src="src/import-map.json" type="systemjs-importmap" charset="utf-8"> </script>
 
-  <script>
-    System.import('./index.js').catch(function (err) { console.error(err); })
-  </script>
-  <script src="tmpPatch.js"></script>
-  <script src="touchPatch.js"></script>
+
+  <!-- <script src="addon/patcher.js" type="module"></script> -->
+
+
 </body>
 
 </html>

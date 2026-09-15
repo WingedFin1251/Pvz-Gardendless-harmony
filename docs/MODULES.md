@@ -87,8 +87,8 @@ setupDownloadDelegate()
 
 本仓库的 payload（`rawfile/`）中不存在任何 `gpNext` 挂载点（全目录 grep 无命中），
 该按钮恒为死代码，并且会吞掉画面左上角 30×30 区域的游戏点击，故在壳层改进中删除。
-若要接入 GP-Next，请参考 `Gardendless-lite` / `Gardendless-gpnext` 的可见按钮实现
-（含自动贴边隐藏、F9 兜底热键）。
+若后续要接入 GP-Next（面板 + 入口按钮），做法可参考带 GP-Next 的变体发行版：
+右下角可见按钮 + 无操作自动贴边隐藏 + `F9` 兜底热键。
 
 ---
 

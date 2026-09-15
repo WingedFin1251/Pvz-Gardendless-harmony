@@ -117,4 +117,4 @@ const MAX_ASPECT_H: number = 90;
 |:---|:---|
 | `entry/src/main/ets/pages/Index.ets` | 壳层：比例计算、居中布局 |
 | `entry/src/main/resources/rawfile/src/settings.json` | 游戏设计分辨率（1024×640 = 16:10） |
-| 安卓参考 `AspectRatioFrameLayout.kt` | 位于兄弟工程 `D:\DevelopFiles\DevEcoStudioProjects\Gardendless\gardendless-android-main`（本仓库未纳入） |
+| 安卓参考实现 | 第三方安卓工程中的 `AspectRatioFrameLayout.kt`（本仓库未纳入）；本工程的比例区间算法对齐其 `onMeasure` |

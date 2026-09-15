@@ -1,12 +1,12 @@
-# Gardendless Lite
+# Gardendless GP-Next
 
 基于 [PvZ2 Gardendless](https://pvzge.com/)（植物大战僵尸 2 无花园重制版）的 **HarmonyOS / OpenHarmony 移植工程**，
 派生自上游移植项目 [WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)。
 
 | | |
 |:---|:---|
-| 应用名 | **Gardendless Lite** |
-| 包名 | `com.gardendless.lite` |
+| 应用名 | **Gardendless GP-Next** |
+| 包名 | `com.gardendless.gpnext` |
 | 版本 | `0.14.0`（versionCode `1000007`） |
 | 设备类型 | `phone`、`tablet`、`2in1` |
 | SDK | `compatibleSdkVersion` 6.0.0(20) ／ `targetSdkVersion` 6.0.2(22) |
@@ -111,7 +111,7 @@ Gardendless-lite/
 1. 克隆本仓库
 2. **放入游戏资源**（见上文「游戏资源不在本仓库中」）
 3. 使用 DevEco Studio 打开工程
-4. 在 `File → Project Structure → Signing Configs` **重新生成签名**——包名为 `com.gardendless.lite`，
+4. 在 `File → Project Structure → Signing Configs` **重新生成签名**——包名为 `com.gardendless.gpnext`，
    需与 AppGallery Connect 中的应用条目一致，直接沿用旧签名会因包名不匹配而失败
 5. 连接设备或启动模拟器，点击运行
 

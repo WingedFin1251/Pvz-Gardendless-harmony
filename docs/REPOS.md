@@ -8,7 +8,7 @@
 
 | 仓库 | 定位 | 负载（`rawfile/`） | 壳层 | 包名 / 应用名 | 仓库状态 |
 |:---|:---|:---|:---|:---|:---|
-| `Gardendless` | **上游镜像 / 基础版** | 原版游戏，**无** GP-Next 前端 | 上游原样（无 GP 按钮、无比例约束） | `com.Pvz2.gardendless` / Gardendless | 保留上游历史与 remote，可 `git pull` 上游；`.git` 约 1.6 GB |
+| `Gardendless` | **上游镜像 / 基础版** | 原版游戏，**无** GP-Next 前端 | 通用壳层改进（比例约束 3:2 ~ 17:9、2in1 适配、告警修复），**无** GP 按钮 | `com.Pvz2.gardendless` / Gardendless | 保留上游历史与 remote，可 `git pull` 上游；`.git` 约 1.6 GB |
 | `Gardendless-lite` | **精简版 = 仓库精简的 GP-Next 版** | 含 GP-Next（wrapper + 50 个 Vite 分包） | 通用能力 + GP 按钮 | `com.gardendless.lite` / Gardendless Lite | 重建的精简历史；负载不入库；52 个跟踪文件；`.git` 约 0.7 MB |
 | `Gardendless-gpnext` | **GP-Next 版**（独立应用身份，可与 lite 共存） | 同 lite | 同 lite | `com.gardendless.gpnext` / Gardendless GP-Next | 同 lite |
 
@@ -73,5 +73,13 @@ git -C <gpnext> checkout lite/main -- \
 3. **三个仓库不要互相强推。** `Gardendless` 的 remote 指向公开上游仓库；
    lite / gpnext 目前**没有 remote**，发布前应各自新建，不要复用上游地址。
 
-4. **基础版（`Gardendless`）是否合并壳层的通用改进**（画面比例约束、铺满开关、编译告警修复等，
-   与 GP-Next 无关的部分）**尚未决定**。
+4. **基础版（`Gardendless`）已合并壳层的通用改进**（提交 `97c84fd`）：画面比例约束 3:2 ~ 17:9、
+   `onAreaChange` 实测容器尺寸、2in1 窗口分流、`loadContent` 竞态修复、`getRawFileContent` 替换废弃接口。
+   与 GP-Next 有关的部分（GP 按钮、铺满开关、`preferences` 键 `webview_fullscreen`）**不进入基础版**。
+   此外基础版删除了一处上游遗留的 30×30 透明 GP-Next 调试按钮（基础版 payload 中没有任何 `gpNext`
+   挂载点，该按钮恒为死代码，且会吞掉画面左上角的游戏点击）；
+   若上游后续版本恢复该钩子，`git pull` 时需自行取舍。
+
+5. **基础版与 lite / gpnext 的 `Index.ets` 不再逐行一致。** 基础版没有 GP 按钮及其状态
+   （`GP_BUTTON_*`、`gpButtonHidden`、`isFillScreen`、`scheduleGpHide` 等）。
+   从基础版往 lite / gpnext 同步壳层改动时，注意不要把这些符号一起带过去（反向同理）。

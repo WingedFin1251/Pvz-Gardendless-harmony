@@ -30,3 +30,17 @@ keystore.properties
 
 # 安卓参考实现（第三方工程，GPL-3.0，仅本地参考）
 /gardendless-android*/
+
+# 模块级 / 其它 IDE、系统与工具产出（根规则用 / 限定了目录，这里补齐通配）
+**/local.properties
+**/oh_modules
+**/node_modules
+/.preview/
+*.iml
+/.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.hap
+*.app

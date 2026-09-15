@@ -83,6 +83,11 @@
     })();
   </script>
 
+  <!-- GP-Next 前端入口（Vite 构建的 wrapper）：负责挂载面板、注册热键监听、并加载 Electron 垫片。
+       它依赖外部已启动的 Cocos 引擎（读取 window.cc），所以下方的 System.import('./index.js') 必须保留。
+       ⚠️ 上游每次发版都会覆盖 index.html，此引用会被抹掉，需重新注入（与 touchPatch.js 同一情况）。 -->
+  <script type="module" crossorigin src="./assets/index-lw1dPoCM.js"></script>
+
 </head>
 
 <body>

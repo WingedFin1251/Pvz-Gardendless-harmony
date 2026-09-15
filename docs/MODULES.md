@@ -50,7 +50,23 @@ URL: https://cocos.local/{rawfilePath}
 
 - **Preferences 键值对**: 通过 JS 代理 `NativeStorage` 暴露 `saveToNative(key, value)` / `loadFromNative(key)` 给 WebView
 - **Cookie**: `onPageEnd` 时调用 `WebCookieManager.saveCookieAsync()`
+- **画面"铺满"偏好**: `preferences`（`game_save` 库）键 `webview_fullscreen`，见"画面比例约束"
 - **文件下载**: 见下方"下载流程"
+
+### 画面比例约束（3:2 ~ 17:9）
+
+Web 不再铺满整屏，而是按比例约束后居中，四周黑边由根 `Stack` 的黑色背景提供：
+
+```typescript
+applyAspectRatio()   // 由根 Stack 的 onAreaChange 触发
+├── w/h > 171/90（> 17:9，如 20:9）→ 以高度为基准，宽度卡 17:9，左右留黑边
+├── w/h < 3/2（< 3:2，如 4:3）    → 以宽度为基准，高度卡 3:2，上下留黑边
+└── 落在区间内                    → 铺满
+```
+
+- 容器尺寸取自 `onAreaChange` 实测值，**不用 `display`**：小窗 / 分屏 / 2in1 窗口模式下同样正确。
+- `@State isFillScreen` 为 `true` 时跳过约束、直接铺满；**长按 GP-Next 按钮**可切换并持久化。
+- 详细规则、常量与取舍说明见 [ASPECT_RATIO.md](./ASPECT_RATIO.md)。
 
 ### 下载流程
 
@@ -65,12 +81,21 @@ setupDownloadDelegate()
     └── fallback: 复制失败则保存到 filesDir 备用
 ```
 
-### 调试按钮
+### GP-Next 入口按钮
 
-位置 `(0, 0)`，30×30 透明按钮，点击时尝试三种方式打开 GP-Next 面板：
+**可见按钮**，贴在画面**右下角**（`Alignment.BottomEnd`），默认 44×44 vp、半透明黑底白字圆形，
+标注 `GP`，点击时尝试三种方式打开 GP-Next 面板：
+
 1. `window.gpNext.open()`
 2. `window.Zt()` (备用)
 3. 模拟 `F10` 按键事件
+
+> 尺寸与边距由 `Index.ets` 顶部常量 `GP_BUTTON_SIZE` / `GP_BUTTON_MARGIN` 控制。
+> **长按该按钮**可切换"铺满 / 3:2 ~ 17:9 留边"并记住选择（见"画面比例约束"）。
+> 该按钮为 `Stack` 的叠加子节点，只占用自身 44×44 的命中区域，其余区域的触摸仍由 `Web` 接收；
+> 顶部的下载/加载状态提示额外设置了 `HitTestMode.Transparent`，同样不拦截游戏操作。
+> 第 3 级 F10 回退依赖 GP-Next 的默认热键（`gp-next-settings` 中的 `overlayHotkey`，默认 `F10`）；
+> 若用户在面板设置里改了热键，该级失效但前两级仍可用。
 
 ---
 

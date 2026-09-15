@@ -6,6 +6,20 @@ import preferences from '@ohos.data.preferences';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 import { ResourceManager } from '../utils/ResourceManager';
 
+// GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
+const GP_BUTTON_SIZE: number = 44;
+const GP_BUTTON_MARGIN: number = 12;
+
+// 画面比例约束区间 3:2 ~ 17:9（逻辑对齐安卓版 AspectRatioFrameLayout）。
+// 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
+const MIN_ASPECT_W: number = 3;    // 最窄 3:2  ≈ 1.500
+const MIN_ASPECT_H: number = 2;
+const MAX_ASPECT_W: number = 171;  // 最宽 17:9 ≈ 1.889
+const MAX_ASPECT_H: number = 90;
+
+// "铺满画面"偏好在 preferences 中的键名（对齐安卓版 SharedPreferences 的 webview_fullscreen）
+const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
+
 
 @Entry
 @Component
@@ -25,6 +39,16 @@ struct CocosJSApp {
   @State progress: number = 0;
   @State webReady: boolean = false;
 
+  // 画面比例约束：容器实测尺寸（vp）与 Web 的目标尺寸 / 居中偏移
+  @State containerW: number = 0;
+  @State containerH: number = 0;
+  @State webW: Length = '100%';
+  @State webH: Length = '100%';
+  @State webX: number = 0;
+  @State webY: number = 0;
+  // true：Web 铺满整屏；false：约束在 3:2 ~ 17:9，超出部分留黑边
+  @State isFillScreen: boolean = false;
+
   async aboutToAppear() {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     if (!context) {
@@ -40,9 +64,64 @@ struct CocosJSApp {
     // 初始化 Preferences
     try {
       this.prefs = await preferences.getPreferences(context, 'game_save');
+      // 恢复"铺满画面"偏好（安卓版用 SharedPreferences 记忆同一设置）
+      this.isFillScreen = await this.prefs.get(PREF_WEB_FULLSCREEN, false) as boolean;
     } catch (err) {
       const error = err as BusinessError;
       console.error(`初始化 Preferences 失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
+  /**
+   * 按 3:2 ~ 17:9 区间计算 Web 的目标尺寸与居中偏移
+   * （逻辑对齐安卓版 AspectRatioFrameLayout.onMeasure）。
+   *  - 太宽（> 17:9，如 20:9 / 21:9）：以高度为基准，宽度卡在 17:9，左右留黑边
+   *  - 太方（< 3:2，如 4:3 / 7:5）：以宽度为基准，高度卡在 3:2，上下留黑边
+   *  - 落在区间内：直接铺满
+   */
+  private applyAspectRatio(): void {
+    const w = this.containerW;
+    const h = this.containerH;
+    // 尚未测量到容器尺寸，或处于铺满模式：交给 100% 尺寸
+    if (w <= 0 || h <= 0 || this.isFillScreen) {
+      this.webW = '100%';
+      this.webH = '100%';
+      this.webX = 0;
+      this.webY = 0;
+      return;
+    }
+
+    let targetW = w;
+    let targetH = h;
+    if (w * MAX_ASPECT_H > h * MAX_ASPECT_W) {
+      // 太宽：> 17:9
+      targetW = h * MAX_ASPECT_W / MAX_ASPECT_H;
+    } else if (w * MIN_ASPECT_H < h * MIN_ASPECT_W) {
+      // 太方：< 3:2
+      targetH = w * MIN_ASPECT_H / MIN_ASPECT_W;
+    }
+
+    this.webW = targetW;
+    this.webH = targetH;
+    this.webX = (w - targetW) / 2;
+    this.webY = (h - targetH) / 2;
+  }
+
+  /** 切换 铺满 / 按比例留边，并持久化（长按 GP-Next 按钮触发） */
+  private async toggleFillScreen(): Promise<void> {
+    this.isFillScreen = !this.isFillScreen;
+    this.applyAspectRatio();
+    this.showStatusMessage(this.isFillScreen ? '画面：铺满' : '画面：3:2 ~ 17:9 留边', 2000);
+
+    if (!this.prefs) {
+      return;
+    }
+    try {
+      await this.prefs.put(PREF_WEB_FULLSCREEN, this.isFillScreen);
+      await this.prefs.flush();
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`保存铺满偏好失败: code=${error.code}, message=${error.message}`);
     }
   }
 
@@ -113,29 +192,16 @@ struct CocosJSApp {
   }
 
   build() {
-    Column() {
-      if (this.downloadStatus) {
-        Text(this.downloadStatus)
-          .fontSize(14)
-          .padding(8)
-          .backgroundColor('#f0f0f0')
-          .width('100%')
-          .textAlign(TextAlign.Center)
-          .opacity(this.statusOpacity)
-          .animation({ duration: 300, curve: Curve.Linear })
-      }
-
-      if (this.isLoading && this.progress < 100) {
-        Progress({ value: this.progress, total: 100, type: ProgressType.Linear })
-          .width('100%').height(4).color('#0A59F7')
-      }
-
+    // 根容器用 Stack：Web 铺满整屏，状态提示与 GP-Next 入口按钮分别叠加到顶部和右下角。
+    // 叠加层只占用自身命中区域（状态栏另外放行触摸），不会遮挡游戏其余区域的操作。
+    Stack({ alignContent: Alignment.BottomEnd }) {
       Web({ src: "https://cocos.local/index.html",
         controller: this.webController,
         renderMode: RenderMode.ASYNC_RENDER // 不阻塞ArkUI主线程
       })
-        .width('100%')
-        .height('100%')
+        .width(this.webW)
+        .height(this.webH)
+        .position({ x: this.webX, y: this.webY })   // 比例留边时居中，四周黑边由根 Stack 提供
         .backgroundColor(Color.Black)
         .javaScriptAccess(true)
         .domStorageAccess(true)
@@ -241,11 +307,43 @@ struct CocosJSApp {
           }
           return true;
         })
-      Button()
-        .position({ x: 0, y: 0 })
-        .width(30)
-        .height(30)
-        .backgroundColor(Color.Transparent)
+      // 下载/加载状态提示（叠加在画面顶部；放行触摸，避免盖住游戏操作区）
+      Column() {
+        if (this.downloadStatus) {
+          Text(this.downloadStatus)
+            .fontSize(14)
+            .padding(8)
+            .backgroundColor('#f0f0f0')
+            .width('100%')
+            .textAlign(TextAlign.Center)
+            .opacity(this.statusOpacity)
+            .animation({ duration: 300, curve: Curve.Linear })
+        }
+
+        if (this.isLoading && this.progress < 100) {
+          Progress({ value: this.progress, total: 100, type: ProgressType.Linear })
+            .width('100%').height(4).color('#0A59F7')
+        }
+      }
+      .width('100%')
+      .position({ x: 0, y: 0 })
+      .hitTestBehavior(HitTestMode.Transparent)
+
+      // GP-Next 面板入口（可见按钮，贴在右下角）
+      Button('GP', { type: ButtonType.Circle, stateEffect: true })
+        .width(GP_BUTTON_SIZE)
+        .height(GP_BUTTON_SIZE)
+        .backgroundColor('#99000000')
+        .fontColor(Color.White)
+        .fontSize(13)
+        .fontWeight(FontWeight.Medium)
+        .borderWidth(1)
+        .borderColor('#40FFFFFF')
+        .margin({ right: GP_BUTTON_MARGIN, bottom: GP_BUTTON_MARGIN })
+        .accessibilityText('打开 GP-Next 面板（长按切换铺满 / 留边）')
+        .gesture(LongPressGesture().onAction(() => {
+          this.toggleFillScreen();
+        }))
         .onClick(async () => {
           // 打开 GP-Next 面板
           try {
@@ -266,11 +364,19 @@ struct CocosJSApp {
           }
         })
     }
-
     .width('100%')
     .height('100%')
-    .padding(0)
-    .margin(0)
+    .backgroundColor(Color.Black)   // 比例留边时四周的黑边
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      // 用实际容器尺寸而非 display 尺寸：小窗 / 分屏 / 2in1 窗口模式下同样正确
+      const w = Number(newArea.width);
+      const h = Number(newArea.height);
+      if (w !== this.containerW || h !== this.containerH) {
+        this.containerW = w;
+        this.containerH = h;
+        this.applyAspectRatio();
+      }
+    })
   }
 
   private setupDownloadDelegate() {

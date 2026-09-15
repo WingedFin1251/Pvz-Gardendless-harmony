@@ -7,7 +7,7 @@
 | 生命周期方法 | 操作 |
 |-------------|------|
 | `onCreate()` | 初始化 ArkWeb 引擎：启用多进程模式、整页绘制（RENDER_SURFACE），设置 Web 存储内存上限（128MB） |
-| `onWindowStageCreate()` | 设置全屏 + 横屏定向，注册内存压力回调，加载 `pages/Index` |
+| `onWindowStageCreate()` | 先加载 `pages/Index`，再设置全屏 + 横屏定向（官方要求 `setWindowBackgroundColor()` 在 `loadContent()` 生效后调用，原实现并发存在竞态），注册内存压力回调 |
 | `onMemoryLevel()` | 响应系统内存警告 |
 
 **关键配置**:
@@ -18,11 +18,17 @@ webview.Web.SET_RENDER_MODE_WHOLE_PAGE_DRAWING(true)    // 全页渲染
 webview.Web.WebStorage.setMaxStorageSize(128 * 1024 * 1024) // 128MB Web 存储
 ```
 
+**设备类型分流（2in1）**: 顶部 `IS_2IN1 = deviceInfo.deviceType === TYPE_2IN1`。
+`setWindowSystemBarEnable()` / `setPreferredOrientation()` 在 2in1（自由窗口、无传感器旋转）上
+「不生效也不报错」，故 2in1 分支改用 `maximize()`（默认进入沉浸式全屏）并跳过方向设置；
+竖屏锁定由 `module.json5` 的 `"orientation": "landscape"` 声明保证。
+这类多设备告警用 `// @SuppressWarnings syscap`（注释形式只作用于紧邻的下一行语句）屏蔽。
+
 ---
 
 ## 2. Index 主页面 (`pages/Index.ets`)
 
-**职责**: 应用唯一页面，承载 WebView、资源拦截、数据持久化、文件下载、调试入口。
+**职责**: 应用唯一页面，承载 WebView、资源拦截、数据持久化、文件下载、画面比例约束。
 
 ### WebView 配置
 
@@ -34,6 +40,15 @@ webview.Web.WebStorage.setMaxStorageSize(128 * 1024 * 1024) // 128MB Web 存储
 | `domStorageAccess` | `true` | 启用 DOM 存储 |
 | `mediaPlayGestureAccess` | `false` | 允许自动播放（绕过手势限制） |
 | `enableWebAVSession` | `false` | 关闭音视频会话 |
+
+### 画面比例约束（3:2 ~ 17:9）
+
+| 项 | 说明 |
+|------|------|
+| 常量 | `MIN_ASPECT_W/H = 3/2`、`MAX_ASPECT_W/H = 171/90`，交叉相乘判定避免浮点误差 |
+| 容器尺寸 | `onAreaChange` 实测（小窗 / 分屏 / 2in1 均正确），`parseVp` 兜底带单位字符串 |
+| 布局 | Web 用 `.width/.height/.position()` 居中；四周黑边由根 `Stack` 的黑色背景提供 |
+| 详细说明 | 见 `docs/ASPECT_RATIO.md` |
 
 ### 资源拦截 (`onInterceptRequest`)
 
@@ -65,12 +80,15 @@ setupDownloadDelegate()
     └── fallback: 复制失败则保存到 filesDir 备用
 ```
 
-### 调试按钮
+### 隐形 GP-Next 调试按钮（已移除）
 
-位置 `(0, 0)`，30×30 透明按钮，点击时尝试三种方式打开 GP-Next 面板：
-1. `window.gpNext.open()`
-2. `window.Zt()` (备用)
-3. 模拟 `F10` 按键事件
+早期版本在 `(0, 0)` 放了一个 30×30 透明按钮，点击时依次尝试 `window.gpNext.open()`、
+`window.Zt()`、模拟 `F10` 按键事件来打开 GP-Next 面板。
+
+本仓库的 payload（`rawfile/`）中不存在任何 `gpNext` 挂载点（全目录 grep 无命中），
+该按钮恒为死代码，并且会吞掉画面左上角 30×30 区域的游戏点击，故在壳层改进中删除。
+若要接入 GP-Next，请参考 `Gardendless-lite` / `Gardendless-gpnext` 的可见按钮实现
+（含自动贴边隐藏、F9 兜底热键）。
 
 ---
 

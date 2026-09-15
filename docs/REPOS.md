@@ -48,7 +48,7 @@ git -C <gpnext> fetch lite
 # 每次同步
 git -C <gpnext> checkout lite/main -- \
   entry/src/main/ets .gitignore \
-  docs/MODULES.md docs/ASPECT_RATIO.md docs/ARCHITECTURE.md docs/REPOS.md \
+  docs/MODULES.md docs/ASPECT_RATIO.md docs/ARCHITECTURE.md docs/REPOS.md docs/WEBVIEW_PERF.md \
   entry/src/main/resources/rawfile/index.html \
   entry/src/main/resources/rawfile/touchPatch.js
 ```

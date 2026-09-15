@@ -164,9 +164,9 @@ hdc install entry/build/default/outputs/default/entry-default-signed.hap
 - `application.js`、`index.js`、`style.css` — Cocos 构建产物
 
 这些文件**不在本仓库的 git 历史中**（本仓库为独立重建的精简历史，不含游戏负载），
-需自行从上游获取后放入该目录：
+需自行获取后放入该目录：
 
-- 上游仓库：[WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)
+- 原仓库：[WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)
   （可从其 Release 下载 HAP，解压后取 `rawfile/`）
 - 游戏本体：[pvzge.com](https://pvzge.com/)
 

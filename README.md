@@ -1,7 +1,8 @@
 # Gardendless Lite
 
 基于 [PvZ2 Gardendless](https://pvzge.com/)（植物大战僵尸 2 无花园重制版）的 **HarmonyOS / OpenHarmony 移植工程**，
-派生自上游移植项目 [WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)。
+与本项目原仓库 [WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)
+同源（同一作者维护），共用同一套壳层代码。
 
 | | |
 |:---|:---|
@@ -14,7 +15,7 @@
 > **非 EA / PopCap 官方产品**，为爱好者社群的开源移植项目。
 >
 > 本工程是**三仓库体系**中的「精简版」（仓库层面精简的 GP-Next 版）。另两个仓库为：
-> 上游镜像 / 基础版 `Gardendless`（无 GP-Next）、以及 GP-Next 版 `Gardendless-gpnext`（独立包名）。
+> 原仓库 / 基础版 `Gardendless`（无 GP-Next）、以及 GP-Next 版 `Gardendless-gpnext`（独立包名）。
 > 三者的定位、共享/身份文件划分与同步方式见 **[docs/REPOS.md](docs/REPOS.md)**。
 
 ---
@@ -24,7 +25,7 @@
 | 方式 | 说明 |
 |:---|:---|
 | 小白调试助手 Auto-installer | 使用 [likuai2010/auto-installer](https://github.com/likuai2010/auto-installer) 侧载 HAP，无需 DevEco Studio |
-| 上游 Release 的 HAP | 从上游 [Release](https://github.com/WingedFin1251/Pvz-Gardendless-harmony/releases) 页面下载。注意上游 HAP 的包名 / 应用名是 `Gardendless`，与本应用的 `com.gardendless.lite` **不同**，因此两者可共存、但无法互相覆盖安装 |
+| 原仓库 Release 的 HAP | 从原仓库 [Release](https://github.com/WingedFin1251/Pvz-Gardendless-harmony/releases) 页面下载。注意该 HAP 的包名 / 应用名是 `Gardendless`，与本应用的 `com.gardendless.lite` **不同**，因此两者可共存、但无法互相覆盖安装 |
 
 > [!NOTE]
 > HarmonyOS NEXT 中通过自签名侧载的应用默认有效期为 **14 天**；完成
@@ -51,7 +52,7 @@
 | `rawfile/src/` | `settings.json` 等构建配置 |
 | `rawfile/application.js`、`index.js`、`style.css` | Cocos 构建产物 |
 
-**获取方式**：从上游仓库的 [Release](https://github.com/WingedFin1251/Pvz-Gardendless-harmony/releases) 下载 HAP
+**获取方式**：从原仓库的 [Release](https://github.com/WingedFin1251/Pvz-Gardendless-harmony/releases) 下载 HAP
 （解压后取其中的 `rawfile/`），或从 [pvzge.com](https://pvzge.com/) 获取游戏资源，放入
 `entry/src/main/resources/rawfile/` 即可。
 
@@ -179,8 +180,8 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 - **原作**：[PvZ2 Gardendless](https://pvzge.com/)（植物大战僵尸 2 无花园重制版），
   原版 Gardendless 仓库 [Gzh0821/pvzge_web](https://github.com/Gzh0821/pvzge_web)，
   遵循 pvzge.com 社群授权协议。**非 EA / PopCap 官方产品**。
-- **上游移植**：[WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)，
-  本仓库由其派生。
+- **原仓库**：本工程与 [WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)
+  同源（同一作者维护）。
 - **许可证**：本仓库以 **GPL-3.0** 授权，完整许可文本见 [`LICENSE`](LICENSE)。
   作为 GPL-3.0 的衍生作品对外分发时，须同时提供完整对应源码；本仓库已包含全部壳层源码，
   游戏负载为第三方内容、不随仓库分发（见上文说明）。

@@ -12,6 +12,10 @@
 | SDK | `compatibleSdkVersion` 6.0.0(20) ／ `targetSdkVersion` 6.0.2(22) |
 
 > **非 EA / PopCap 官方产品**，为爱好者社群的开源移植项目。
+>
+> 本工程是**三仓库体系**中的「GP-Next 版」（独立应用身份，可与精简版共存）。另两个仓库为：
+> 上游镜像 / 基础版 `Gardendless`（无 GP-Next）、以及精简版 `Gardendless-lite`（同一功能，仓库精简）。
+> 三者的定位、共享/身份文件划分与同步方式见 **[docs/REPOS.md](docs/REPOS.md)**。
 
 ---
 
@@ -135,6 +139,7 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 
 | 文档 | 内容 |
 |:---|:---|
+| [docs/REPOS.md](docs/REPOS.md) | **三仓库关系**：定位、共享/身份文件划分、同步方式 |
 | [docs/BUILD.md](docs/BUILD.md) | 构建配置、签名、部署、游戏资源说明、常见问题 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构说明 |
 | [docs/MODULES.md](docs/MODULES.md) | 模块划分与职责 |

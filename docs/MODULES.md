@@ -84,18 +84,20 @@ setupDownloadDelegate()
 ### GP-Next 入口按钮
 
 **可见按钮**，贴在画面**右下角**（`Alignment.BottomEnd`），默认 44×44 vp、半透明黑底白字圆形，
-标注 `GP`，点击时尝试三种方式打开 GP-Next 面板：
+标注 `GP`，点击时按以下顺序切换 GP-Next 面板显隐：
 
-1. `window.gpNext.open()`
-2. `window.Zt()` (备用)
-3. 模拟 `F10` 按键事件
+1. `window.gpNext.toggle()` —— payload 真实暴露的 API
+   （`index-lw1dPoCM.js` 挂载 `window.gpNext = { toggle, show, hide, ... }`，**没有 `open` 方法**）
+2. `window.gpNext.open()` —— 兼容其他 / 旧版本
+3. `window.Zt()` —— 兼容旧壳层写法
+4. 派发 `F9` 按键事件 —— GP-Next 的默认热键
+   （`gp-next-settings` 的 `overlayHotkey` 默认 `{ key:'F9', code:'F9', 无修饰键 }`）
 
 > 尺寸与边距由 `Index.ets` 顶部常量 `GP_BUTTON_SIZE` / `GP_BUTTON_MARGIN` 控制。
 > **长按该按钮**可切换"铺满 / 3:2 ~ 17:9 留边"并记住选择（见"画面比例约束"）。
 > 该按钮为 `Stack` 的叠加子节点，只占用自身 44×44 的命中区域，其余区域的触摸仍由 `Web` 接收；
 > 顶部的下载/加载状态提示额外设置了 `HitTestMode.Transparent`，同样不拦截游戏操作。
-> 第 3 级 F10 回退依赖 GP-Next 的默认热键（`gp-next-settings` 中的 `overlayHotkey`，默认 `F10`）；
-> 若用户在面板设置里改了热键，该级失效但前两级仍可用。
+> 注意：热键可在面板设置里改（存于 `gp-next-settings`）；改后第 4 级失效，前三级不受影响。
 
 ---
 

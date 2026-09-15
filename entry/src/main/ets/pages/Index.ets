@@ -347,16 +347,20 @@ struct CocosJSApp {
         .onClick(async () => {
           // 打开 GP-Next 面板
           try {
+            // 切换 GP-Next 面板显隐。
+            // payload（index-lw1dPoCM.js）真实挂载的是 window.gpNext = { toggle, show, hide, ... }，
+            // 并没有 open 方法；兜底热键为 GP-Next 默认的 F9（gp-next-settings 的 overlayHotkey 默认值）。
             await this.webController.runJavaScript(`
             (function() {
-              if (window.gpNext && typeof window.gpNext.open === 'function') {
-                window.gpNext.open();
-              } else if (typeof window.Zt === 'function') {
-                window.Zt();
-              } else {
-                var ev = new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, bubbles: true });
-                document.dispatchEvent(ev);
+              var g = window.gpNext;
+              if (g) {
+                if (typeof g.toggle === 'function') { g.toggle(); return; }
+                if (typeof g.open === 'function') { g.open(); return; }
               }
+              if (typeof window.Zt === 'function') { window.Zt(); return; }
+              document.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'F9', code: 'F9', keyCode: 120, bubbles: true
+              }));
             })();
           `);
           } catch (error) {

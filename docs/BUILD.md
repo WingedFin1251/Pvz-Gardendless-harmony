@@ -71,7 +71,7 @@
 
 | 字段 | 值 | 说明 |
 |------|---|------|
-| `bundleName` | `com.gardendless.lite` | 应用包名（唯一标识） |
+| `bundleName` | `com.gardendless.gpnext` | 应用包名（唯一标识） |
 | `versionCode` | `1000001` | 版本号（整数递增） |
 | `versionName` | `0.9.3` | 用户可见版本号 |
 
@@ -109,7 +109,7 @@ hdc install entry/build/default/outputs/default/entry-default-signed.hap
 
 ### 方式三：AppGallery 发布
 
-1. 在 AppGallery Connect 创建应用（包名 `com.gardendless.lite`）
+1. 在 AppGallery Connect 创建应用（包名 `com.gardendless.gpnext`）
 2. 上传 release 签名的 HAP
 3. 填写应用信息、截图、隐私政策等
 4. 提交审核

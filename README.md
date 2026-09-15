@@ -144,6 +144,7 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构说明 |
 | [docs/MODULES.md](docs/MODULES.md) | 模块划分与职责 |
 | [docs/ASPECT_RATIO.md](docs/ASPECT_RATIO.md) | 画面比例方案记录 |
+| [docs/WEBVIEW_PERF.md](docs/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、壳层问题清单与优化优先级 |
 | [docs/RELEASE_v0.14.0.md](docs/RELEASE_v0.14.0.md) | v0.14.0 更新说明 |
 | [docs/PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md) | 性能优化方案 |
 | [docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md](docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md) | 性能优化总结 |
@@ -156,8 +157,6 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 - **游戏资源需自行放置**：克隆后直接构建运行会白屏。
 - **`2in1` 形态的能力差异**：系统栏隐藏与窗口方向锁定在该形态下不适用（已改用最大化 + 全屏）；
   `overviewModeAccess` 无效果。
-- **`docs/ASPECT_RATIO.md` 描述的固定宽高比留边方案在当前 `Index.ets` 中并未实现**，
-  该文档目前仅作方案记录，请勿据此判断实际布局行为。
 
 ---
 

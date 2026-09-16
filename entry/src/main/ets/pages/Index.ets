@@ -19,6 +19,10 @@ const GP_BUTTON_TOUCH_PAD: number = 10;
 // ArkWeb 默认关闭，关闭时 DevTools 无法发现被调试的网页；正式发布前请改回 false。
 const ENABLE_WEB_DEBUG: boolean = true;
 
+// 网页弹框无人应答时的兜底超时（ms）：到点自动按"取消"回调 JsResult。
+// 网页的 alert/confirm/prompt 是同步阻塞的，只要有一次没回调，render 进程就会一直卡住。
+const JS_DIALOG_TIMEOUT: number = 120000;
+
 // 画面比例约束区间 3:2 ~ 17:9。
 // 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
 const MIN_ASPECT_W: number = 3;    // 最窄 3:2  ≈ 1.500
@@ -70,6 +74,7 @@ struct CocosJSApp {
   @State jsDialogMessage: string = '';
   @State jsDialogInput: string = '';
   private jsDialogReply: ((ok: boolean, text: string) => void) | null = null;
+  private jsDialogTimer?: number;
 
   async aboutToAppear() {
     // 打开 Web 调试（官方建议在 aboutToAppear 中设置）
@@ -214,15 +219,36 @@ struct CocosJSApp {
     this.jsDialogInput = defaultValue;
     this.jsDialogReply = reply;
     this.jsDialogVisible = true;
+    // 兜底：即使界面异常（例如触摸被别的浮层吃掉）导致用户点不到按钮，也必须让 JsResult 最终被回调，
+    // 否则网页侧 prompt()/confirm() 永不返回，render 进程会一直阻塞，整个面板失去响应。
+    if (this.jsDialogTimer !== undefined) {
+      clearTimeout(this.jsDialogTimer);
+    }
+    this.jsDialogTimer = setTimeout(() => {
+      this.jsDialogTimer = undefined;
+      if (this.jsDialogVisible) {
+        console.error(`网页弹框超时未响应，自动取消: ${this.jsDialogMessage}`);
+        this.finishJsDialog(false);
+      }
+    }, JS_DIALOG_TIMEOUT);
   }
 
   /** 结束网页对话框并把结果回给 Web 内核（必须回调，否则 render 进程阻塞） */
   private finishJsDialog(ok: boolean): void {
+    if (this.jsDialogTimer !== undefined) {
+      clearTimeout(this.jsDialogTimer);
+      this.jsDialogTimer = undefined;
+    }
     const reply = this.jsDialogReply;
     this.jsDialogReply = null;
     this.jsDialogVisible = false;
     if (reply !== null) {
-      reply(ok, this.jsDialogInput);
+      try {
+        reply(ok, this.jsDialogInput);
+      } catch (err) {
+        // JsResult 回调本身失败不应再抛出去，否则界面会卡在这个状态
+        console.error('回调网页弹框结果失败:', err);
+      }
     }
   }
 
@@ -554,7 +580,10 @@ struct CocosJSApp {
         .height('100%')
         .justifyContent(FlexAlign.Center)
         .backgroundColor('#66000000')
-        .hitTestBehavior(HitTestMode.Block)
+        // 必须用 Default：自身命中即阻塞兄弟节点（挡住下面的 Web 与 GP 按钮），但不阻塞子组件。
+        // 若用 HitTestMode.Block，官方语义是"阻塞子组件的触摸测试"——按钮会点不动，
+        // JsResult 永不回调，网页侧 prompt() 卡住不返回，render 进程阻塞，整个面板失去响应。
+        .hitTestBehavior(HitTestMode.Default)
         .zIndex(10)
       }
 

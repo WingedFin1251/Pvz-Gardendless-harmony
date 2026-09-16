@@ -12,6 +12,13 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    // GP-Next 的云存档、更新检查、每日关卡都走网页 fetch；缺这条权限会全部失败。
+    // INTERNET 是 normal + system_grant 权限，module.json5 声明即可，无需动态申请。
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.INTERNET"
+      }
+    ],
     "abilities": [
       {
         "name": "EntryAbility",

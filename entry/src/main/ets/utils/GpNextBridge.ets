@@ -142,7 +142,9 @@ export class GpNextBridge {
   }
 
   /** 返回值统一为 JSON 片段，交给 invoke 拼装（避免 ArkTS 里 Object 与原始类型互转的麻烦） */
-  private async dispatch(request: GpNextRequest): Promise<string> {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private async dispatch(request: GpNextRequest): Promise<string> {
     const command: string = request.command;
     const args: GpNextArgs | undefined = request.args;
     switch (command) {
@@ -348,7 +350,9 @@ export class GpNextBridge {
     return normalized;
   }
 
-  private ensureDir(path: string, recursive: boolean = true): void {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private ensureDir(path: string, recursive: boolean = true): void {
     if (path.length === 0 || path === '/') {
       return;
     }
@@ -366,7 +370,9 @@ export class GpNextBridge {
 
   // ==================== 文件读写 ====================
 
-  private readBytes(path: string): Uint8Array {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private readBytes(path: string): Uint8Array {
     if (!fs.accessSync(path)) {
       throw new Error(`File not found: ${path}`);
     }
@@ -384,7 +390,9 @@ export class GpNextBridge {
     }
   }
 
-  private writeFile(request: GpNextRequest): null {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private writeFile(request: GpNextRequest): null {
     const args: GpNextArgs | undefined = request.args;
     const headers: GpNextHeaders | undefined = request.options ? request.options.headers : undefined;
     let path: string | undefined = headers ? decodeURIComponent(headers.path) : undefined;
@@ -415,7 +423,9 @@ export class GpNextBridge {
     return null;
   }
 
-  private readDir(path: string): GpNextDirEntry[] {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private readDir(path: string): GpNextDirEntry[] {
     if (!fs.accessSync(path)) {
       throw new Error(`File not found: ${path}`);
     }
@@ -437,7 +447,9 @@ export class GpNextBridge {
     return entries;
   }
 
-  private removePath(path: string): void {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private removePath(path: string): void {
     if (!fs.accessSync(path)) {
       return;
     }
@@ -461,7 +473,9 @@ export class GpNextBridge {
    * Tauri 的 save 对话框语义：先问用户存哪儿，再返回一个可写路径。
    * 这里返回沙箱内的临时路径，等 GP-Next 写完再由 deliverExport 复制到用户选定的 uri。
    */
-  private async prepareExport(args: GpNextArgs | undefined): Promise<string | null> {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private async prepareExport(args: GpNextArgs | undefined): Promise<string | null> {
     const options: GpNextOptions | undefined = args ? args.options : undefined;
     const suggested: string = options && options.defaultPath ? this.safeFileName(options.defaultPath) : 'export.json';
     const targetUri: string | null = await this.pickSaveTargetHandler(suggested);
@@ -528,7 +542,9 @@ export class GpNextBridge {
     return `成功 ${imported} 个，失败 ${failures.length} 个：${failures.join('；')}`;
   }
 
-  private async importArchive(uri: string, name: string): Promise<void> {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private async importArchive(uri: string, name: string): Promise<void> {
     const incoming = `${this.incomingDir}/${Date.now()}-${name}`;
     const staging = `${this.incomingDir}/unzip-${Date.now()}`;
     this.copyPath(uri, incoming);
@@ -552,7 +568,9 @@ export class GpNextBridge {
   }
 
   /** 兼容"整个包被套在一层目录里"的压缩包：把内容提上来 */
-  private flattenPack(staging: string): void {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private flattenPack(staging: string): void {
     if (fs.accessSync(`${staging}/pack.json`)) {
       return;
     }
@@ -579,7 +597,9 @@ export class GpNextBridge {
     this.safeRemove(`${staging}/.DS_Store`);
   }
 
-  private uniquePath(directory: string, baseName: string): string {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private uniquePath(directory: string, baseName: string): string {
     let candidate = `${directory}/${baseName}`;
     let index = 2;
     while (fs.accessSync(candidate) && index <= 99) {
@@ -600,7 +620,9 @@ export class GpNextBridge {
     }
   }
 
-  private copyPath(source: string, destination: string): void {
+  /**
+   * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
+   */  private copyPath(source: string, destination: string): void {
     this.ensureDir(this.dirname(destination));
     const sourceFile = fs.openSync(source, fs.OpenMode.READ_ONLY);
     try {

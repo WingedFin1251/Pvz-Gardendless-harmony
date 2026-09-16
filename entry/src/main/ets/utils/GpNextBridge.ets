@@ -74,6 +74,20 @@ export type GpNextOpenExternal = (url: string) => void;
 export type GpNextPickSaveTarget = (fileName: string) => Promise<string | null>;
 export type GpNextImportPackages = () => Promise<void>;
 
+/** gp-next/settings.json 的结构（与 payload 内 polyfill 预置的默认值保持一致） */
+interface GpNextScrollSensitivity {
+  enabled: boolean;
+  wheel: number;
+  discreteMinIntervalMs: number;
+}
+
+interface GpNextSettingsFile {
+  version: number;
+  packOrder: string[];
+  disabledPacks: string[];
+  scrollSensitivity: GpNextScrollSensitivity;
+}
+
 const GP_NEXT_DIR: string = 'gp-next';
 const EXPORT_DIR: string = '.exports';
 const INCOMING_DIR: string = '.incoming';
@@ -116,6 +130,43 @@ export class GpNextBridge {
     this.ensureDir(this.exportDir);
     this.ensureDir(this.incomingDir);
     console.info(`[gp-next-bridge] 数据根目录: ${this.root}`);
+    this.seedDefaultSettings();
+  }
+
+  /**
+   * 首次启动预置 gp-next/settings.json。
+   *
+   * 必要性：GP-Next 加载补丁的第一步就是读这个文件，而且**没有兜底捕获**——桌面版由安装器/首次保存
+   * 保证它存在。页面自带的 polyfill 会把读失败吞成默认值，所以这个前提被掩盖；原生桥按 Tauri 语义
+   * 抛错后，首次启动该读取失败会中断整个面板初始化（补丁 / 修改器 / 模组 / 数据页全部不加载）。
+   * 因此这里按 polyfill 当初的默认结构预置一份；已存在则原样保留用户的设置。
+   */
+  private seedDefaultSettings(): void {
+    const settingsPath = `${this.root}/settings.json`;
+    try {
+      if (fs.accessSync(settingsPath)) {
+        return;
+      }
+      const defaults: GpNextSettingsFile = {
+        version: 1,
+        packOrder: [],
+        disabledPacks: [],
+        scrollSensitivity: {
+          enabled: true,
+          wheel: 1,
+          discreteMinIntervalMs: 0
+        }
+      };
+      const file = fs.openSync(settingsPath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+      try {
+        fs.writeSync(file.fd, JSON.stringify(defaults));
+      } finally {
+        fs.closeSync(file);
+      }
+      console.info(`[gp-next-bridge] 已预置默认设置文件: ${settingsPath}`);
+    } catch (err) {
+      console.error(`[gp-next-bridge] 预置默认设置文件失败: ${errorText(err as Object)}`);
+    }
   }
 
   /** GP-Next 数据目录（含 packs/patches/__gpn_edits） */

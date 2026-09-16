@@ -6,7 +6,7 @@ import preferences from '@ohos.data.preferences';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 import { ResourceManager } from '../utils/ResourceManager';
 
-// 画面比例约束区间 3:2 ~ 17:9（逻辑对齐安卓版 AspectRatioFrameLayout）。
+// 画面比例约束区间 3:2 ~ 17:9。
 // 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
 const MIN_ASPECT_W: number = 3;    // 最窄 3:2  ≈ 1.500
 const MIN_ASPECT_H: number = 2;
@@ -71,8 +71,7 @@ struct CocosJSApp {
   }
 
   /**
-   * 按 3:2 ~ 17:9 区间计算 Web 的目标尺寸与居中偏移
-   * （逻辑对齐安卓版 AspectRatioFrameLayout.onMeasure）。
+   * 按 3:2 ~ 17:9 区间计算 Web 的目标尺寸与居中偏移。
    *  - 太宽（> 17:9，如 20:9 / 21:9）：以高度为基准，宽度卡在 17:9，左右留黑边
    *  - 太方（< 3:2，如 4:3 / 7:5）：以宽度为基准，高度卡在 3:2，上下留黑边
    *  - 落在区间内：直接铺满

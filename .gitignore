@@ -44,3 +44,6 @@ desktop.ini
 *.log
 *.hap
 *.app
+
+# 构建产物归档目录（pvzge<版本><-变体>.hap，由 entry/hvigorfile.ts 自动生成）
+/dist/

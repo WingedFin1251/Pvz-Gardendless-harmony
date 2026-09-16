@@ -41,8 +41,7 @@ if (w * MAX_ASPECT_H > h * MAX_ASPECT_W) {        // 太宽：> 17:9
 
 Web 用 `.position()` 居中：`x = (w - targetW) / 2`、`y = (h - targetH) / 2`。
 
-> 逻辑对齐安卓版 `AspectRatioFrameLayout.onMeasure`。安卓 v0.14.0 的区间是 **16:10 ~ 17:9**，
-> 本工程把下限放宽到 **3:2**。
+> 区间取 **3:2 ~ 17:9**：上限 17:9 覆盖超宽屏（20:9 / 21:9），下限放宽到 3:2 以适配更高的视口。
 
 ### 与 16:10 设计分辨率的关系（重要取舍）
 
@@ -117,4 +116,3 @@ const MAX_ASPECT_H: number = 90;
 |:---|:---|
 | `entry/src/main/ets/pages/Index.ets` | 壳层：比例计算、居中布局 |
 | `entry/src/main/resources/rawfile/src/settings.json` | 游戏设计分辨率（1024×640 = 16:10） |
-| 安卓参考实现 | 第三方安卓工程中的 `AspectRatioFrameLayout.kt`（本仓库未纳入）；本工程的比例区间算法对齐其 `onMeasure` |

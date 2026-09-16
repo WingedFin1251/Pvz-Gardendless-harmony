@@ -123,7 +123,7 @@ Pvz-Gardendless-harmony/
 
 | 文件 | 内容 |
 |:---|:---|
-| `entry/src/main/ets/pages/Index.ets` | **画面比例约束 3:2 ~ 17:9**（超出区间由壳层补黑边，逻辑对齐安卓版 `AspectRatioFrameLayout`）：`onAreaChange` 实测容器尺寸、`parseVp` 兜底带单位字符串、Web 用 `width/height/position` 居中；根容器 `Stack`，状态提示叠加在画面顶部并放行触摸 |
+| `entry/src/main/ets/pages/Index.ets` | **画面比例约束 3:2 ~ 17:9**（超出区间由壳层补黑边）：`onAreaChange` 实测容器尺寸、`parseVp` 兜底带单位字符串、Web 用 `width/height/position` 居中；根容器 `Stack`，状态提示叠加在画面顶部并放行触摸 |
 | `entry/src/main/ets/entryability/EntryAbility.ets` | 先 `loadContent` 再配置窗口（官方要求 `setWindowBackgroundColor()` 在 `loadContent()` 生效后调用）；`IS_2IN1` 分流：`2in1` 改用 `maximize()` 进入沉浸式全屏并跳过方向设置 |
 | `entry/src/main/ets/utils/ResourceManager.ets` | `getRawFile`（API 9 起废弃）→ `getRawFileContent` |
 

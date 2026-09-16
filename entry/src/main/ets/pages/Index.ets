@@ -330,10 +330,17 @@ struct CocosJSApp {
     this.showStatusMessage('正在导入数据包…', 60000);
     const summary = await this.gpNextBridge.importPackages(uris);
     this.showStatusMessage(summary, 6000);
-    // 导入的是磁盘上的包，让面板重新扫描
+    // 导入的是磁盘上的包，需要让面板重新扫描。注意 gpNext 的公开 API 里并没有 reload，
+    // 所以直接点补丁页的"重新加载所有补丁"按钮（导入入口就在该页，按钮必定已在 DOM 中）。
     try {
-      await this.webController.runJavaScript(
-        '(function(){var g=window.gpNext;if(g&&typeof g.reload==="function"){g.reload();}})();');
+      await this.webController.runJavaScript(`(function(){
+        var hits = Array.prototype.slice.call(document.querySelectorAll('button')).filter(function (b) {
+          return /重新加载所有补丁|Reload All Patches/i.test(b.innerText || '');
+        });
+        if (hits.length > 0) { hits[0].click(); return; }
+        var g = window.gpNext;
+        if (g && typeof g.reload === 'function') { g.reload(); }
+      })();`);
     } catch (err) {
       console.error('通知 GP-Next 重载失败', err);
     }

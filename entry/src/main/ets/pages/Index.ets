@@ -5,6 +5,8 @@ import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelp
 import preferences from '@ohos.data.preferences';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 import { ResourceManager } from '../utils/ResourceManager';
+import { GpNextBridge } from '../utils/GpNextBridge';
+import { GPNEXT_SHIM } from '../utils/GpNextShim';
 
 // GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
 const GP_BUTTON_SIZE: number = 44;
@@ -46,6 +48,8 @@ struct CocosJSApp {
   private timeoutId?: number;
   private hideButtonTimer?: number;
   private prefs?: preferences.Preferences;
+  // GP-Next 原生桥：把网页侧的 Tauri 命令（fs / 另存为 / 打开目录）落到 filesDir/gp-next
+  private gpNextBridge?: GpNextBridge;
 
   @State downloadStatus: string = '';
   @State statusOpacity: number = 1;
@@ -91,6 +95,15 @@ struct CocosJSApp {
       return;
     }
     this.filePickerHelper = new FilePickerHelper(context);
+
+    // 原生桥需要宿主提供三件事：打开外链、另存为、导入数据包
+    // （ArkTS 不允许用对象字面量实现带方法的接口，故直接传函数）
+    this.gpNextBridge = new GpNextBridge(context,
+      (url: string) => {
+        this.openExternal(url);
+      },
+      (fileName: string) => this.pickSaveTarget(fileName),
+      () => this.importPackages());
 
     // 初始化 ResourceManager（LRU 缓存，80MB/300项上限）
     ResourceManager.getInstance().setContext(context);
@@ -277,6 +290,55 @@ struct CocosJSApp {
       });
   }
 
+  /** 注册 GP-Next 原生桥：注入脚本通过 window.__gpNextNative.invoke 调用它 */
+  private registerGpNextBridge(): void {
+    if (!this.gpNextBridge) {
+      console.error('GP-Next 原生桥未初始化，跳过注册');
+      return;
+    }
+    try {
+      this.webController.registerJavaScriptProxy(this.gpNextBridge, '__gpNextNative', ['invoke']);
+      console.info('GP-Next 原生桥已注册: __gpNextNative.invoke');
+    } catch (err) {
+      console.error('注册 GP-Next 原生桥失败', err);
+    }
+  }
+
+  /** 网页发起"另存为"：弹系统保存对话框，返回用户选定的 uri（取消返回 null） */
+  private async pickSaveTarget(fileName: string): Promise<string | null> {
+    if (!this.filePickerHelper) {
+      return null;
+    }
+    try {
+      return await this.filePickerHelper.selectSavePath(fileName);
+    } catch (err) {
+      console.error('选择保存位置失败', err);
+      return null;
+    }
+  }
+
+  /** 网页点"打开数据包目录"：移动端没有能让用户丢文件的目录，改成从系统选择器导入 */
+  private async importPackages(): Promise<void> {
+    if (!this.filePickerHelper || !this.gpNextBridge) {
+      return;
+    }
+    const uris = await this.filePickerHelper.selectPackFiles();
+    if (uris.length === 0) {
+      this.showStatusMessage('已取消导入', 2000);
+      return;
+    }
+    this.showStatusMessage('正在导入数据包…', 60000);
+    const summary = await this.gpNextBridge.importPackages(uris);
+    this.showStatusMessage(summary, 6000);
+    // 导入的是磁盘上的包，让面板重新扫描
+    try {
+      await this.webController.runJavaScript(
+        '(function(){var g=window.gpNext;if(g&&typeof g.reload==="function"){g.reload();}})();');
+    } catch (err) {
+      console.error('通知 GP-Next 重载失败', err);
+    }
+  }
+
   // 在 onControllerAttached 中注册代理
   private registerNativeStorage() {
     try {
@@ -418,9 +480,12 @@ struct CocosJSApp {
             ` (${message.getSourceId()}:${message.getLineNumber()})`);
           return false;
         })
+        // 在页面自身脚本之前注入 Tauri 兼容层：payload 自带的 localStorage polyfill 只在
+        // window.__TAURI_INTERNALS__ 缺失时才安装，于是会自动让位给原生桥。
+        .javaScriptOnDocumentStart([{ script: GPNEXT_SHIM, scriptRules: ['*'] }])
         .onControllerAttached(() => {
           this.registerNativeStorage();  // 注册 localStorage 持久化代理
-          // ... 其他代码
+          this.registerGpNextBridge();   // 注册 GP-Next 原生桥（__gpNextNative.invoke）
         })
         .onPageBegin(() => {
           this.isLoading = true;

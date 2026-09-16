@@ -15,14 +15,14 @@ const GP_BUTTON_SLIVER: number = 26;
 // 隐藏态额外的触摸容差（vp）：把命中区域向屏幕内扩展，缓解贴边后不好点（可见态不扩展）
 const GP_BUTTON_TOUCH_PAD: number = 10;
 
-// 画面比例约束区间 3:2 ~ 17:9（逻辑对齐安卓版 AspectRatioFrameLayout）。
+// 画面比例约束区间 3:2 ~ 17:9。
 // 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
 const MIN_ASPECT_W: number = 3;    // 最窄 3:2  ≈ 1.500
 const MIN_ASPECT_H: number = 2;
 const MAX_ASPECT_W: number = 171;  // 最宽 17:9 ≈ 1.889
 const MAX_ASPECT_H: number = 90;
 
-// "铺满画面"偏好在 preferences 中的键名（对齐安卓版 SharedPreferences 的 webview_fullscreen）
+// "铺满画面"偏好在 preferences 中的键名
 const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
 
 
@@ -72,7 +72,7 @@ struct CocosJSApp {
     // 初始化 Preferences
     try {
       this.prefs = await preferences.getPreferences(context, 'game_save');
-      // 恢复"铺满画面"偏好（安卓版用 SharedPreferences 记忆同一设置）
+      // 恢复"铺满画面"偏好
       this.isFillScreen = await this.prefs.get(PREF_WEB_FULLSCREEN, false) as boolean;
       // aboutToAppear 是异步的，首次布局触发的 onAreaChange 很可能先于这里完成，
       // 故读完偏好必须重算一次，否则保存过的"铺满"在启动时会被静默忽略。
@@ -97,8 +97,7 @@ struct CocosJSApp {
   }
 
   /**
-   * 按 3:2 ~ 17:9 区间计算 Web 的目标尺寸与居中偏移
-   * （逻辑对齐安卓版 AspectRatioFrameLayout.onMeasure）。
+   * 按 3:2 ~ 17:9 区间计算 Web 的目标尺寸与居中偏移。
    *  - 太宽（> 17:9，如 20:9 / 21:9）：以高度为基准，宽度卡在 17:9，左右留黑边
    *  - 太方（< 3:2，如 4:3 / 7:5）：以宽度为基准，高度卡在 3:2，上下留黑边
    *  - 落在区间内：直接铺满

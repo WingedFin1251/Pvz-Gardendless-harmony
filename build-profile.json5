@@ -1,24 +1,8 @@
 {
   "app": {
-    "signingConfigs": [
-      {
-        "name": "default",
-        "type": "HarmonyOS",
-        "material": {
-          "certpath": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-gpnext_xSCoXOsIfAh1eW7aW79bBRmkD483o8W8u3RYF1OE9YU=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001BD1D52BC9871D8B0698F3FAC2E54E7891CD8A455F3557EF89036B1420B25A309F4357123D1E9CE7",
-          "profile": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-gpnext_xSCoXOsIfAh1eW7aW79bBRmkD483o8W8u3RYF1OE9YU=.p7b",
-          "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\34182\\.ohos\\config\\default_Gardendless-gpnext_xSCoXOsIfAh1eW7aW79bBRmkD483o8W8u3RYF1OE9YU=.p12",
-          "storePassword": "0000001B6F275E11D2BDE20DB7270CE94F833D40966DBA3E649B1FA63E7407E1B33C3E942B87AFD6950E16"
-        }
-      }
-    ],
     "products": [
       {
         "name": "default",
-        "signingConfig": "default",
         "targetSdkVersion": "6.0.2(22)",
         "compatibleSdkVersion": "6.0.0(20)",
         "runtimeOS": "HarmonyOS",

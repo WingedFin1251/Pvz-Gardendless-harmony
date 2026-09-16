@@ -1,5 +1,6 @@
 import { picker } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 export class FilePickerHelper {
   private context: common.UIAbilityContext;
@@ -35,5 +36,26 @@ export class FilePickerHelper {
       }
     }
     return null;
+  }
+
+  /**
+   * 选择 GP-Next 数据包（.zip）或单文件补丁（.json/.json5），支持多选。
+   * 桌面版是靠用户把文件丢进 gp-next/packs 目录，移动端只能由壳层代劳。
+   * @returns 用户选中的文件 uri 列表，取消时返回空数组
+   */
+  async selectPackFiles(): Promise<string[]> {
+    const documentSelectOptions = new picker.DocumentSelectOptions();
+    documentSelectOptions.maxSelectNumber = 20;
+    documentSelectOptions.fileSuffixFilters = ['数据包|.zip', '单文件补丁|.json,.json5'];
+
+    const documentPicker = new picker.DocumentViewPicker(this.context);
+    try {
+      const uris = await documentPicker.select(documentSelectOptions);
+      return uris ? uris : [];
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`选择数据包失败: code=${error.code}, message=${error.message}`);
+      return [];
+    }
   }
 }

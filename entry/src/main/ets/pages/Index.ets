@@ -1,5 +1,5 @@
 import { webview } from '@kit.ArkWeb';
-import { common } from '@kit.AbilityKit';
+import { common, Want } from '@kit.AbilityKit';
 import fs from '@ohos.file.fs';
 import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelper
 import preferences from '@ohos.data.preferences';
@@ -14,6 +14,10 @@ const GP_BUTTON_HIDE_DELAY: number = 4000;
 const GP_BUTTON_SLIVER: number = 26;
 // 隐藏态额外的触摸容差（vp）：把命中区域向屏幕内扩展，缓解贴边后不好点（可见态不扩展）
 const GP_BUTTON_TOUCH_PAD: number = 10;
+
+// Web 调试开关（DevTools）：置 true 后可用 hdc fport + chrome://inspect 排查 GP-Next 的失败点。
+// ArkWeb 默认关闭，关闭时 DevTools 无法发现被调试的网页；正式发布前请改回 false。
+const ENABLE_WEB_DEBUG: boolean = true;
 
 // 画面比例约束区间 3:2 ~ 17:9。
 // 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
@@ -57,7 +61,25 @@ struct CocosJSApp {
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
   @State gpButtonHidden: boolean = false;
 
+  // ===== 网页弹框（alert / confirm / prompt）=====
+  // ArkWeb 不提供默认弹框（官方文档："当前，ArkWeb 暂未提供默认的应用弹框"），
+  // 且文档明确：不调用 JsResult 的 handleConfirm/handleCancel/handlePromptConfirm 会造成 render 进程阻塞。
+  // 所以壳层必须接管这三种弹框——GP-Next 的"导出/另存为"正是靠 prompt 拿文件名的。
+  @State jsDialogVisible: boolean = false;
+  @State jsDialogKind: string = 'alert';   // alert | confirm | prompt
+  @State jsDialogMessage: string = '';
+  @State jsDialogInput: string = '';
+  private jsDialogReply: ((ok: boolean, text: string) => void) | null = null;
+
   async aboutToAppear() {
+    // 打开 Web 调试（官方建议在 aboutToAppear 中设置）
+    try {
+      webview.WebviewController.setWebDebuggingAccess(ENABLE_WEB_DEBUG);
+      console.info(`Web 调试: ${ENABLE_WEB_DEBUG ? '已开启' : '已关闭'}`);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`设置 Web 调试失败: code=${error.code}, message=${error.message}`);
+    }
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     if (!context) {
       console.error('获取 Context 失败');
@@ -181,6 +203,54 @@ struct CocosJSApp {
     return { x: -pad, y: -pad, width: GP_BUTTON_SIZE + pad * 2, height: GP_BUTTON_SIZE + pad * 2 };
   }
 
+  /** 弹出网页对话框；同一时刻只允许一个，避免未决的 JsResult 卡住 render 进程 */
+  private showJsDialog(kind: string, message: string, defaultValue: string,
+    reply: (ok: boolean, text: string) => void): void {
+    if (this.jsDialogReply !== null) {
+      this.finishJsDialog(false);
+    }
+    this.jsDialogKind = kind;
+    this.jsDialogMessage = message;
+    this.jsDialogInput = defaultValue;
+    this.jsDialogReply = reply;
+    this.jsDialogVisible = true;
+  }
+
+  /** 结束网页对话框并把结果回给 Web 内核（必须回调，否则 render 进程阻塞） */
+  private finishJsDialog(ok: boolean): void {
+    const reply = this.jsDialogReply;
+    this.jsDialogReply = null;
+    this.jsDialogVisible = false;
+    if (reply !== null) {
+      reply(ok, this.jsDialogInput);
+    }
+  }
+
+  /** 外部链接交给系统浏览器；startAbility 失败时退回 App Linking（openLink） */
+  private openExternal(url: string): void {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (!context) {
+      console.error(`打开外链失败：Context 无效 ${url}`);
+      return;
+    }
+    const want: Want = {
+      action: 'ohos.want.action.viewData',
+      entities: ['entity.system.browsable'],
+      uri: url,
+      parameters: { 'ohos.ability.params.showDefaultPicker': true }
+    };
+    context.startAbility(want)
+      .then(() => {
+        console.info(`已交由系统浏览器打开: ${url}`);
+      })
+      .catch((err: BusinessError) => {
+        console.error(`startAbility 打开外链失败: code=${err.code}, message=${err.message}，改用 openLink`);
+        context.openLink(url).catch((linkErr: BusinessError) => {
+          console.error(`openLink 亦失败: code=${linkErr.code}, message=${linkErr.message}`);
+        });
+      });
+  }
+
   // 在 onControllerAttached 中注册代理
   private registerNativeStorage() {
     try {
@@ -271,6 +341,57 @@ struct CocosJSApp {
         .overviewModeAccess(false)       // 禁用概览模式（减少手势处理开销）
         .zoomAccess(false)               // 禁用缩放（游戏不需要）
         .verticalScrollBarAccess(false)
+        // 网页里 window.open / target=_blank 需要开启多窗口，且必须实现 onWindowNew（否则 render 进程阻塞）。
+        // 我们不创建新窗口：外部 http(s) 链接交给系统浏览器，其余一律置 null 通知内核。
+        .multiWindowAccess(true)
+        .onWindowNew((event) => {
+          const target: string = event.targetUrl;
+          const isExternal: boolean = (target.startsWith('http://') || target.startsWith('https://'))
+            && !target.startsWith('https://cocos.local/');
+          if (isExternal) {
+            this.openExternal(target);
+          }
+          event.handler.setWebController(null);
+        })
+        // ArkWeb 无默认弹框：alert / confirm / prompt 全部由壳层自绘并回调 JsResult。
+        // 否则网页侧 confirm() 恒为 false、prompt() 恒为 null，且不回调会阻塞 render 进程。
+        .onAlert((event) => {
+          this.showJsDialog('alert', event.message, '', (ok: boolean) => {
+            if (ok) {
+              event.result.handleConfirm();
+            } else {
+              event.result.handleCancel();
+            }
+          });
+          return true;
+        })
+        .onConfirm((event) => {
+          this.showJsDialog('confirm', event.message, '', (ok: boolean) => {
+            if (ok) {
+              event.result.handleConfirm();
+            } else {
+              event.result.handleCancel();
+            }
+          });
+          return true;
+        })
+        .onPrompt((event) => {
+          this.showJsDialog('prompt', event.message, event.value, (ok: boolean, text: string) => {
+            if (ok) {
+              event.result.handlePromptConfirm(text);
+            } else {
+              event.result.handleCancel();
+            }
+          });
+          return true;
+        })
+        // 返回 false：控制台消息仍旧写进 hilog（返回 true 会抑制默认日志）
+        .onConsole((event) => {
+          const message = event.message;
+          console.info(`[web-console][${message.getMessageLevel()}] ${message.getMessage()}` +
+            ` (${message.getSourceId()}:${message.getLineNumber()})`);
+          return false;
+        })
         .onControllerAttached(() => {
           this.registerNativeStorage();  // 注册 localStorage 持久化代理
           // ... 其他代码
@@ -355,16 +476,8 @@ struct CocosJSApp {
             return false;
           }
 
-          // 4. 外部链接 → 跳转系统浏览器
-          try {
-            const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-            if (context) {
-              context.openLink(url);
-              console.info(`已跳转到系统浏览器: ${url}`);
-            }
-          } catch (err) {
-            console.error(`跳转失败: ${url}`, err);
-          }
+          // 4. 外部链接 → 跳转系统浏览器（viewData + browsable；openLink 依赖域名校验，仅作兜底）
+          this.openExternal(url);
           return true;
         })
       // 下载/加载状态提示（叠加在画面顶部；放行触摸，避免盖住游戏操作区）
@@ -388,6 +501,62 @@ struct CocosJSApp {
       .width('100%')
       .position({ x: 0, y: 0 })
       .hitTestBehavior(HitTestMode.Transparent)
+
+      // 网页弹框层（alert / confirm / prompt）：ArkWeb 无默认弹框，这里自绘一个模态卡片
+      if (this.jsDialogVisible) {
+        Column() {
+          Column({ space: 12 }) {
+            Text(this.jsDialogMessage)
+              .fontSize(15)
+              .fontColor(Color.White)
+              .width('100%')
+              .maxLines(6)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            if (this.jsDialogKind === 'prompt') {
+              TextInput({ text: this.jsDialogInput })
+                .fontSize(14)
+                .width('100%')
+                .defaultFocus(true)
+                .onChange((value: string) => {
+                  this.jsDialogInput = value;
+                })
+            }
+            Row({ space: 10 }) {
+              if (this.jsDialogKind !== 'alert') {
+                Button('取消')
+                  .layoutWeight(1)
+                  .fontSize(14)
+                  .backgroundColor('#33FFFFFF')
+                  .fontColor(Color.White)
+                  .onClick(() => {
+                    this.finishJsDialog(false);
+                  })
+              }
+              Button(this.jsDialogKind === 'prompt' ? '保存' : '确定')
+                .layoutWeight(1)
+                .fontSize(14)
+                .backgroundColor('#0A59F7')
+                .fontColor(Color.White)
+                .onClick(() => {
+                  this.finishJsDialog(true);
+                })
+            }
+            .width('100%')
+          }
+          .width('78%')
+          .padding(16)
+          .backgroundColor('#F01C1C1C')
+          .borderRadius(12)
+          .borderWidth(1)
+          .borderColor('#40FFFFFF')
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor('#66000000')
+        .hitTestBehavior(HitTestMode.Block)
+        .zIndex(10)
+      }
 
       // GP-Next 面板入口（可见按钮，贴在右下角）
       Button('GP', { type: ButtonType.Circle, stateEffect: true })

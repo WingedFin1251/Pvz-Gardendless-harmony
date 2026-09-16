@@ -187,7 +187,13 @@ export class GpNextBridge {
       return `{"ok":true,"value":${valueJson}}`;
     } catch (err) {
       const message = errorText(err as Object);
-      console.error(`[gp-next-bridge] ${command} 失败: ${message}`);
+      // GP-Next 大量使用"探测式读取"（例如逐类型检查 __gpn_edits 里有没有手工编辑覆盖），
+      // 文件不存在是它的正常分支。打 ERROR 会在每次启动时刷出上百行 hilog，这里降到 debug。
+      if (message.startsWith('File not found:')) {
+        console.debug(`[gp-next-bridge] ${command} 未命中: ${message}`);
+      } else {
+        console.error(`[gp-next-bridge] ${command} 失败: ${message}`);
+      }
       return `{"ok":false,"error":${JSON.stringify(message)},"code":"gp_next_error"}`;
     }
   }

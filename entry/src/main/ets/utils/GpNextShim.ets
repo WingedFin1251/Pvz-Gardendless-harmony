@@ -67,7 +67,10 @@ export const GPNEXT_SHIM: string = `(function () {
       args: serialize(args === undefined ? {} : args),
       options: serialize(headers === undefined ? null : headers)
     });
-    return window.__gpNextNative.invoke(request).then(function (raw) {
+    // ArkWeb 的 JavaScriptProxy 返回的是原生 JSPromise，它的 .then() 不是标准 Promise 链：
+    // 回调的返回值会被直接丢弃（实测恒定解析成 null），于是 read_dir 变成 null，GP-Next 的
+    // discoverPacks 立刻抛 "n is not iterable"。必须先经 Promise.resolve() 归一成标准 Promise。
+    return Promise.resolve(window.__gpNextNative.invoke(request)).then(function (raw) {
       var response = JSON.parse(raw);
       if (!response.ok) {
         var error = new Error(response.error || '原生桥执行失败');

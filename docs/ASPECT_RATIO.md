@@ -41,8 +41,7 @@ if (w * MAX_ASPECT_H > h * MAX_ASPECT_W) {        // 太宽：> 17:9
 
 Web 用 `.position()` 居中：`x = (w - targetW) / 2`、`y = (h - targetH) / 2`。
 
-> 逻辑对齐安卓版 `AspectRatioFrameLayout.onMeasure`。安卓 v0.14.0 的区间是 **16:10 ~ 17:9**，
-> 本工程把下限放宽到 **3:2**。
+> 区间取 **3:2 ~ 17:9**：上限 17:9 覆盖超宽屏（20:9 / 21:9），下限放宽到 3:2 以适配更高的视口。
 
 ### 与 16:10 设计分辨率的关系（重要取舍）
 
@@ -105,12 +104,11 @@ const MAX_ASPECT_H: number = 90;
 | 项 | 说明 |
 |:---|:---|
 | 状态 | `@State isFillScreen: boolean`，`true` 时 Web 铺满整屏（不约束比例） |
-| 持久化 | `preferences`（`game_save` 库）键 `webview_fullscreen`，与安卓版 SharedPreferences 同名 |
+| 持久化 | `preferences`（`game_save` 库）键 `webview_fullscreen` |
 | 切换方式 | **长按右下角的 GP-Next 按钮**，弹出「画面：铺满 / 画面：3:2 ~ 17:9 留边」提示 |
 | 恢复时机 | `aboutToAppear()` 中读回该偏好 |
 
-> 安卓版由游戏经 `GardendlessBridge` 桥接触发全屏切换；本工程目前提供手动开关。
-> 若需网页侧驱动，可仿照安卓版注册 JS 代理（如 `GardendlessBridge.setFullscreen`）。
+> 目前提供手动开关；若需网页侧驱动，可通过 `registerJavaScriptProxy` 把对应方法暴露给页面。
 
 ---
 
@@ -131,4 +129,3 @@ const MAX_ASPECT_H: number = 90;
 |:---|:---|
 | `entry/src/main/ets/pages/Index.ets` | 壳层：比例计算、居中布局、铺满开关 |
 | `entry/src/main/resources/rawfile/src/settings.json` | 游戏设计分辨率（1024×640 = 16:10） |
-| 安卓参考实现 | 第三方安卓工程中的 `AspectRatioFrameLayout.kt`（本仓库未纳入）；本工程的比例区间算法对齐其 `onMeasure` |

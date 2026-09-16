@@ -163,7 +163,6 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 | [docs/RELEASE_v0.14.0.md](docs/RELEASE_v0.14.0.md) | v0.14.0 更新说明 |
 | [docs/PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md) | 性能优化方案 |
 | [docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md](docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md) | 性能优化总结 |
-| [docs/PERFORMANCE_COMPARISON_REPORT.md](docs/PERFORMANCE_COMPARISON_REPORT.md) | 性能优化对比报告 |
 
 ---
 

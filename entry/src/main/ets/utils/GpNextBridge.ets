@@ -160,14 +160,36 @@ export class GpNextBridge {
     this.root = `${this.baseDir}/${GP_NEXT_DIR}`;
     this.exportDir = `${this.root}/${EXPORT_DIR}`;
     this.incomingDir = `${this.root}/${INCOMING_DIR}`;
-    // 桌面版由安装器预建这些目录，这里补齐
-    this.ensureDir(this.root);
-    this.ensureDir(`${this.root}/packs`);
-    this.ensureDir(`${this.root}/patches`);
-    this.ensureDir(this.exportDir);
-    this.ensureDir(this.incomingDir);
+    this.ensureBaseDirs();
     console.info(`[gp-next-bridge] 数据根目录: ${this.root}`);
     this.seedDefaultSettings();
+  }
+
+  /**
+   * 预建 gp-next 目录树（桌面版由安装器负责）。
+   *
+   * 两点考虑：
+   *  1. 每个 ensureDir 单独 try/catch —— 它是 @throws 方法，而 IDE 的 ArkTSCheck 会在调用点
+   *     报 28040（Function_may_throw_exceptions_Special_handling_is_required）；编译器对构造函数
+   *     里的调用点是豁免的，两边规则不一致，包起来两边都干净。
+   *  2. 更重要的是健壮性：构造函数抛异常会让原生桥整个注册不上，面板就彻底失去文件能力；
+   *     某个目录建不出来时只记日志、继续走，剩下的能力仍然可用。
+   */
+  private ensureBaseDirs(): void {
+    const dirs: string[] = [
+      this.root,
+      `${this.root}/packs`,
+      `${this.root}/patches`,
+      this.exportDir,
+      this.incomingDir
+    ];
+    for (const dir of dirs) {
+      try {
+        this.ensureDir(dir);
+      } catch (err) {
+        console.error(`[gp-next-bridge] 创建目录失败: ${dir} (${errorText(err as Object)})`);
+      }
+    }
   }
 
   /**

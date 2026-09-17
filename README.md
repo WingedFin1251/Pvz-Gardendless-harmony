@@ -104,7 +104,7 @@ ArkTS 侧负责窗口、资源、存档与文件能力。
 面板入口是壳层右上角的浮动 GP 按钮（设置页也支持热键，需外接键盘）。数据根目录为
 `<filesDir>/gp-next/`（`packs/` 数据包、`patches/` 单文件补丁、`__gpn_edits/` 手动编辑、`settings.json`）。
 
-**已在真机（HUAWEI DMG-W00 / OpenHarmony 6.1.1）验证：**
+**已在真机验证**（平板 HUAWEI DMG-W00 / OpenHarmony 6.1.1；手机 HUAWEI BRA-AL00 / OpenHarmony 7.0 + ArkWeb 7.0）：
 
 | 能力 | 状态 |
 |:---|:---|
@@ -115,6 +115,8 @@ ArkTS 侧负责窗口、资源、存档与文件能力。
 | 写 / 读 / 列目录 / 递归删除 / 存在性判断（fs 全能力） | ✅ |
 | 修改器、内置语言包、植物注册表、商店扩展、滚动接管 | ✅（GP-Next 自身 JS，壳层无需介入） |
 | 更新检查、外链跳转 | ✅ |
+| JS 模组（实验性 → jsModding） | ✅ 第三方 `scripts/main.js` 真机执行成功：`setup(ctx)` 被调用，模组页显示 `Active API v2` |
+| 剪贴板 | ✅ `navigator.clipboard.writeText` 实测可用（指南页「复制 UUID」等按钮） |
 | 性能页「原生指标」 | ✅ 原生桥提供 OS / 架构 / 应用版本 / PID；进程 CPU 与系统内存 HarmonyOS 未向三方应用开放 → 显示「预热中 / 不可用」 |
 
 **尚未验证 / 已知缺口：**
@@ -124,11 +126,45 @@ ArkTS 侧负责窗口、资源、存档与文件能力。
 | 手动编辑（数据页逐项编辑） | ⚠️ 落盘链路（写 `__gpn_edits/`）已验，面板内逐项编辑未逐步点过 |
 | 另存为导出 | ⚠️ 原生侧就绪（系统保存对话框 + 写完后复制到用户位置），未实测 |
 | 数据包封面 `thumbnail.png` | ⚠️ 桥按字节读取（≤128×128 才会显示），未实测 |
-| JS 模组（实验性 → jsModding） | ⚠️ 读源码与落盘链路已通；加载用 `URL.createObjectURL` + 动态 `import(blob:)`，ArkWeb 是否放行待确认 |
-| 云存档 | ⚠️ `crypto.subtle` 与 `window.open`（OAuth 弹窗）链路已具备，未实测 |
-| 剪贴板 | ❌ 指南页「复制 UUID」、日志页「复制日志」、性能页「复制报告」使用 `navigator.clipboard`，ArkWeb 下需原生兜底（待做） |
+| 云存档 | ⚠️ `isSecureContext` / `crypto.subtle` 实测可用、`window.open`（OAuth 弹窗）链路已具备，端到端未实测 |
 | 每日挑战 | ⚠️ 走 `daily-level-api.pvzge.com`，未实测 |
 | 桌面独占能力 | ➖ Discord RPC、macOS 菜单、窗口最大化 / 置顶 / 光标等 50+ 命令在移动端为安全默认值或静默桩 |
+
+**写一个 JS 模组**（最小可用示例，已在本机验证）：
+
+```
+gp-next/packs/MyMod/
+├── pack.json          # 必须声明 "apiVersion": 2
+└── scripts/main.js    # 必须导出 setup(ctx)
+```
+
+```json
+{
+  "packFormatVersion": 1,
+  "apiVersion": 2,
+  "uuid": "<全局唯一 uuid>",
+  "name": "我的模组",
+  "version": "1.0.0",
+  "author": "you",
+  "js": { "entry": "scripts/main.js" }
+}
+```
+
+```js
+export function setup(ctx) {
+  // ctx 提供 40+ 命名空间：ui / settings / events / data / game / board / entities /
+  // plants / zombies / projectiles / levels / levelModules / worldMap / shop / upgrades / …
+  console.info('mod loaded');
+  return () => {};   // 可选：返回清理函数，重载或卸载时调用
+}
+```
+
+> 两条硬性要求（不满足时「模组」页显示 `Failed`，日志会给出原因）：
+> `pack.json` 的 `apiVersion` 必须为 `2`（否则 `JS mods must declare apiVersion 2`）；
+> `main.js` 必须导出 `setup(ctx)` 或含 `setup` 的默认对象（否则 `JS mod must export setup(ctx)`）。
+> 加载器实现为 `URL.createObjectURL(Blob)` + 动态 `import(blob:)`，在 ArkWeb 7.0（Chromium 144）实测可用。
+
+---
 
 > **改代码前必读的一个坑**：ArkWeb 的 `registerJavaScriptProxy` 返回的是**原生 JSPromise**，
 > 它的 `.then()` **不是标准 Promise 链**——回调返回值会被丢弃并恒定解析成 `null`。

@@ -130,6 +130,27 @@ ArkTS 侧负责窗口、资源、存档与文件能力。
 | 每日挑战 | ⚠️ 走 `daily-level-api.pvzge.com`，未实测 |
 | 桌面独占能力 | ➖ Discord RPC、macOS 菜单、窗口最大化 / 置顶 / 光标等 50+ 命令在移动端为安全默认值或静默桩 |
 
+### 调试与「本地 mod 目录」
+
+- **JS 模组不需要开控制台**：桌面版 GP-Next 把 JS Modding 锁成「只能在开发者控制台里打开」，
+  本移植版由兼容层在页面 document-start 阶段直接写入
+  `localStorage['gp-next-settings'].experimental.jsModding = true`，因此「实验性 → jsModding」恒为开，
+  导入 `scripts/main.js` 模组即可生效（格式要求见下）。
+- **打开 WebView 开发者工具**：移动端没有 F12。本工程默认开启 `setWebDebuggingAccess(true)`，调试时用
+  ```bash
+  hdc shell "cat /proc/net/unix | grep devtools"        # 取 socket 名，形如 @webview_devtools_remote_<pid>
+  hdc fport tcp:9333 localabstract:webview_devtools_remote_<pid>
+  ```
+  然后在桌面 Chrome 打开 `chrome://inspect` 即可接管页面。
+- **导入外部 Mod / 数据包**：HarmonyOS 对三方应用不开放用户可见的 Download 目录
+  （`ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY` 官方标注「仅对 2in1 设备应用开放」），
+  手机 / 平板上不存在「把文件丢进某个文件夹就自动加载」的位置。请用「补丁」页 →
+  **打开目录** → 系统文件选择器导入 `.zip` / `.json` / `.json5`（可多选，单次最多 20 个）；
+  数据根目录为应用私有 `<filesDir>/gp-next/`，面板「补丁」页底部会显示实际路径。
+  ZIP 会被解压为文件夹形式入库，包内必须有 `pack.json`（可在根目录或唯一的一层子目录里）。
+
+---
+
 **写一个 JS 模组**（最小可用示例，已在本机验证）：
 
 ```

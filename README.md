@@ -16,7 +16,13 @@ ArkTS 原生壳层 + ArkWeb 承载 Cocos 构建产物，保留原版核心玩法
 | 设备类型 | `phone`、`tablet`、`2in1` |
 | SDK | `compatibleSdkVersion` 6.0.0(20) ／ `targetSdkVersion` 6.0.2(22) |
 
-> 另有两个带 GP-Next 面板的变体（各自独立包名，可与本应用共存安装），不在本仓库中。
+> 另有两个带 GP-Next 面板的变体，自 v0.14.0 (fix2) 起改为**同一仓库的分支**发布，
+> 各自独立包名、可与本应用共存安装：
+>
+> | 分支 | 应用名 | 包名 | 说明 |
+> |:---|:---|:---|:---|
+> | `lite` | Gardendless Lite | `com.gardendless.lite` | 游戏负载较小（约 576 MB） |
+> | `gpnext` | Gardendless GP-Next | `com.gardendless.gpnext` | 含 GP-Next 面板（原生桥完整适配） |
 
 ---
 

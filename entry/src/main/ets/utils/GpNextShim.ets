@@ -58,10 +58,27 @@ export const GPNEXT_SHIM: string = `(function () {
     return value;
   }
 
+  // 有一小撮 plugin:window|* 的真值只有页面自己知道——"窗口"就是它自己。
+  // 交给原生只能靠猜（此前 inner_size 返回 {0,0}、scale_factor 返回 1，而实测视口是
+  // 1120x736、DPR 2.5），所以在这一层直接答，顺便省掉一次跨语言往返。
+  function localWindowValue(command) {
+    if (command === 'plugin:window|inner_size' || command === 'plugin:window|outer_size') {
+      return { width: Math.round(window.innerWidth), height: Math.round(window.innerHeight) };
+    }
+    if (command === 'plugin:window|scale_factor') { return window.devicePixelRatio || 1; }
+    if (command === 'plugin:window|is_focused') { return document.hasFocus(); }
+    if (command === 'plugin:window|is_visible') { return !document.hidden; }
+    if (command === 'plugin:window|is_maximized' || command === 'plugin:window|is_fullscreen'
+      || command === 'plugin:window|is_minimized') { return false; }
+    return undefined;
+  }
+
   function invoke(command, args, headers) {
     if (!window.__gpNextNative || typeof window.__gpNextNative.invoke !== 'function') {
       return Promise.reject(new Error('[gp-next-shim] 原生桥尚未就绪: ' + command));
     }
+    var local = localWindowValue(String(command || ''));
+    if (local !== undefined) { return Promise.resolve(local); }
     var request = JSON.stringify({
       command: String(command || ''),
       args: serialize(args === undefined ? {} : args),

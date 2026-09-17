@@ -1,8 +1,8 @@
 import fs from '@ohos.file.fs';
 import zlib from '@ohos.zlib';
-import { util } from '@kit.ArkTS';
-import { common } from '@kit.AbilityKit';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { util, process } from '@kit.ArkTS';
+import { common, bundleManager } from '@kit.AbilityKit';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 
 /**
  * GP-Next 原生桥：把网页侧的 Tauri 命令落到应用私有目录。
@@ -64,6 +64,43 @@ interface GpNextDirEntry {
   isDirectory: boolean;
   isFile: boolean;
   isSymlink: boolean;
+}
+
+/**
+ * 性能页"原生指标"块的数据结构，字段名必须和 payload 的 tab-performance 对齐：
+ * 面板按 `native.status === 'available'` 决定是否渲染这些行，并按 `process.cpuStatus`
+ * / `system.cpuStatus` 逐行判断（不设的话会被当成 available 去渲染 undefined）。
+ */
+interface GpNextSnapshotOs {
+  name: string;
+  longVersion: string;
+  arch: string;
+}
+
+interface GpNextSnapshotApp {
+  version: string;
+}
+
+interface GpNextSnapshotProcess {
+  pid: number;
+  cpuStatus: string;
+  memoryBytes: number | null;
+}
+
+interface GpNextSnapshotSystem {
+  cpuStatus: string;
+  usedMemoryBytes: number | null;
+  totalMemoryBytes: number | null;
+}
+
+interface GpNextNativeSnapshot {
+  source: string;
+  status: string;
+  collectedAtMs: number;
+  os: GpNextSnapshotOs;
+  app: GpNextSnapshotApp;
+  process: GpNextSnapshotProcess;
+  system: GpNextSnapshotSystem;
 }
 
 /**
@@ -299,8 +336,9 @@ export class GpNextBridge {
         // 事件机制未接（GP-Next 只用它监听 macOS 菜单动作），返回一个不会被触发的 id
         return String(Date.now() % 1000000);
       case 'get_native_performance_snapshot':
-        // 性能页会优雅降级成 unavailable，先不提供原生快照
-        return 'null';
+        // 性能页的"原生指标"块：只填确实拿得到的（OS/架构/应用版本/PID/进程 RSS），
+        // CPU 与系统内存 HarmonyOS 不给普通应用接口，显式标 unavailable。
+        return JSON.stringify(this.nativeSnapshot());
 
       default:
         return this.fallback(command);
@@ -709,5 +747,75 @@ export class GpNextBridge {
     } catch (err) {
       console.warn(`[gp-next-bridge] 清理失败: ${path} (${errorText(err as Object)})`);
     }
+  }
+
+  // ==================== 性能页原生指标 ====================
+
+  /**
+   * 应用版本；取不到返回空串（面板会显示 unavailable，不会渲染成 undefined）。
+   * 内部已 try/catch 兜底，本身不抛异常——标注 @throws 反而会让调用点触发
+   * ArkTS 28040（Function_may_throw_exceptions_Special_handling_is_required）。
+   */
+  private appVersion(): string {
+    try {
+      const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+      return info.versionName ? info.versionName : '';
+    } catch (err) {
+      console.warn(`[gp-next-bridge] 读取应用版本失败: ${errorText(err as Object)}`);
+      return '';
+    }
+  }
+
+  /**
+   * 进程 RSS（字节）。
+   *
+   * HarmonyOS 没有给普通应用查询内存的公开接口（`@ohos.hidebug` 是系统应用专属），
+   * 只能试读 /proc/self/statm——第 2 列是驻留页数，页大小按 4K 算。沙箱不允许读时返回 null。
+   * 同样内部兜底、不抛异常（原因见 appVersion）。
+   */
+  private processMemoryBytes(): number | null {
+    try {
+      const statm: string = fs.readTextSync('/proc/self/statm');
+      const parts: string[] = statm.trim().split(' ');
+      if (parts.length < 2) {
+        return null;
+      }
+      const pages: number = Number(parts[1]);
+      if (!Number.isFinite(pages) || pages <= 0) {
+        return null;
+      }
+      return pages * 4096;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  private nativeSnapshot(): GpNextNativeSnapshot {
+    const os: GpNextSnapshotOs = {
+      name: deviceInfo.osFullName,
+      longVersion: deviceInfo.osFullName,
+      arch: deviceInfo.abiList
+    };
+    const app: GpNextSnapshotApp = { version: this.appVersion() };
+    const proc: GpNextSnapshotProcess = {
+      pid: process.pid,
+      cpuStatus: 'unavailable',
+      memoryBytes: this.processMemoryBytes()
+    };
+    const system: GpNextSnapshotSystem = {
+      cpuStatus: 'unavailable',
+      usedMemoryBytes: null,
+      totalMemoryBytes: null
+    };
+    const snapshot: GpNextNativeSnapshot = {
+      source: 'harmonyos/arkts',
+      status: 'available',
+      collectedAtMs: Date.now(),
+      os: os,
+      app: app,
+      process: proc,
+      system: system
+    };
+    return snapshot;
   }
 }

@@ -38,9 +38,9 @@
 | 测试环境 | 设备 / 系统 | 内核 | Speedometer | 备注 |
 |:---|:---|:---|:---|:---|
 | Edge（卓易通） | Mate60 / 鸿蒙 | Chromium 144 | 11.57 | 安卓兼容容器内的 Android 版 Edge |
-| 系统 WebView | 小米10 / Android | Chromium 149（满血） | 9.51 | 与下一行同配置，差 45% |
+| 系统 WebView | 小米10 / Android | Chromium 149（满血） | 9.51 | 作者已确认这行是「系统 WebView 149」；**下一行不是同一个浏览器**，见 §1.6 |
 | ArkWeb | Mate60 / 鸿蒙6 | 应为 **M132**（原文写 ~120+，有误） | 6.84 | 鸿蒙当前水平 |
-| 系统 WebView | 小米10 / Android | Chromium 149（受限） | 5.27 | 受温控/负载影响的中间态 |
+| Edge（小米10） | 小米10 / Android | Chromium 149 | 5.27 | **作者更正**：这是小米 10 用自带 Edge（内核 149）的分数，不是系统 WebView 的受限态；见 §1.6 |
 | 系统 WebView | 小米10 / Android | Chromium 116 | 4.87 | Android 上 Maglev 当时仍在 `--future` 之后 |
 | ArkWeb | 鸿蒙5 | 应为 **M114**（原文写 ~106，有误） | ~4.0 | |
 
@@ -48,14 +48,16 @@
 
 1. **内核版本那两行是错的**，已按官方口径更正（见 1.1）。若鸿蒙6 实为 M132，则它与 Chromium 149
    的差距就不能归因于「内核老」，而更可能是 ArkWeb 自身的 V8 构建裁剪与系统调度/温控策略。
-2. **噪声大于结论**：同为 Chromium 149 的两行差 45%，说明不控温、不重复测量的单次数据，
-   第 4–6 名的排序不可用；只有「Mate60 11.57 vs ArkWeb 6.84」这种量级才稳健。
+2. **噪声大于结论**：同为 Chromium 149 的两行差 45%，但作者已更正这两行并非同一个浏览器
+   （9.51 = 系统 WebView，5.27 = 小米 10 的 Edge，见 §1.6），所以这个差值里混着浏览器栈差异与热状态，
+   不能当作纯噪声估计；只有「Mate60 11.57 vs ArkWeb 6.84」这种量级才稳健。
 3. **卓易通不是同一条软件栈**：它是在鸿蒙上运行 Android 应用的兼容容器，Edge 多带一层转译/容器开销。
    它能拿 11.57 恰好证明**硬件不是瓶颈**，但不能当作鸿蒙原生浏览器的对照。
 4. **缺同机对照**：要拆开「引擎差」与「设备差」，需在同一台 Mate60 上跑三组——卓易通 Edge、
-   系统自带浏览器（ArkWeb 内核）、本应用 WebView。另外需确认各行使用同一 Speedometer 版本
-   （5~12 分这个量级对应 Speedometer 3.x）。**本工程自采的 ArkWeb 144 逐项时序基线见 §1.5**
-   —— 那是毫秒时序而非 3.x 分数，两者不可换算。
+   系统自带浏览器（ArkWeb 内核）、本应用 WebView。**§1.6 已补上其中两组**（同一台鸿蒙设备上的
+   ArkWeb M132 与卓易通 Edge 逐项对照），缺的只剩本应用 WebView 那一组。另外需确认各行使用同一
+   Speedometer 版本（5~12 分这个量级对应 Speedometer 3.x）。**本工程自采的 ArkWeb 144 逐项时序基线
+   见 §1.5** —— 那是毫秒时序而非 3.x 分数，两者不可换算。
 
 ### 1.4 为什么 Speedometer 不是本工程的验收指标
 
@@ -96,42 +98,60 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 
 ### 1.6 多环境逐项时序对照（Speedometer 3，10 次重复）
 
-同一批测试在四种环境下各跑一次（每组 10 次，`delta` 为 95% CI）。原始材料是作者提供的连续文本、
-其中夹着环境标签，已按完整条目边界切分，并逐条做自洽校验（用 `values` 重算 `mean / sum / min / max`，
-**四段全部一致**）。
+同一批测试在五种环境下各跑一次（每组 10 次，`delta` 为 95% CI）。原始材料是作者提供的连续文本
+（一份 270 KB 的粘贴 + 后来单独粘贴的一次），其中夹着环境标签，已按完整条目边界切分，并逐条做自洽
+校验（用 `values` 重算 `mean / sum / min / max`，**五段全部一致**）。
 
-| 标签 | 推断环境 | 原始文件 |
+> **2026-09-18 更正（重要）**：本节初版把标签认成「标注它后面那一段」，实际相反——原始粘贴里每个标签
+> 都紧贴在**前一段被截断的数据尾部**（例如 `…27.63499` 后面直接跟 `卓易通edge149`）。按「标签描述其前
+> 一段」重排后，五段才与 §1.3 的总分表、以及作者随后单独粘贴的第二轮数据三者同时对上：
+> `arkweb132` 段反算 6.82 ≈ 表中 ArkWeb 6.84；`mi10-webview149` 段反算 9.47 ≈ 表中 9.51，且与第二轮
+> 逐套件相差 ≤4%。文件已按新标签重命名，旧名记在各自的 `_meta.renamedFrom` 里。
+
+| 标签 | 环境 | 原始文件 |
 |:---|:---|:---|
-| `arkweb132` | ArkWeb 内核 132 | [`perf/speedometer3-arkweb132.json`](perf/speedometer3-arkweb132.json) |
-| `zhuoyitong-edge149` | 卓易通（Android 兼容容器）内的 Edge，内核 149 | [`perf/speedometer3-zhuoyitong-edge149.json`](perf/speedometer3-zhuoyitong-edge149.json) |
-| `mi10-webview149` | 小米 10 系统 WebView 升级到 149 | [`perf/speedometer3-mi10-webview149.json`](perf/speedometer3-mi10-webview149.json) |
-| *（无标签）* | 待作者确认 | [`perf/speedometer3-unlabeled.json`](perf/speedometer3-unlabeled.json) |
+| `arkweb132` | ArkWeb 内核 M132（按 §1.1，鸿蒙 6 的默认内核就是 M132） | [`perf/speedometer3-arkweb132.json`](perf/speedometer3-arkweb132.json) |
+| `zhuoyitong-edge149` | 卓易通（Android 兼容容器）内的 Edge，Chromium 149 | [`perf/speedometer3-zhuoyitong-edge149.json`](perf/speedometer3-zhuoyitong-edge149.json) |
+| `mi10-webview149`（第 1 轮） | 小米 10 + 系统 WebView 149 | [`perf/speedometer3-mi10-webview149.json`](perf/speedometer3-mi10-webview149.json) |
+| `mi10-webview149`（第 2 轮） | 同上，作者另一次粘贴并原样给出总分 **9.51 ± 0.14** | [`perf/speedometer3-mi10-webview149-r2.json`](perf/speedometer3-mi10-webview149-r2.json) |
+| `mi10-edge149` | 小米 10 + Edge（内核 149）——即作者所说「那个五点几跑分」的那次 | [`perf/speedometer3-mi10-edge149.json`](perf/speedometer3-mi10-edge149.json) |
 
 单位 ms、**越小越快**；下表为各顶层套件的 10 次均值：
 
-| 套件 | arkweb132 | 卓易通 edge149 | 小米10 WebView149 | 无标签 |
-|:---|---:|---:|---:|---:|
-| TodoMVC-JavaScript-ES5 | 102.90 | 100.26 | 149.77 | 160.26 |
-| TodoMVC-JavaScript-ES6-Webpack-Complex-DOM | 77.05 | 87.05 | **333.56** | 157.24 |
-| TodoMVC-WebComponents | 48.82 | 64.31 | 141.70 | 99.25 |
-| TodoMVC-React-Complex-DOM | 81.51 | 105.49 | 146.69 | 126.03 |
-| TodoMVC-React-Redux | 97.27 | 112.00 | 172.10 | 136.04 |
-| TodoMVC-Backbone | 80.92 | 97.53 | 127.44 | 121.49 |
-| TodoMVC-Angular-Complex-DOM | 72.13 | 99.63 | 150.97 | 121.77 |
-| TodoMVC-Vue | 63.04 | 68.66 | 110.47 | 102.00 |
-| TodoMVC-jQuery | 279.50 | 289.15 | 430.05 | 410.10 |
-| TodoMVC-Preact-Complex-DOM | —（截断） | 32.08 | —（截断） | —（截断） |
+| 套件 | arkweb132 | 卓易通 edge149 | 小米10 WebView149① | 小米10 WebView149② | 小米10 Edge149 |
+|:---|---:|---:|---:|---:|---:|
+| TodoMVC-JavaScript-ES5 | 160.26 | 102.90 | 100.26 | 102.21 | 149.77 |
+| TodoMVC-JavaScript-ES6-Webpack-Complex-DOM | 157.24 | 77.05 | 87.05 | 85.73 | **333.56** |
+| TodoMVC-WebComponents | 99.25 | 48.82 | 64.31 | 64.55 | 141.70 |
+| TodoMVC-React-Complex-DOM | 126.03 | 81.51 | 105.49 | 103.91 | 146.69 |
+| TodoMVC-React-Redux | 136.04 | 97.27 | 112.00 | 109.47 | 172.10 |
+| TodoMVC-Backbone | 121.49 | 80.92 | 97.53 | 94.74 | 127.44 |
+| TodoMVC-Angular-Complex-DOM | 121.77 | 72.13 | 99.63 | 97.47 | 150.97 |
+| TodoMVC-Vue | 102.00 | 63.04 | 68.66 | 65.99 | 110.47 |
+| TodoMVC-jQuery | 410.10 | 279.50 | 289.15 | 283.99 | 430.05 |
+| TodoMVC-Preact-Complex-DOM | —（截断） | —（截断） | 32.08 | 31.89 | —（截断） |
+| **反算总分**（见下） | 6.82 | 10.69 | 9.47 | **9.62**（报告值 **9.51 ± 0.14**） | 5.57 |
 
-读这份表必须带上三条限定：
+**关于「反算总分」**：`docs/perf/` 存的是逐项毫秒，不是总分。若用
+`1000 /（各顶层套件 mean 的算术平均）` 做粗换算，第 2 轮小米10 WebView149 得 **9.62**，与作者报告的
+**9.51** 差 1.1%；同一把尺子去量其余各列，`arkweb132` 段得 6.82（§1.3 表 6.84）、小米10 Edge149 段得
+5.57（表中 5.27）、卓易通段得 10.69（表中 11.57）。**这只是量级校验用的代理，不是 Speedometer 的官方
+计分公式**，不要拿它去和其他机器的分数比大小。
 
-1. **设备是否同一台尚未确认**：标签同时出现 `arkweb132`（暗示 HarmonyOS 设备）与 `mi10-webview149`
-   （Android 手机），因此这四段很可能是**不同设备**；跨列比较反映的是"设备 + 环境"的合成差异，
-   **不能当作内核对内核的结论**。
-2. **每段尾部都被截断**：原始粘贴在下一段标签处断开（形如 `52. arkweb132`），被截断的那一条未收录，
-   故个别套件缺失（表中标「—（截断）」）。
-3. **存在显著离群值**：`mi10-webview149` 的 `TodoMVC-JavaScript-ES6-Webpack-Complex-DOM` 为 **333.56 ms**，
-   是其余各列（77–157 ms）的 2–4 倍，且该列 CI 整体偏大 —— 与 §1.3 提到的「受限/温控中间态」特征相符，
-   引用时应视为异常样本，或至少单独说明测量条件。
+读这份表必须带上四条限定：
+
+1. **设备分成两组，但只有一组算得上同机对照**：Async 占比指纹把五列聚成两组——`arkweb132` 与
+   `zhuoyitong-edge149`（WebComponents 38.5% / 43.7%，ES5 20.7% / 16.2%）据指纹推断同属一台鸿蒙设备，
+   小米 10 的三列（28.1% / 29.5% / 65.6%）是另一组。因此「ArkWeb vs 卓易通 Edge」可以当同一台设备上的
+   浏览器栈对比，而「鸿蒙 vs 小米 10」仍是设备 + 环境的合成差异，**不能当作内核对内核的结论**。
+2. **每段尾部都被截断**：原始粘贴在下一个标签处断开（形如 `…47.25500005483627, 52. arkweb132`），被截断
+   的那一条未收录，缺失清单见各文件的 `_meta.missingEntries`；`Preact` 套件有三列完全缺失（表中标
+   「—（截断）」），反算总分时按同族数据补 32 ms，故那几列的分数另有 ±0.1~0.3 的不确定度。
+3. **小米 10 的两次 WebView149 互为重复实验**：两轮 10 次均值逐套件相差 ≤4%（最大 Vue +3.9%），说明
+   这个口径下同机同环境的重复性够用；反过来也说明表内 ≤4% 的列间差异不能当结论用。
+4. **小米10 Edge149 一整列是「慢态」**：各套件约为同机系统 WebView 的 1.3–3.9 倍，其中
+   `ES6-Webpack` 333.56 ms 是其余四列（77–160 ms）的 2–4 倍，`ES6-Webpack` 与 `WebComponents` 的
+   Async 占比也飙到 69.8% / 65.6%。引用时应把这一列整体视为受限/热降频样本，或至少单独说明测量条件。
 
 > 本节与 §1.5 口径相同（都是逐项毫秒时序、各 10 次），但**设备不同**，不要跨节取数比较；
 > 两份都只适合在各自环境内纵向复测。
@@ -250,3 +270,4 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 | 2026-09-15 | 首版：内核版本更正、Speedometer 口径限定、三版负载实测对比、壳层问题清单、可用 API 与优先级 |
 | 2026-09-18 | 新增 §1.5：ArkWeb 144（Chromium 144 / 鸿蒙 7，BRA-AL00）Speedometer 逐项时序基线（10 次重复 + CI），原始 metrics 归档到 `docs/perf/`；§1.3 补「与 §1.5 口径不同、不可换算」的说明 |
 | 2026-09-18 | 新增 §1.6：四环境（`arkweb132` / `卓易通edge149` / `小米10 WebView149` / 无标签）Speedometer 3 逐项时序对照（各 10 次重复），原始 metrics 归档；标注设备归属待确认、`mi10-webview149` 的 ES6-Webpack 离群值、以及各段尾部被标签截断的情况 |
+| 2026-09-18 | **修正 §1.6 五段的环境归属**：原判「标签标注其后那一段」有误，实为「标签紧跟其前一段数据的尾部」。重排后五列 = `arkweb132` / `卓易通edge149` / 小米10 系统 WebView149（两轮）/ 小米10 Edge149，文件按新标签重命名（旧名见 `_meta.renamedFrom`）；新增第 2 轮小米10 WebView149 数据（作者报告总分 **9.51 ± 0.14**，与第 1 轮逐套件相差 ≤4%）；补充「反算总分」代理口径与其校准误差；§1.3 依作者更正把 5.27 那一行改为小米 10 的 Edge，并据此改写其限定 2 与限定 4 |

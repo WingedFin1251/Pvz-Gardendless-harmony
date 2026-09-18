@@ -54,13 +54,43 @@
    它能拿 11.57 恰好证明**硬件不是瓶颈**，但不能当作鸿蒙原生浏览器的对照。
 4. **缺同机对照**：要拆开「引擎差」与「设备差」，需在同一台 Mate60 上跑三组——卓易通 Edge、
    系统自带浏览器（ArkWeb 内核）、本应用 WebView。另外需确认各行使用同一 Speedometer 版本
-   （5~12 分这个量级对应 Speedometer 3.x）。
+   （5~12 分这个量级对应 Speedometer 3.x）。**本工程自采的 ArkWeb 144 逐项时序基线见 §1.5**
+   —— 那是毫秒时序而非 3.x 分数，两者不可换算。
 
 ### 1.4 为什么 Speedometer 不是本工程的验收指标
 
 Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不使用 DOM 与现代前端框架。
 真正映射到游戏体感的是三件事：**启动期的 JS 解析与编译、纹理解码与上传、GC 停顿**。
 因此本工程的验收指标应为（见 §5），而不是 Speedometer 分数。
+
+### 1.5 ArkWeb 144 / 鸿蒙 7 逐项时序基线（Speedometer，10 次重复）
+
+§1.3 那些分数来自公开分享的**单次**观测，口径混杂、噪声大到无法排序。下表是本工程在一台真机上按
+**10 次重复 + 95% 置信区间**采集的逐项时序，可作为**同口径基线**使用
+（只有同设备、同 Speedometer 版本下的重测才具备可比性）。
+
+- 设备：`HUAWEI BRA-AL00`（手机）
+- 系统 / 内核：OpenHarmony **7.0** ／ ArkWeb **7.0.0.107**（Chromium **144.0.0.0**）
+- UA：`Mozilla/5.0 (Phone; OpenHarmony 7.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36  ArkWeb/7.0.0.107 Mobile`
+- 采样：每组 **10 次**；`delta` 为 95% 置信区间，`percentDelta` 为相对 CI（原始 metrics 见
+  [`perf/speedometer-arkweb144-bra-al00.json`](perf/speedometer-arkweb144-bra-al00.json)）
+- 单位 ms，**越小越好**
+
+| 套件 | 总 mean | 相对 CI | Adding100Items | CompletingAllItems | DeletingAllItems |
+|:---|---:|---:|:---|:---|:---|
+| TodoMVC-JavaScript-ES5 | **154.72** | 8.1% | 101.81（Sync 79.66 / Async 22.16） | 34.20（21.41 / 12.79） | 18.71（16.74 / 1.98） |
+| TodoMVC-JavaScript-ES6-Webpack-Complex-DOM | **117.03** | 4.3% | 62.31（49.64 / 12.67） | 35.81（22.36 / 13.45） | 18.91（16.10 / 2.81） |
+| TodoMVC-WebComponents | **81.84** | 4.1% | 49.97（28.59 / 21.38） | 19.33（7.85 / 11.47） | 未采集（本轮输出末尾被截断） |
+
+可以读出的三点：
+
+1. **Async 占比随技术栈显著上升**：ES5 22%、ES6-Webpack 20%，而 WebComponents 达 **43%**
+   （`Adding100Items` 异步 21.38 ms 已逼近同步 28.59 ms）。自定义元素与异步渲染路径在 ArkWeb 上相对更贵，
+   这是与 Cocos 无关、但在 Web 侧值得留意的一条差异。
+2. **数据质量明显优于 §1.3**：三套主结果的相对 CI 为 4.1%–8.1%；小项（如 ES5 `CompletingAllItems`
+   绝对时间仅 34 ms）CI 才显大到 19.4%。这正是 §1.3 第 2 条所要求的"重复测量"做法。
+3. **不可与 §1.3 互相换算**：§1.3 是 Speedometer 3.x 的**分数**（5~12 分），本表是逐项**毫秒时序**，
+   测试集与计分口径都不同，只能各自纵向比较；把两者混用会得出错误结论。
 
 ---
 
@@ -174,3 +204,4 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 | 日期 | 变更 |
 |:---|:---|
 | 2026-09-15 | 首版：内核版本更正、Speedometer 口径限定、三版负载实测对比、壳层问题清单、可用 API 与优先级 |
+| 2026-09-18 | 新增 §1.5：ArkWeb 144（Chromium 144 / 鸿蒙 7，BRA-AL00）Speedometer 逐项时序基线（10 次重复 + CI），原始 metrics 归档到 `docs/perf/`；§1.3 补「与 §1.5 口径不同、不可换算」的说明 |

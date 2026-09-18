@@ -28,8 +28,8 @@
 | 产物 | 分支 | 提交 |
 |:---|:---|:---|
 | `pvzge-0.14.0.hap` | `main` | 本标签所在提交 |
-| `pvzge-lite-0.14.0.hap` | `lite` | `4439547` |
-| `pvzge-gpnext-0.14.0.hap` | `gpnext` | `fb2803b` |
+| `pvzge-lite-0.14.0.hap` | `lite` | `453b591` |
+| `pvzge-gpnext-0.14.0.hap` | `gpnext` | `0453d5c` |
 
 ---
 

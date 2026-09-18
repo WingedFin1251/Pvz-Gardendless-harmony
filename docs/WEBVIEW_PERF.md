@@ -94,6 +94,50 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 
 ---
 
+### 1.6 多环境逐项时序对照（Speedometer 3，10 次重复）
+
+同一批测试在四种环境下各跑一次（每组 10 次，`delta` 为 95% CI）。原始材料是作者提供的连续文本、
+其中夹着环境标签，已按完整条目边界切分，并逐条做自洽校验（用 `values` 重算 `mean / sum / min / max`，
+**四段全部一致**）。
+
+| 标签 | 推断环境 | 原始文件 |
+|:---|:---|:---|
+| `arkweb132` | ArkWeb 内核 132 | [`perf/speedometer3-arkweb132.json`](perf/speedometer3-arkweb132.json) |
+| `zhuoyitong-edge149` | 卓易通（Android 兼容容器）内的 Edge，内核 149 | [`perf/speedometer3-zhuoyitong-edge149.json`](perf/speedometer3-zhuoyitong-edge149.json) |
+| `mi10-webview149` | 小米 10 系统 WebView 升级到 149 | [`perf/speedometer3-mi10-webview149.json`](perf/speedometer3-mi10-webview149.json) |
+| *（无标签）* | 待作者确认 | [`perf/speedometer3-unlabeled.json`](perf/speedometer3-unlabeled.json) |
+
+单位 ms、**越小越快**；下表为各顶层套件的 10 次均值：
+
+| 套件 | arkweb132 | 卓易通 edge149 | 小米10 WebView149 | 无标签 |
+|:---|---:|---:|---:|---:|
+| TodoMVC-JavaScript-ES5 | 102.90 | 100.26 | 149.77 | 160.26 |
+| TodoMVC-JavaScript-ES6-Webpack-Complex-DOM | 77.05 | 87.05 | **333.56** | 157.24 |
+| TodoMVC-WebComponents | 48.82 | 64.31 | 141.70 | 99.25 |
+| TodoMVC-React-Complex-DOM | 81.51 | 105.49 | 146.69 | 126.03 |
+| TodoMVC-React-Redux | 97.27 | 112.00 | 172.10 | 136.04 |
+| TodoMVC-Backbone | 80.92 | 97.53 | 127.44 | 121.49 |
+| TodoMVC-Angular-Complex-DOM | 72.13 | 99.63 | 150.97 | 121.77 |
+| TodoMVC-Vue | 63.04 | 68.66 | 110.47 | 102.00 |
+| TodoMVC-jQuery | 279.50 | 289.15 | 430.05 | 410.10 |
+| TodoMVC-Preact-Complex-DOM | —（截断） | 32.08 | —（截断） | —（截断） |
+
+读这份表必须带上三条限定：
+
+1. **设备是否同一台尚未确认**：标签同时出现 `arkweb132`（暗示 HarmonyOS 设备）与 `mi10-webview149`
+   （Android 手机），因此这四段很可能是**不同设备**；跨列比较反映的是"设备 + 环境"的合成差异，
+   **不能当作内核对内核的结论**。
+2. **每段尾部都被截断**：原始粘贴在下一段标签处断开（形如 `52. arkweb132`），被截断的那一条未收录，
+   故个别套件缺失（表中标「—（截断）」）。
+3. **存在显著离群值**：`mi10-webview149` 的 `TodoMVC-JavaScript-ES6-Webpack-Complex-DOM` 为 **333.56 ms**，
+   是其余各列（77–157 ms）的 2–4 倍，且该列 CI 整体偏大 —— 与 §1.3 提到的「受限/温控中间态」特征相符，
+   引用时应视为异常样本，或至少单独说明测量条件。
+
+> 本节与 §1.5 口径相同（都是逐项毫秒时序、各 10 次），但**设备不同**，不要跨节取数比较；
+> 两份都只适合在各自环境内纵向复测。
+
+---
+
 ## 2. 本工程负载构成（实测）
 
 同一份游戏内容、同一份构建配置（两版 `src/settings.json` **逐字节相同**），但**导出设置不同**：
@@ -205,3 +249,4 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 |:---|:---|
 | 2026-09-15 | 首版：内核版本更正、Speedometer 口径限定、三版负载实测对比、壳层问题清单、可用 API 与优先级 |
 | 2026-09-18 | 新增 §1.5：ArkWeb 144（Chromium 144 / 鸿蒙 7，BRA-AL00）Speedometer 逐项时序基线（10 次重复 + CI），原始 metrics 归档到 `docs/perf/`；§1.3 补「与 §1.5 口径不同、不可换算」的说明 |
+| 2026-09-18 | 新增 §1.6：四环境（`arkweb132` / `卓易通edge149` / `小米10 WebView149` / 无标签）Speedometer 3 逐项时序对照（各 10 次重复），原始 metrics 归档；标注设备归属待确认、`mi10-webview149` 的 ES6-Webpack 离群值、以及各段尾部被标签截断的情况 |

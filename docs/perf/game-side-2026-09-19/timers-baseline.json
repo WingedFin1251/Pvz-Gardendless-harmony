@@ -1,0 +1,90 @@
+{
+  "host": "127.0.0.1:9421",
+  "stage": "timers",
+  "seconds": 20,
+  "at": "2026-09-19T15:57:11.553Z",
+  "rows": [
+    {
+      "label": "hp-overlay-DQh_C7B9.js:anon#200",
+      "calls": 100,
+      "totalMs": 1627.3,
+      "msPerSec": 81.4,
+      "perCallMs": 16.27,
+      "ms100": 200
+    },
+    {
+      "label": "main.js:anon#500",
+      "calls": 80,
+      "totalMs": 220.5,
+      "msPerSec": 11,
+      "perCallMs": 2.76,
+      "ms100": 500
+    },
+    {
+      "label": "main.js:anon#50",
+      "calls": 353,
+      "totalMs": 14,
+      "msPerSec": 0.7,
+      "perCallMs": 0.04,
+      "ms100": 50
+    },
+    {
+      "label": "main.js:anon#5000",
+      "calls": 4,
+      "totalMs": 0.6,
+      "msPerSec": 0,
+      "perCallMs": 0.15,
+      "ms100": 5000
+    }
+  ],
+  "window": {
+    "frames": 762,
+    "scriptMs": 15379,
+    "taskMs": 18760,
+    "otherMs": 3325,
+    "ltCount": 16,
+    "ltMs": 1014,
+    "ltTop": [
+      {
+        "start": 50513,
+        "dur": 92
+      },
+      {
+        "start": 50716,
+        "dur": 90
+      },
+      {
+        "start": 50815,
+        "dur": 86
+      },
+      {
+        "start": 65618,
+        "dur": 82
+      },
+      {
+        "start": 64884,
+        "dur": 64
+      },
+      {
+        "start": 54125,
+        "dur": 63
+      },
+      {
+        "start": 53755,
+        "dur": 58
+      },
+      {
+        "start": 64961,
+        "dur": 58
+      },
+      {
+        "start": 51906,
+        "dur": 56
+      },
+      {
+        "start": 57643,
+        "dur": 54
+      }
+    ]
+  }
+}

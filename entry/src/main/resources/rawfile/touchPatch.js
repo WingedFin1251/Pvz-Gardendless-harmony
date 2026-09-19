@@ -235,3 +235,39 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
         }, 100);
     }
 })();
+
+// ==================== GP-Next 血条覆盖层降频（默认关闭） ====================
+// 真机实测（MatePad 11.5"S / DMG-W00，inGameScene，2026-09-19）：
+//   hp-overlay 用 setInterval 每 200 ms 跑一次，每次约 16 ms，占用主线程 81.4 ms/s（约 8% 墙钟）；
+//   但其中只有约 1.7 ms/次 是 JS 执行，其余是 Label 文本重绘 + 纹理上传（原生侧，不计入 ScriptDuration）。
+//   机制：它每次都对 primaryLabel.string / secondaryLabel.string 无条件赋值，触发 Cocos 重新栅格化文本。
+//   实测把周期放宽到 1/3：81.4 → 26.4 ms/s，主线程「非脚本」占比 16.6% → 10.9%（−5.7 点）。
+//   HP_OVERLAY_INTERVAL_MULTIPLIER = 0 关闭（默认，不安装任何钩子）；3 = 每 3 个周期执行一次。
+// 注意：这是**缓解**，不是根因修复——
+//   ① 根因上游修一行即可：赋值前比较字符串是否变化（并在 active 未变时不重复赋值）；
+//   ② GP-Next 设置里把「血条显示」的植物/僵尸/墓碑三项全关，该定时器会自行空转，效果比降频更彻底；
+//   ③ 识别方式是注册栈里匹配 'hp-overlay-'，负载更新后若模块改名会失效（失效时行为不变，安全）。
+// 详见 docs/GAME_SIDE_OPTIMIZATION.md。
+(function () {
+    var HP_OVERLAY_INTERVAL_MULTIPLIER = 0;
+    if (HP_OVERLAY_INTERVAL_MULTIPLIER <= 1) { return; }   // 关闭时不安装钩子，零行为变化
+    try {
+        var origSetInterval = window.setInterval;
+        window.setInterval = function (fn, ms) {
+            var args = Array.prototype.slice.call(arguments, 2);
+            if (typeof fn !== 'function') { return origSetInterval.apply(window, arguments); }
+            var stack = '';
+            try { stack = new Error().stack || ''; } catch (e) { /* ignore */ }
+            if (stack.indexOf('hp-overlay-') === -1) { return origSetInterval.apply(window, arguments); }
+            var n = 0;
+            var wrapped = function () {
+                if ((n++ % HP_OVERLAY_INTERVAL_MULTIPLIER) !== 0) { return; }
+                return fn.apply(this, arguments);
+            };
+            console.log('[perf] hp-overlay 定时器降频 x' + HP_OVERLAY_INTERVAL_MULTIPLIER + '（原周期 ' + ms + ' ms）');
+            return origSetInterval.apply(window, [wrapped, ms].concat(args));
+        };
+    } catch (e) {
+        console.warn('[perf] hp-overlay 降频注入失败', e);
+    }
+})();

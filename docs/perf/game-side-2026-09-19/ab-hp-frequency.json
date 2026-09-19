@@ -1,0 +1,158 @@
+{
+  "host": "127.0.0.1:9421",
+  "stage": "ab",
+  "seconds": 12,
+  "at": "2026-09-19T15:52:45.907Z",
+  "rows": [
+    {
+      "round": 1,
+      "factor": 1,
+      "hpCalls": 60,
+      "hpMs": 861.5,
+      "hpMsPerSec": 71.8,
+      "engineFrames": 279,
+      "engineFps": 23.25,
+      "scriptMs": 9282,
+      "newLongTasks": 9,
+      "scriptPctOfWall": 77.3
+    },
+    {
+      "round": 2,
+      "factor": 3,
+      "hpCalls": 20,
+      "hpMs": 314.7,
+      "hpMsPerSec": 26.2,
+      "engineFrames": 290,
+      "engineFps": 24.17,
+      "scriptMs": 9441,
+      "newLongTasks": 10,
+      "scriptPctOfWall": 78.7
+    },
+    {
+      "round": 3,
+      "factor": 1,
+      "hpCalls": 60,
+      "hpMs": 867,
+      "hpMsPerSec": 72.2,
+      "engineFrames": 301,
+      "engineFps": 25.08,
+      "scriptMs": 9440,
+      "newLongTasks": 8,
+      "scriptPctOfWall": 78.7
+    },
+    {
+      "round": 4,
+      "factor": 3,
+      "hpCalls": 20,
+      "hpMs": 304,
+      "hpMsPerSec": 25.3,
+      "engineFrames": 262,
+      "engineFps": 21.83,
+      "scriptMs": 9169,
+      "newLongTasks": 22,
+      "scriptPctOfWall": 76.4
+    },
+    {
+      "round": 5,
+      "factor": 1,
+      "hpCalls": 60,
+      "hpMs": 829.3,
+      "hpMsPerSec": 69.1,
+      "engineFrames": 327,
+      "engineFps": 27.25,
+      "scriptMs": 9630,
+      "newLongTasks": 9,
+      "scriptPctOfWall": 80.3
+    },
+    {
+      "round": 6,
+      "factor": 3,
+      "hpCalls": 20,
+      "hpMs": 279.3,
+      "hpMsPerSec": 23.3,
+      "engineFrames": 299,
+      "engineFps": 24.92,
+      "scriptMs": 9498,
+      "newLongTasks": 21,
+      "scriptPctOfWall": 79.1
+    }
+  ],
+  "byFactor": {
+    "1": [
+      {
+        "round": 1,
+        "factor": 1,
+        "hpCalls": 60,
+        "hpMs": 861.5,
+        "hpMsPerSec": 71.8,
+        "engineFrames": 279,
+        "engineFps": 23.25,
+        "scriptMs": 9282,
+        "newLongTasks": 9,
+        "scriptPctOfWall": 77.3
+      },
+      {
+        "round": 3,
+        "factor": 1,
+        "hpCalls": 60,
+        "hpMs": 867,
+        "hpMsPerSec": 72.2,
+        "engineFrames": 301,
+        "engineFps": 25.08,
+        "scriptMs": 9440,
+        "newLongTasks": 8,
+        "scriptPctOfWall": 78.7
+      },
+      {
+        "round": 5,
+        "factor": 1,
+        "hpCalls": 60,
+        "hpMs": 829.3,
+        "hpMsPerSec": 69.1,
+        "engineFrames": 327,
+        "engineFps": 27.25,
+        "scriptMs": 9630,
+        "newLongTasks": 9,
+        "scriptPctOfWall": 80.3
+      }
+    ],
+    "3": [
+      {
+        "round": 2,
+        "factor": 3,
+        "hpCalls": 20,
+        "hpMs": 314.7,
+        "hpMsPerSec": 26.2,
+        "engineFrames": 290,
+        "engineFps": 24.17,
+        "scriptMs": 9441,
+        "newLongTasks": 10,
+        "scriptPctOfWall": 78.7
+      },
+      {
+        "round": 4,
+        "factor": 3,
+        "hpCalls": 20,
+        "hpMs": 304,
+        "hpMsPerSec": 25.3,
+        "engineFrames": 262,
+        "engineFps": 21.83,
+        "scriptMs": 9169,
+        "newLongTasks": 22,
+        "scriptPctOfWall": 76.4
+      },
+      {
+        "round": 6,
+        "factor": 3,
+        "hpCalls": 20,
+        "hpMs": 279.3,
+        "hpMsPerSec": 23.3,
+        "engineFrames": 299,
+        "engineFps": 24.92,
+        "scriptMs": 9498,
+        "newLongTasks": 21,
+        "scriptPctOfWall": 79.1
+      }
+    ]
+  }
+}

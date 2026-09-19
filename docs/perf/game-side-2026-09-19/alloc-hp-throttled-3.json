@@ -1,0 +1,166 @@
+{
+  "host": "127.0.0.1:9421",
+  "stage": "alloc",
+  "seconds": 12,
+  "at": "2026-09-19T15:55:15.459Z",
+  "alloc": {
+    "totalBytes": 1926996,
+    "samplingInterval": 16384,
+    "top": [
+      {
+        "fn": "e._buildMaterialUniformBlocks @ _virtual_cc-9deb4621.js:1",
+        "kb": 256.6,
+        "pct": 13.6
+      },
+      {
+        "fn": "e @ _virtual_cc-9deb4621.js:1",
+        "kb": 192.5,
+        "pct": 10.2
+      },
+      {
+        "fn": "r._updateBoneAndSlotTimelines @ _virtual_cc-9deb4621.js:2",
+        "kb": 164,
+        "pct": 8.7
+      },
+      {
+        "fn": "e @ _virtual_cc-9deb4621.js:2",
+        "kb": 160.9,
+        "pct": 8.6
+      },
+      {
+        "fn": "e._doInit @ _virtual_cc-9deb4621.js:1",
+        "kb": 112.1,
+        "pct": 6
+      },
+      {
+        "fn": "i.initialize @ _virtual_cc-9deb4621.js:2",
+        "kb": 96.3,
+        "pct": 5.1
+      },
+      {
+        "fn": "i.copy @ _virtual_cc-9deb4621.js:1",
+        "kb": 96.2,
+        "pct": 5.1
+      },
+      {
+        "fn": "e.fillPasses @ _virtual_cc-9deb4621.js:2",
+        "kb": 80.2,
+        "pct": 4.3
+      },
+      {
+        "fn": "set @ (inline):0",
+        "kb": 48.9,
+        "pct": 2.6
+      },
+      {
+        "fn": "e.setVec4 @ _virtual_cc-9deb4621.js:2",
+        "kb": 48.2,
+        "pct": 2.6
+      },
+      {
+        "fn": "_ut @ _virtual_cc-9deb4621.js:2",
+        "kb": 48.1,
+        "pct": 2.6
+      },
+      {
+        "fn": "Uint8ClampedArray @ (inline):0",
+        "kb": 48.1,
+        "pct": 2.6
+      },
+      {
+        "fn": "push @ (inline):0",
+        "kb": 48.1,
+        "pct": 2.6
+      },
+      {
+        "fn": "assign @ (inline):0",
+        "kb": 48.1,
+        "pct": 2.6
+      },
+      {
+        "fn": "t.setVec4 @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.2,
+        "pct": 1.7
+      },
+      {
+        "fn": "i._createPasses @ _virtual_cc-9deb4621.js:1",
+        "kb": 32.2,
+        "pct": 1.7
+      },
+      {
+        "fn": "e._onClear @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.7
+      },
+      {
+        "fn": "e.generateRenderInfo @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.7
+      },
+      {
+        "fn": "(anonymous) @ _virtual_cc-9deb4621.js:2",
+        "kb": 32,
+        "pct": 1.7
+      },
+      {
+        "fn": "n.createRectangleCenter @ index.js:181",
+        "kb": 16.3,
+        "pct": 0.9
+      },
+      {
+        "fn": "i.update @ _virtual_cc-9deb4621.js:2",
+        "kb": 16.3,
+        "pct": 0.9
+      },
+      {
+        "fn": "GP @ _virtual_cc-9deb4621.js:2",
+        "kb": 16.1,
+        "pct": 0.9
+      },
+      {
+        "fn": "i._updateFrame @ _virtual_cc-9deb4621.js:2",
+        "kb": 16,
+        "pct": 0.9
+      },
+      {
+        "fn": "i.addScene @ _virtual_cc-9deb4621.js:2",
+        "kb": 16,
+        "pct": 0.9
+      },
+      {
+        "fn": "e.setMat4 @ _virtual_cc-9deb4621.js:2",
+        "kb": 16,
+        "pct": 0.9
+      },
+      {
+        "fn": "e.on @ _virtual_cc-9deb4621.js:1",
+        "kb": 16,
+        "pct": 0.9
+      },
+      {
+        "fn": "i.setWrapMode @ _virtual_cc-9deb4621.js:1",
+        "kb": 16,
+        "pct": 0.9
+      },
+      {
+        "fn": "i._applyFontTexture @ _virtual_cc-9deb4621.js:2",
+        "kb": 16,
+        "pct": 0.9
+      },
+      {
+        "fn": "i._calculateUV @ _virtual_cc-9deb4621.js:2",
+        "kb": 16,
+        "pct": 0.9
+      },
+      {
+        "fn": "i._calculateSlicedUV @ _virtual_cc-9deb4621.js:2",
+        "kb": 16,
+        "pct": 0.9
+      }
+    ]
+  },
+  "allocWindow": {
+    "scriptMs": 9052,
+    "newLongTasks": 19
+  }
+}

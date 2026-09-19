@@ -16,6 +16,7 @@
 | [ASPECT_RATIO.md](ASPECT_RATIO.md) | 画面比例约束（3:2 ~ 17:9）方案与取舍 |
 | [WEBVIEW_PERF.md](WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、壳层问题清单与优化优先级 |
 | [SHELL_PERF_2026-09-19.md](SHELL_PERF_2026-09-19.md) | **壳层性能真机复测报告**：Lite/GP-Next 对照、根因定位与假设排除、改动验证（原始数据见 `docs/perf/shell-ab-2026-09-19/`） |
+| [GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md) | **游戏侧（负载侧）优化方案分析**：可行边界、周期定时器成本排行榜、长任务与分配实测、方案清单与验收指标（原始数据见 `docs/perf/game-side-2026-09-19/`） |
 
 ---
 

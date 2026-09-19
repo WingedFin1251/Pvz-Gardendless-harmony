@@ -1,0 +1,166 @@
+{
+  "host": "127.0.0.1:9421",
+  "stage": "alloc",
+  "seconds": 12,
+  "at": "2026-09-19T15:54:28.908Z",
+  "alloc": {
+    "totalBytes": 2570644,
+    "samplingInterval": 16384,
+    "top": [
+      {
+        "fn": "e._buildMaterialUniformBlocks @ _virtual_cc-9deb4621.js:1",
+        "kb": 304.6,
+        "pct": 12.1
+      },
+      {
+        "fn": "r._updateBoneAndSlotTimelines @ _virtual_cc-9deb4621.js:2",
+        "kb": 277.9,
+        "pct": 11.1
+      },
+      {
+        "fn": "e @ _virtual_cc-9deb4621.js:1",
+        "kb": 272.8,
+        "pct": 10.9
+      },
+      {
+        "fn": "e @ _virtual_cc-9deb4621.js:2",
+        "kb": 209.8,
+        "pct": 8.4
+      },
+      {
+        "fn": "i.initialize @ _virtual_cc-9deb4621.js:2",
+        "kb": 176.3,
+        "pct": 7
+      },
+      {
+        "fn": "(anonymous) @ _virtual_cc-9deb4621.js:2",
+        "kb": 112.2,
+        "pct": 4.5
+      },
+      {
+        "fn": "i.copy @ _virtual_cc-9deb4621.js:1",
+        "kb": 112.2,
+        "pct": 4.5
+      },
+      {
+        "fn": "e.fillPasses @ _virtual_cc-9deb4621.js:2",
+        "kb": 80.2,
+        "pct": 3.2
+      },
+      {
+        "fn": "e._doInit @ _virtual_cc-9deb4621.js:1",
+        "kb": 80.1,
+        "pct": 3.2
+      },
+      {
+        "fn": "i @ _virtual_cc-9deb4621.js:2",
+        "kb": 64.5,
+        "pct": 2.6
+      },
+      {
+        "fn": "hookZombieInstance @ 772e35e0-5316-40fc-ba44-15f3af71abb3:7567",
+        "kb": 60.3,
+        "pct": 2.4
+      },
+      {
+        "fn": "i @ _virtual_cc-9deb4621.js:1",
+        "kb": 48,
+        "pct": 1.9
+      },
+      {
+        "fn": "get @ _virtual_cc-9deb4621.js:1",
+        "kb": 40.8,
+        "pct": 1.6
+      },
+      {
+        "fn": "get @ _virtual_cc-9deb4621.js:2",
+        "kb": 36.6,
+        "pct": 1.5
+      },
+      {
+        "fn": "n.createRectangleCenter @ index.js:181",
+        "kb": 32.6,
+        "pct": 1.3
+      },
+      {
+        "fn": "_ut @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.3
+      },
+      {
+        "fn": "e.generateRenderInfo @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.3
+      },
+      {
+        "fn": "i._updateFrame @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.3
+      },
+      {
+        "fn": "i.addScene @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.3
+      },
+      {
+        "fn": "set @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.3
+      },
+      {
+        "fn": "e._buildBones @ _virtual_cc-9deb4621.js:2",
+        "kb": 32.1,
+        "pct": 1.3
+      },
+      {
+        "fn": "set @ index.js:179",
+        "kb": 20.6,
+        "pct": 0.8
+      },
+      {
+        "fn": "e.put @ _virtual_cc-9deb4621.js:2",
+        "kb": 18.2,
+        "pct": 0.7
+      },
+      {
+        "fn": "create @ (inline):0",
+        "kb": 17.1,
+        "pct": 0.7
+      },
+      {
+        "fn": "i._createPasses @ _virtual_cc-9deb4621.js:1",
+        "kb": 16.1,
+        "pct": 0.6
+      },
+      {
+        "fn": "e._frameMoveEnd @ _virtual_cc-9deb4621.js:1",
+        "kb": 16.1,
+        "pct": 0.6
+      },
+      {
+        "fn": "e._onClear @ _virtual_cc-9deb4621.js:2",
+        "kb": 16.1,
+        "pct": 0.6
+      },
+      {
+        "fn": "GP @ _virtual_cc-9deb4621.js:2",
+        "kb": 16.1,
+        "pct": 0.6
+      },
+      {
+        "fn": "(JS) @ (inline):0",
+        "kb": 16.1,
+        "pct": 0.6
+      },
+      {
+        "fn": "Uint16Array @ (inline):0",
+        "kb": 16.1,
+        "pct": 0.6
+      }
+    ]
+  },
+  "allocWindow": {
+    "scriptMs": 9066,
+    "newLongTasks": 43
+  }
+}

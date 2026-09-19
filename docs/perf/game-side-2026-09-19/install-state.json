@@ -1,0 +1,265 @@
+{
+  "host": "127.0.0.1:9421",
+  "stage": "install",
+  "seconds": 12,
+  "at": "2026-09-19T15:56:24.723Z",
+  "scriptIdentifier": "1",
+  "state": {
+    "scene": "inGameScene",
+    "frameRate": 999,
+    "frames": 1254,
+    "timers": {
+      "_virtual_cc-9deb4621.js:anon#50": {
+        "calls": 2,
+        "ms": 0,
+        "ms100": 50
+      },
+      "hp-overlay-DQh_C7B9.js:anon#200": {
+        "calls": 102,
+        "ms": 263.4000000022352,
+        "ms100": 200
+      },
+      "main.js:anon#50": {
+        "calls": 176,
+        "ms": 7.599999999627471,
+        "ms100": 50
+      },
+      "main.js:anon#500": {
+        "calls": 51,
+        "ms": 474.9999999962747,
+        "ms100": 500
+      },
+      "main.js:anon#5000": {
+        "calls": 3,
+        "ms": 0.5,
+        "ms100": 5000
+      }
+    },
+    "lt": [
+      {
+        "start": 89,
+        "dur": 68
+      },
+      {
+        "start": 475,
+        "dur": 349
+      },
+      {
+        "start": 836,
+        "dur": 64
+      },
+      {
+        "start": 1304,
+        "dur": 51
+      },
+      {
+        "start": 1422,
+        "dur": 373
+      },
+      {
+        "start": 4373,
+        "dur": 280
+      },
+      {
+        "start": 4689,
+        "dur": 133
+      },
+      {
+        "start": 6170,
+        "dur": 215
+      },
+      {
+        "start": 8520,
+        "dur": 116
+      },
+      {
+        "start": 8691,
+        "dur": 461
+      },
+      {
+        "start": 9647,
+        "dur": 58
+      },
+      {
+        "start": 9709,
+        "dur": 146
+      },
+      {
+        "start": 10956,
+        "dur": 87
+      },
+      {
+        "start": 11316,
+        "dur": 93
+      },
+      {
+        "start": 11435,
+        "dur": 111
+      },
+      {
+        "start": 12321,
+        "dur": 1836
+      },
+      {
+        "start": 14210,
+        "dur": 496
+      },
+      {
+        "start": 29703,
+        "dur": 118
+      },
+      {
+        "start": 29917,
+        "dur": 588
+      },
+      {
+        "start": 30506,
+        "dur": 71
+      },
+      {
+        "start": 30903,
+        "dur": 55
+      },
+      {
+        "start": 31932,
+        "dur": 62
+      },
+      {
+        "start": 35135,
+        "dur": 145
+      },
+      {
+        "start": 35281,
+        "dur": 646
+      },
+      {
+        "start": 38022,
+        "dur": 533
+      },
+      {
+        "start": 38749,
+        "dur": 260
+      },
+      {
+        "start": 39711,
+        "dur": 124
+      },
+      {
+        "start": 39885,
+        "dur": 66
+      },
+      {
+        "start": 39952,
+        "dur": 52
+      },
+      {
+        "start": 40168,
+        "dur": 81
+      },
+      {
+        "start": 40450,
+        "dur": 61
+      },
+      {
+        "start": 40612,
+        "dur": 61
+      },
+      {
+        "start": 40706,
+        "dur": 94
+      },
+      {
+        "start": 41196,
+        "dur": 99
+      },
+      {
+        "start": 41395,
+        "dur": 455
+      },
+      {
+        "start": 41851,
+        "dur": 459
+      },
+      {
+        "start": 42310,
+        "dur": 1125
+      },
+      {
+        "start": 43455,
+        "dur": 96
+      },
+      {
+        "start": 43551,
+        "dur": 54
+      },
+      {
+        "start": 44287,
+        "dur": 613
+      },
+      {
+        "start": 44917,
+        "dur": 627
+      },
+      {
+        "start": 45761,
+        "dur": 68
+      },
+      {
+        "start": 46021,
+        "dur": 72
+      }
+    ],
+    "intervals": [
+      {
+        "ms": 50,
+        "label": "_virtual_cc-9deb4621.js:anon#50",
+        "isHp": false
+      },
+      {
+        "ms": 50,
+        "label": "_virtual_cc-9deb4621.js:anon#50",
+        "isHp": false
+      },
+      {
+        "ms": 200,
+        "label": "hp-overlay-DQh_C7B9.js:anon#200",
+        "isHp": true
+      },
+      {
+        "ms": 50,
+        "label": "main.js:anon#50",
+        "isHp": false
+      },
+      {
+        "ms": 500,
+        "label": "main.js:anon#500",
+        "isHp": false
+      },
+      {
+        "ms": 500,
+        "label": "main.js:anon#500",
+        "isHp": false
+      },
+      {
+        "ms": 5000,
+        "label": "main.js:anon#5000",
+        "isHp": false
+      },
+      {
+        "ms": 500,
+        "label": "main.js:anon#500",
+        "isHp": false
+      },
+      {
+        "ms": 500,
+        "label": "main.js:anon#500",
+        "isHp": false
+      },
+      {
+        "ms": 5000,
+        "label": "main.js:anon#5000",
+        "isHp": false
+      }
+    ]
+  }
+}

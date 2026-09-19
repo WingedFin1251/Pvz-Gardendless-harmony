@@ -28,11 +28,12 @@
 | 11 | **组件 `update` 只占约 11%；Cocos System（含 Tween）≈ 0%** | 🅐 | 阶段钩子 `updatePhase` 5.32 ms/帧 与组件钩子合计 5.10 ms/帧 互相吻合；9 个 `director._systems[*].update` 全为 0 |
 | 12 | 大头在**引擎内部**：渲染数据更新约 24%、DragonBones 骨骼推进约 16%、**GC 约 9–10%** | 🅐 | V8 CPU Profile self time + 调用祖链（§3.3） |
 | 13 | `spine` / `bullet` 的 wasm（约 2.3 MB）**被加载但从不执行** | 🅐 | 资源列表有请求记录，但 4637 个 profile 节点里 **wasm 帧数 = 0** |
-| 14 | 逐帧热点里的**可改项只有 GP-Next 层**：血条覆盖层 3.1%、桥写文本 1.3% | 🅐 | self time 按文件聚合：`hp-overlay-*.js` 5.1%、GP-Next 桥 0.9% |
+| 14 | 逐帧热点里的**可改项只有 GP-Next 层**：血条覆盖层、桥写文本 | 🅐 | self time 按文件聚合：`hp-overlay-*.js` 5.1%、GP-Next 桥 0.9%；但 `hp-overlay` 是**每 200 ms 一次**的定时器，按墙钟实测占 **8.1%**（含 Label 重绘等非 JS 工作）——详见 [GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md) §2 |
 
 **一句话**：这块平板（Kirin T91C / 8 GB）跑 GP-Next 负载时，每帧需要约 32–48 ms 而 60 fps 的预算是
 16.7 ms；其中 **82–85% 是页内 JS 真的在跑**（组件 `update` 只占 11%，其余在引擎内部的渲染数据更新、
-骨骼动画与 **GC**），GPU 从未触顶；壳层侧已无余量（§5），可下手的只剩 GP-Next 层那几处（§3.3 ④）。
+骨骼动画与 **GC**），GPU 从未触顶；壳层侧已无余量（§5），可下手的只剩 GP-Next 层那几处——该部分已另立专文 **[GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md)**
+（游戏侧方案分析：可行边界、周期定时器成本排行榜、长任务分布、分配采样、方案与验收指标）。
 
 ---
 
@@ -281,7 +282,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 
 | 类别 | 项 | 量级 | 谁能改 |
 |:---|:---|---:|:---|
-| ✅ **GP-Next 层** | `hp-overlay` 血条覆盖层逐帧刷新 | 3.1%（≈1.5 ms/帧） | GP-Next 侧 |
+| ✅ **GP-Next 层** | `hp-overlay` 血条覆盖层（**每 200 ms 一次、每次约 16 ms**，不是逐帧） | profile 5.1%（仅 JS 样本）；**定时器实测 8.1% 墙钟**（含 Label 重绘等原生工作），见 [GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md) §2.1 | GP-Next 侧 |
 | ✅ **GP-Next 层** | 桥的文本写入路径被逐帧触达 | 1.3% | GP-Next 侧 |
 | ⚠️ 游戏代码 | 逐帧 `_findComponents` / `_findChildComponents`（应缓存引用） | 1.4% | 游戏源码 |
 | ⚠️ 游戏代码 | GC 压力（每帧分配堆对象） | **8.8–10.2%** | 游戏/引擎源码 |
@@ -437,7 +438,8 @@ vs 改动后 [`degrade-new-build.json`](perf/shell-ab-2026-09-19/degrade-new-bui
 
 **剩余优化方向与"能不能做"**：逐帧成本的 82–85% 是页内 JS，其中约 20.7 ms/帧在引擎内部
 （渲染数据更新、DragonBones、GC），**不改引擎/游戏源码动不了**；真正能改的只有
-GP-Next 层（血条覆盖层 3.1% + 桥写文本 1.3%）——详见 §3.3 ④。
+GP-Next 层（血条覆盖层 8.1% + 桥写文本 1.3%）——详见 §3.3 ④ 与
+[GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md)。
 
 ---
 

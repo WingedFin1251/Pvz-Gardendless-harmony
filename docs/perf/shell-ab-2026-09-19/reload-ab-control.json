@@ -1,0 +1,44 @@
+[
+  {
+    "canvas": [
+      2240,
+      1472
+    ],
+    "antialias": true,
+    "dpr": 2.5,
+    "tickFps": 35.2,
+    "tickP50": 3.1,
+    "tickP95": 8.7,
+    "tickMean": 10.07,
+    "stalls": 2,
+    "draws": 14
+  },
+  {
+    "canvas": [
+      2240,
+      1472
+    ],
+    "antialias": true,
+    "dpr": 2.5,
+    "tickFps": 44.2,
+    "tickP50": 5.4,
+    "tickP95": 11.4,
+    "tickMean": 12.25,
+    "stalls": 7,
+    "draws": 203
+  },
+  {
+    "canvas": [
+      2240,
+      1472
+    ],
+    "antialias": true,
+    "dpr": 2.5,
+    "tickFps": 35.3,
+    "tickP50": 18.6,
+    "tickP95": 29.1,
+    "tickMean": 20.24,
+    "stalls": 2,
+    "draws": 292
+  }
+]

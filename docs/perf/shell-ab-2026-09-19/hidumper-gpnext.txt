@@ -1,0 +1,303 @@
+# hidumper 原始输出的裁剪版（保留内存表 / CPU 使用率 / /proc/meminfo，丢弃 hidumper -p 线程表）
+# 采集时间 2026-09-19 22:47~22:52，设备 DMG-W00，应用 gpnext
+# 采集脚本：.clean-staging\gpnext-diag\measure-mem.ps1（启动后等 5 s 找到进程，再静置 30 s 取样）
+
+
+===== cat /proc/meminfo =====
+MemTotal:        7997056 kB
+MemFree:         1167584 kB
+MemAvailable:    2830336 kB
+Buffers:               0 kB
+Cached:          1624784 kB
+SwapCached:        97176 kB
+Active:           928964 kB
+Inactive:        1476468 kB
+Active(anon):     704756 kB
+Inactive(anon):   641700 kB
+Active(file):     224208 kB
+Inactive(file):   834768 kB
+Active(purg):          0 kB
+Inactive(purg):        0 kB
+Pined(purg):           0 kB
+Unevictable:      243084 kB
+FileUnmap:       1552990
+FileUnmapFail:     79328
+Protected:        225280 kB
+Mlocked:          323720 kB
+SwapTotal:       6291456 kB
+SwapFree:        3568224 kB
+ZramUsed:         311004 kB
+Dirty:               600 kB
+Writeback:             0 kB
+AnonPages:       1538688 kB
+Mapped:           795820 kB
+Shmem:             82868 kB
+Slab:             421664 kB
+SReclaimable:     225932 kB
+SUnreclaim:       195731 kB
+SlabLarge:             0 kB
+KReclaimable:     227492 kB
+KernelStack:        2200 kB
+KernelDynamic:     38596 kB
+PageTables:       151168 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    10287936 kB
+Committed_AS:   90235716 kB
+VmallocTotal:   536870848 kB
+VmallocUsed:       32024 kB
+VmallocChunk:          0 kB
+Percpu:                0 kB
+HardwareCorrupted:     0 kB
+CmaTotal:        1052672 kB
+CmaFree:         1045536 kB
+CmaUsed:            7136 kB
+IonTotalCache:     63664 kB
+IonTotalUsed:     257900 kB
+GpuTotalUsed:     627104 kB
+DmaHeapTotalCache:    63664 kB
+DmaHeapTotalUsed:   257900 kB
+DmaHeapReusedlistCache:        0 kB
+DmaHeapFreelistCache:        0 kB
+DmaHeapThirdTotalUsed:        0 kB
+RsvTotalUsed:     200452 kB
+AnonHugePages:         0 kB
+ShmemHugePages:        0 kB
+ShmemPmdMapped:        0 kB
+HugePages_Total:       2
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:            4096 kB
+AshmemUsed:        70978 kB
+
+===== aa start -b com.gardendless.gpnext -a EntryAbility =====
+start ability successfully.
+ || 20100029      49199   4732 0 02:40:59 ?     00:00:00 com.gardendless.gpnext:render
+ || 20100030      49200   4732 0 02:40:59 ?     00:00:04 com.gardendless.gpnext:render
+ || shell         49257   1733 0 02:41:03 ?     00:00:00 sh -c ps -ef | grep com.gardendless.gpnext
+ || shell         49260  49257 0 02:41:03 ?     00:00:00 grep com.gardendless.gpnext
+
+===== hidumper --mem 48851 =====
+-------------------------------[memory]-------------------------------
+                          Pss         Shared         Shared        Private        Private           Swap        SwapPss           Heap           Heap           Heap 
+                        Total          Clean          Dirty          Clean          Dirty          Total          Total           Size          Alloc           Free 
+                       ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB ) 
+              ------------------------------------------------------------------------------------------------------------------------------------------------------
+            GL         897268              0              0              0         897268              0              0              0              0              0 
+         Graph          81904              0              0              0          81904              0              0              0              0              0 
+   ark ts heap          85010           6824              0          84096              0             36              0              0              0              0 
+         guard              0              0              0              0              0              0              0              0              0              0 
+   native heap          55041           8500              0          53132              0          33060           2554          94184          91343          13094 
+          .hap            456              4              4            452              0              0              0              0              0              0 
+AnonPage other          28482            392              0          28364              0           5828            262              0              0              0 
+         stack           1128              0              0           1128              0             16             16              0              0              0 
+           .db             76              0              0             76              0              0              0              0              0              0 
+           .so          66666          84456           4668          35284          12596          17232            618              0              0              0 
+           dev              7              0            348              4              0              0              0              0              0              0 
+          .ttf              5            216              0              0              0              0              0              0              0              0 
+FilePage other          11507           2328          18380            440           1344           4272            223              0              0              0 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+         Total        1231223         102720          23400         202976         993112          60444           3673          94184          91343          13094 
+native heap:
+  jemalloc meta:          1036             80              0           1016              0            780            256              0              0              0 
+  jemalloc heap:         52336           3596              0          51248              0          31624           1887              0              0              0 
+       brk heap:          1661           4824              0            860              0            632            387              0              0              0 
+      musl heap:             8              0              0              8              0             24             24              0              0              0 
+Purgeable:
+        PurgSum:0 kB
+        PurgPin:0 kB
+DMA:
+            Dma:81904 kB
+Ashmem:
+Total Ashmem:19592 kB
+
+===== hidumper --cpuusage 48851 =====
+-------------------------------[cpuusage]-------------------------------
+Load average: 11.0 / 11.9 / 12.1; the cpu load average in 1 min, 5 min and 15 min
+CPU usage from 2026-09-19 22:49:35 to 2026-09-19 22:49:38
+Total: 70.30%; User Space: 49.40%; Kernel Space: 20.89%; iowait: 0.07%; irq: 0.47%; idle: 29.16%
+Details of Processes:
+    PID   Total Usage	   User Space    Kernel Space    Page Fault Minor    Page Fault Major    Name
+    48851      9.85%           7.56%          2.29%          283662               67924            com.gardendless.gpnext
+
+===== hidumper --mem 49199 =====
+-------------------------------[memory]-------------------------------
+                          Pss         Shared         Shared        Private        Private           Swap        SwapPss           Heap           Heap           Heap 
+                        Total          Clean          Dirty          Clean          Dirty          Total          Total           Size          Alloc           Free 
+                       ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB ) 
+              ------------------------------------------------------------------------------------------------------------------------------------------------------
+            GL              0              0              0              0              0              0              0              0              0              0 
+         Graph              0              0              0              0              0              0              0              0              0              0 
+         guard              0              0              0              0              0              0              0              0              0              0 
+   native heap           6394            304              0           6260              0            296             97              0              0              0 
+AnonPage other           7225             36              0           7216              0             60             15              0              0              0 
+         stack            152              0              0            152              0              0              0              0              0              0 
+           .so          29306          59700            340             16          18456            936            266              0              0              0 
+           dev              1              0            248              0              0              0              0              0              0              0 
+FilePage other            167            412             40              0              4              0              0              0              0              0 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+         Total          43623          60452            628          13644          18460           1292            378              0              0              0 
+native heap:
+  jemalloc meta:           413             12              0            408              0             32             10              0              0              0 
+  jemalloc heap:          4573            220              0           4480              0            264             87              0              0              0 
+       brk heap:          1392             72              0           1356              0              0              0              0              0              0 
+      musl heap:            16              0              0             16              0              0              0              0              0              0 
+Purgeable:
+        PurgSum:0 kB
+        PurgPin:0 kB
+DMA:
+            Dma:0 kB
+Ashmem:
+Total Ashmem:22600 kB
+
+===== hidumper --cpuusage 49199 =====
+-------------------------------[cpuusage]-------------------------------
+Load average: 11.0 / 11.9 / 12.1; the cpu load average in 1 min, 5 min and 15 min
+CPU usage from 2026-09-19 22:49:35 to 2026-09-19 22:49:39
+Total: 66.90%; User Space: 45.92%; Kernel Space: 20.98%; iowait: 0.09%; irq: 0.50%; idle: 32.51%
+Details of Processes:
+    PID   Total Usage	   User Space    Kernel Space    Page Fault Minor    Page Fault Major    Name
+    49199      0.00%           0.00%          0.00%            7570               22085            com.gardendless.gpnext:render
+
+===== cat /proc/meminfo =====
+MemTotal:        7997056 kB
+MemFree:          359696 kB
+MemAvailable:    1197056 kB
+Buffers:               0 kB
+Cached:          1578440 kB
+SwapCached:       105564 kB
+Active:           784136 kB
+Inactive:        2464184 kB
+Active(anon):     568048 kB
+Inactive(anon):  1608704 kB
+Active(file):     216088 kB
+Inactive(file):   855480 kB
+Active(purg):          0 kB
+Inactive(purg):        0 kB
+Pined(purg):           0 kB
+Unevictable:      243920 kB
+FileUnmap:       1565064
+FileUnmapFail:     79543
+Protected:        225248 kB
+Mlocked:          329036 kB
+SwapTotal:       6291456 kB
+SwapFree:        3352936 kB
+ZramUsed:         348008 kB
+Dirty:               228 kB
+Writeback:             0 kB
+AnonPages:       2371156 kB
+Mapped:           858428 kB
+Shmem:             85196 kB
+Slab:             420284 kB
+SReclaimable:     220107 kB
+SUnreclaim:       200176 kB
+SlabLarge:             0 kB
+KReclaimable:     220107 kB
+KernelStack:        2200 kB
+KernelDynamic:     38948 kB
+PageTables:       158116 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    10287936 kB
+Committed_AS:   93379920 kB
+VmallocTotal:   536870848 kB
+VmallocUsed:       35836 kB
+VmallocChunk:          0 kB
+Percpu:                0 kB
+HardwareCorrupted:     0 kB
+CmaTotal:        1052672 kB
+CmaFree:         1045536 kB
+CmaUsed:            7136 kB
+IonTotalCache:      7920 kB
+IonTotalUsed:     281004 kB
+GpuTotalUsed:    1384864 kB
+DmaHeapTotalCache:     7920 kB
+DmaHeapTotalUsed:   281004 kB
+DmaHeapReusedlistCache:        0 kB
+DmaHeapFreelistCache:        0 kB
+DmaHeapThirdTotalUsed:        0 kB
+RsvTotalUsed:     200452 kB
+AnonHugePages:         0 kB
+ShmemHugePages:        0 kB
+ShmemPmdMapped:        0 kB
+HugePages_Total:       2
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:            4096 kB
+AshmemUsed:        90759 kB
+
+===== cat /proc/meminfo =====
+MemTotal:        7997056 kB
+MemFree:         1283576 kB
+MemAvailable:    2451456 kB
+Buffers:               0 kB
+Cached:          1510968 kB
+SwapCached:       105296 kB
+Active:           847764 kB
+Inactive:        1456912 kB
+Active(anon):     623644 kB
+Inactive(anon):   691540 kB
+Active(file):     224120 kB
+Inactive(file):   765372 kB
+Active(purg):          0 kB
+Inactive(purg):        0 kB
+Pined(purg):           0 kB
+Unevictable:      243920 kB
+FileUnmap:       1565064
+FileUnmapFail:     79543
+Protected:        225248 kB
+Mlocked:          324600 kB
+SwapTotal:       6291456 kB
+SwapFree:        3409668 kB
+ZramUsed:         345592 kB
+Dirty:              1336 kB
+Writeback:             0 kB
+AnonPages:       1489316 kB
+Mapped:           836864 kB
+Shmem:             99820 kB
+Slab:             420232 kB
+SReclaimable:     226160 kB
+SUnreclaim:       194071 kB
+SlabLarge:             0 kB
+KReclaimable:     227444 kB
+KernelStack:        2200 kB
+KernelDynamic:     38464 kB
+PageTables:       152744 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    10287936 kB
+Committed_AS:   90526056 kB
+VmallocTotal:   536870848 kB
+VmallocUsed:       32064 kB
+VmallocChunk:          0 kB
+Percpu:                0 kB
+HardwareCorrupted:     0 kB
+CmaTotal:        1052672 kB
+CmaFree:         1045536 kB
+CmaUsed:            7136 kB
+IonTotalCache:     82320 kB
+IonTotalUsed:     239324 kB
+GpuTotalUsed:     726132 kB
+DmaHeapTotalCache:    82320 kB
+DmaHeapTotalUsed:   239324 kB
+DmaHeapReusedlistCache:        0 kB
+DmaHeapFreelistCache:        0 kB
+DmaHeapThirdTotalUsed:        0 kB
+RsvTotalUsed:     200452 kB
+AnonHugePages:         0 kB
+ShmemHugePages:        0 kB
+ShmemPmdMapped:        0 kB
+HugePages_Total:       2
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:            4096 kB
+AshmemUsed:        53039 kB

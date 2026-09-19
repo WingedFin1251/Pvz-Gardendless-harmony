@@ -1,0 +1,54 @@
+[
+  {
+    "round": 1,
+    "t": "2026-09-19T14:10:12.119Z",
+    "heapUsedMB": 415,
+    "heapTotalMB": 441,
+    "tickFps": 26.3,
+    "tickP50": 26,
+    "tickP95": 36.9,
+    "tickMean": 27.56,
+    "stalls": 2,
+    "drawCalls": 345,
+    "scene": "inGameScene"
+  },
+  {
+    "round": 2,
+    "t": "2026-09-19T14:10:47.147Z",
+    "heapUsedMB": 415,
+    "heapTotalMB": 441,
+    "tickFps": 27.3,
+    "tickP50": 25,
+    "tickP95": 37.6,
+    "tickMean": 26.69,
+    "stalls": 4,
+    "drawCalls": 348,
+    "scene": "inGameScene"
+  },
+  {
+    "round": 3,
+    "t": "2026-09-19T14:11:22.212Z",
+    "heapUsedMB": 415,
+    "heapTotalMB": 441,
+    "tickFps": 21.2,
+    "tickP50": 32.7,
+    "tickP95": 53.2,
+    "tickMean": 34.31,
+    "stalls": 12,
+    "drawCalls": 324,
+    "scene": "inGameScene"
+  },
+  {
+    "round": 4,
+    "t": "2026-09-19T14:11:57.247Z",
+    "heapUsedMB": 415,
+    "heapTotalMB": 441,
+    "tickFps": 20.4,
+    "tickP50": 34.6,
+    "tickP95": 47.2,
+    "tickMean": 35.45,
+    "stalls": 6,
+    "drawCalls": 369,
+    "scene": "inGameScene"
+  }
+]

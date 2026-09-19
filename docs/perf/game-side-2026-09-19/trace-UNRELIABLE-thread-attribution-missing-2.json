@@ -1,0 +1,113 @@
+{
+  "host": "127.0.0.1:9441",
+  "seconds": 45,
+  "reload": false,
+  "wallMs": 53123,
+  "mainTid": 25,
+  "events": 239458,
+  "at": "2026-09-19T16:17:34.844Z",
+  "mainByType": [
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 28216,
+      "ms": 3614.4,
+      "pctOfWall": 6.8
+    }
+  ],
+  "mainGc": [],
+  "mainRoot": {
+    "count": 36,
+    "totalMs": 215.8,
+    "pctOfWall": 0.4,
+    "jsEntryMs": 0,
+    "jsEntryPct": 0,
+    "gcMs": 0,
+    "gcPct": 0,
+    "otherMs": 215.8,
+    "otherPct": 0.4,
+    "byName": [
+      {
+        "name": "ThreadControllerImpl::RunTask",
+        "n": 36,
+        "ms": 215.8
+      }
+    ]
+  },
+  "topTasks": [
+    {
+      "durMs": 11.3,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 9.9,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 9.6,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 9.6,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 8.3,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 7.8,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 7.7,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 7.5,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 7.4,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 7.3,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 7,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 6.6,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    }
+  ],
+  "phaseEarly": [
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 20,
+      "ms": 131.7
+    }
+  ],
+  "phaseLate": [
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 16,
+      "ms": 84.1
+    }
+  ],
+  "mainCalls": []
+}

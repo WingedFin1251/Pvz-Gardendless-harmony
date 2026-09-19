@@ -26,7 +26,7 @@
 | 9 | 卡顿不只来自"慢"，还有 **50–1680 ms 的长任务**阻塞主线程 | 🅐 | `raf-baseline.json`：30 s 内 28 个长任务，最长 1680 ms；官方"单帧超 100 ms 占比 2.95%、抖动率 25.18%"与之吻合 |
 | 10 | **逐帧时间的 82–85% 是页内 JS 在真的执行**，不是等 GPU | 🅐 | `Performance.getMetrics`：12 s 窗口内 `ScriptDuration` = 10.0–10.3 s；`TaskDuration` ≥ 墙钟（主线程饱和）；DOM 布局/样式 < 50 ms | 
 | 11 | **组件 `update` 只占约 11%；Cocos System（含 Tween）≈ 0%** | 🅐 | 阶段钩子 `updatePhase` 5.32 ms/帧 与组件钩子合计 5.10 ms/帧 互相吻合；9 个 `director._systems[*].update` 全为 0 |
-| 12 | 大头在**引擎内部**：渲染数据更新约 24%、DragonBones 骨骼推进约 16%、**GC 约 9–10%** | 🅐 | V8 CPU Profile self time + 调用祖链（§3.3） |
+| 12 | 大头在**引擎内部**：渲染数据更新约 24%、DragonBones 骨骼推进约 16%、**GC 约 3.8–4.8%**（原写 9–10%，见 §3.3 归一化更正） | 🅐 | V8 CPU Profile self time + 调用祖链（§3.3） |
 | 13 | `spine` / `bullet` 的 wasm（约 2.3 MB）**被加载但从不执行** | 🅐 | 资源列表有请求记录，但 4637 个 profile 节点里 **wasm 帧数 = 0** |
 | 14 | 逐帧热点里的**可改项只有 GP-Next 层**：血条覆盖层、桥写文本 | 🅐 | self time 按文件聚合：`hp-overlay-*.js` 5.1%、GP-Next 桥 0.9%；但 `hp-overlay` 是**每 200 ms 一次**的定时器，按墙钟实测占 **8.1%**（含 Label 重绘等非 JS 工作）——详见 [GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md) §2 |
 
@@ -259,7 +259,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 | self 占比 | 函数 | 调用路径 | 性质 |
 |---:|---|---|---|
 | 13–15% | `(program)` | 根 | V8 内部/无 JS 帧的代码 |
-| **8.8–10.2%** | `(garbage collector)` | 根 | **GC** |
+| ~~8.8–10.2%~~ → **4.8%**（归一后） | `(garbage collector)` | 根 | **GC**（口径见下方更正说明） |
 | 4.8–5.6% | `r.advanceTime` | `tick → 组件 update → ArmatureDisplay.update` | **DragonBones 骨骼推进** |
 | 4.8–4.9% | `mut` | `updateAllDirtyRenderers → updateRenderer → updateRenderData` | 渲染数据/矩阵 |
 | 3.1% | `F @ hp-overlay-*.js` | `Z → F` | **GP-Next 血条覆盖层**（独立于 tick 的根分支） |
@@ -276,6 +276,14 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 按文件聚合（self）：引擎 `_virtual_cc` **57.6%**、`(inline)` 37.4%、游戏包 `index.js` **5.8%**、
 `hp-overlay-*.js` **5.1%**、GP-Next 桥 `5228928c-…` 0.9%、`patcher-*.js` 0.4%、`touchPatch.js` 0.1%。
 
+> ⚠️ **归一化更正（2026-09-19 补）**：本小节的"占墙钟"百分比是按**探针窗口**（12.04 s）算的，
+> 而 profile 的**采样窗口**实际是 **13.53 s**（`Profiler.start` 早于探针求值、`stop` 晚于其结束），
+> 因此这里所有百分比都**偏大约 12%**。排序与结论不变，需要绝对占比时请按 13.53 s 归一并参考
+> [GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md) §2.5 的顶层入口分布
+> （归一化后：`_handleRAF` 61.2%、`(program)` 19.3%、`(idle)` 12.1%、**GC 4.8%**）。
+> 本小节 ③ 表中的 **GC 8.8–10.2% 偏高**，更正为 **3.8%（tracing 实测主线程）/ 4.8%（profile 归一后）**，
+> 且该值随场景波动；GC 相应地从"单项最大可识别成本之一"下调为**次要项**。
+
 `updateAllDirtyRenderers` 这一支的 inclusive 为 **23.7%**、DragonBones `advanceTime` 为 **16%**。
 
 #### ④ 由此得到的可动项（按"能不能改"分三类）
@@ -285,7 +293,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 | ✅ **GP-Next 层** | `hp-overlay` 血条覆盖层（**每 200 ms 一次、每次约 16 ms**，不是逐帧） | profile 5.1%（仅 JS 样本）；**定时器实测 8.1% 墙钟**（含 Label 重绘等原生工作），见 [GAME_SIDE_OPTIMIZATION.md](GAME_SIDE_OPTIMIZATION.md) §2.1 | GP-Next 侧 |
 | ✅ **GP-Next 层** | 桥的文本写入路径被逐帧触达 | 1.3% | GP-Next 侧 |
 | ⚠️ 游戏代码 | 逐帧 `_findComponents` / `_findChildComponents`（应缓存引用） | 1.4% | 游戏源码 |
-| ⚠️ 游戏代码 | GC 压力（每帧分配堆对象） | **8.8–10.2%** | 游戏/引擎源码 |
+| ⚠️ 游戏代码 | GC 压力 | **3.8–4.8%**（且实测 JS 分配率仅 150–210 KB/s，"减分配"收益有限，见游戏侧专文 §2.4） | 游戏/引擎源码 |
 | ❌ 引擎内部 | 逐帧 `texSubImage2D`、`_buildMaterialUniformBlocks`、`getPassHash`、矩阵运算 | 合计 >10% | 需改引擎源码 |
 | ❌ 引擎内部 | DragonBones 骨骼推进 | 约 16% | 需改引擎源码 |
 | — **不必动** | `spine` / `bullet` 的 wasm（约 2.3 MB） | **0%** | 被加载但从不执行，见下 |
@@ -328,7 +336,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 │   ├─ 渲染数据更新 updateAllDirtyRenderers（inclusive 23.7%）
 │   │    └─ 矩阵运算 mut/multiply、逐帧 texSubImage2D、逐帧重建材质 uniform、逐帧 pass hash
 │   ├─ DragonBones 骨骼推进 advanceTime（inclusive 16%）
-│   ├─ V8 (program) 13~15% 与 GC 8.8~10.2%
+│   ├─ V8 (program) 19~22% 与 GC 3.8~4.8%（归一后）
 │   └─ 场景/节点遍历 e.walk 2.3~2.6%
 ├─ 组件 update 5.3 ms/帧（11.2%）  ← 唯一属于"游戏逻辑"的部分
 ├─ frameMove 6.96 ms/帧（14.6%）
@@ -349,7 +357,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 | "限帧能提升帧率" | 交替 A/B：999（不限帧）16.53 fps vs 60 上限 14.24 fps，**限帧反而慢 13.8%** | 排除（见 §4.3） |
 | "物理/Spine 引擎模块在拖后腿" | 游戏代码对 `PhysicsSystem`/`Skeleton` 引用数为 0，且 profile 里 wasm 帧数为 0 | 排除（见 §3.3 ⑤） |
 | "Tween 等 System 是开销" | 9 个 `_systems[*].update` 合计 ≈ 0 ms | 排除 |
-| "GC 是主要成本" | GC 占墙钟 8.8–10.2%，是**单项最大可识别成本之一**，但不是主因 | 部分成立 |
+| "GC 是主要成本" | tracing 实测主线程 GC 仅 3.8%（MinorGC 240 次 + MajorGC 8 次 / 45 s），profile 归一后 4.8% | **排除**（原 8.8–10.2% 是归一化误差所致） |
 
 ---
 

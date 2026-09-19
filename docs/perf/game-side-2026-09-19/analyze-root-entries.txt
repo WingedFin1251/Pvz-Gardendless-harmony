@@ -1,0 +1,132 @@
+窗口 12069 ms，采样合计 13533.3 ms，节点 2969，样本 29065
+
+== 按文件聚合（self，占墙钟%） ==
+   60.6%    7318.1 ms  _virtual_cc-9deb4621.js
+   45.6%    5506.7 ms  (inline)
+    4.5%     541.5 ms  index.js
+    0.9%     114.4 ms  e51d3002-6723-4188-aacb-95e272cdf8c2
+    0.4%      46.8 ms  patcher-ChdOorMb.js
+      0%         4 ms  touchPatch.js
+      0%       1.6 ms  bundle.js
+      0%       0.4 ms  engine-DlroBfK2.js
+
+== 按「函数名 @ 文件」self Top 30 ==
+   21.6%    2609.2 ms  (program) @ (inline):0
+   13.6%      1638 ms  (idle) @ (inline):0
+    7.9%     958.9 ms  r.advanceTime @ _virtual_cc-9deb4621.js:2
+    6.4%     772.8 ms  mut @ _virtual_cc-9deb4621.js:2
+    5.4%     654.9 ms  (garbage collector) @ (inline):0
+    3.8%     461.2 ms  e.walk @ _virtual_cc-9deb4621.js:2
+    3.8%     460.4 ms  i.update @ _virtual_cc-9deb4621.js:2
+    2.6%       318 ms  e.multiply @ _virtual_cc-9deb4621.js:1
+    2.6%     312.8 ms  e._onUpdateFrame @ _virtual_cc-9deb4621.js:2
+    2.3%     281.5 ms  i.advanceTime @ _virtual_cc-9deb4621.js:2
+    2.2%     268.6 ms  (anonymous) @ _virtual_cc-9deb4621.js:2
+    1.8%     221.5 ms  e.update @ _virtual_cc-9deb4621.js:2
+    1.4%     167.4 ms  Sct @ _virtual_cc-9deb4621.js:2
+    1.2%     146.5 ms  i._updateGlobalTransformMatrix @ _virtual_cc-9deb4621.js:2
+      1%     119.5 ms  e._setCurrentTime @ _virtual_cc-9deb4621.js:2
+    0.9%     110.2 ms  _ut @ _virtual_cc-9deb4621.js:2
+    0.8%     100.6 ms  set @ _virtual_cc-9deb4621.js:2
+    0.8%      98.2 ms  e._render @ _virtual_cc-9deb4621.js:2
+    0.8%      91.4 ms  e._recordUI @ _virtual_cc-9deb4621.js:2
+    0.8%        91 ms  e.fillPasses @ _virtual_cc-9deb4621.js:2
+    0.8%        91 ms  get @ _virtual_cc-9deb4621.js:1
+    0.6%      77.6 ms  e.setVec4 @ _virtual_cc-9deb4621.js:2
+    0.6%      75.8 ms  e._buildMaterialUniformBlocks @ _virtual_cc-9deb4621.js:1
+    0.6%      70.3 ms  zl @ _virtual_cc-9deb4621.js:1
+    0.6%      69.7 ms  bindVertexArray @ (inline):0
+    0.6%      69.5 ms  e @ _virtual_cc-9deb4621.js:1
+    0.6%      68.3 ms  bufferSubData @ (inline):0
+    0.5%      60.7 ms  e._onArriveAtFrame @ _virtual_cc-9deb4621.js:2
+    0.5%      57.2 ms  e.toArray @ _virtual_cc-9deb4621.js:1
+    0.5%      54.8 ms  owner.<computed> @ (inline):107
+
+== wasm / program / GC / idle 帧 ==
+   21.6%    2609.2 ms  (program) @ (inline):0
+    5.4%     654.9 ms  (garbage collector) @ (inline):0
+   13.6%      1638 ms  (idle) @ (inline):0
+
+== 子树 "tick" = i.tick @ _virtual_cc-9deb4621.js:1  inclusive 8184.1 ms (67.8%)，self 25 ms ==
+       49%  incl   5913.5  self    16.8  target.<computed> @ (inline):40
+     12.4%  incl   1502.1  self    14.7  e.updateAllDirtyRenderers @ _virtual_cc-9deb4621.js:1
+      5.2%  incl    623.8  self     1.7  i.updateRenderer @ _virtual_cc-9deb4621.js:2
+      0.9%  incl    103.4  self    14.1  i.postUpdate @ _virtual_cc-9deb4621.js:2
+      0.1%  incl      9.2  self     1.5  i.postUpdate @ _virtual_cc-9deb4621.js:2
+        0%  incl      1.5  self     1.5  e.emit @ _virtual_cc-9deb4621.js:1
+        0%  incl      1.1  self     1.1  t.emitEvents @ _virtual_cc-9deb4621.js:2
+        0%  incl        1  self       1  i._canRender @ _virtual_cc-9deb4621.js:2
+        0%  incl      0.8  self     0.8  t.step @ _virtual_cc-9deb4621.js:2
+        0%  incl      0.7  self       0  e.postUpdate @ _virtual_cc-9deb4621.js:2
+        0%  incl      0.5  self     0.5  e.frameMove @ _virtual_cc-9deb4621.js:1
+        0%  incl      0.5  self     0.5  updateRenderData @ _virtual_cc-9deb4621.js:2
+        0%  incl      0.4  self     0.4  e._frameDispatchEvents @ _virtual_cc-9deb4621.js:1
+        0%  incl      0.3  self       0  e.update @ _virtual_cc-9deb4621.js:1
+        0%  incl      0.3  self     0.3  e.tryShrink @ _virtual_cc-9deb4621.js:1
+
+== self Top 15 的调用祖链（自根向下） ==
+   21.6%   2609.2 ms  (program) @ (inline):0
+        调用链: (root) @ (inline):0  <-  (program) @ (inline):0
+   13.6%     1638 ms  (idle) @ (inline):0
+        调用链: (root) @ (inline):0  <-  (idle) @ (inline):0
+    6.5%    778.5 ms  r.advanceTime @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.update @ _virtual_cc-9deb4621.js:1  <-  i.update @ _virtual_cc-9deb4621.js:2
+    5.4%    654.9 ms  (garbage collector) @ (inline):0
+        调用链: (root) @ (inline):0  <-  (garbage collector) @ (inline):0
+    2.6%    312.4 ms  mut @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  e.updateAllDirtyRenderers @ _virtual_cc-9deb4621.js:1  <-  i.updateRenderer @ _virtual_cc-9deb4621.js:2  <-  updateRenderData @ _virtual_cc-9deb4621.js:2
+    2.1%    252.8 ms  i.update @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.update @ _virtual_cc-9deb4621.js:1  <-  i.update @ _virtual_cc-9deb4621.js:2
+    1.8%    219.6 ms  mut @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  e.updateAllDirtyRenderers @ _virtual_cc-9deb4621.js:1  <-  i.updateRenderer @ _virtual_cc-9deb4621.js:2  <-  updateRenderData @ _virtual_cc-9deb4621.js:2
+    1.3%      159 ms  e._onUpdateFrame @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.update @ _virtual_cc-9deb4621.js:1  <-  i.update @ _virtual_cc-9deb4621.js:2
+    1.3%    151.8 ms  e.walk @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  e.frameMove @ _virtual_cc-9deb4621.js:1  <-  e._frameMoveProcess @ _virtual_cc-9deb4621.js:1
+    1.2%    150.2 ms  e.update @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.update @ _virtual_cc-9deb4621.js:1  <-  i.update @ _virtual_cc-9deb4621.js:2
+    1.1%    134.5 ms  mut @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  i.updateRenderer @ _virtual_cc-9deb4621.js:2  <-  updateRenderData @ _virtual_cc-9deb4621.js:2  <-  (anonymous) @ _virtual_cc-9deb4621.js:2
+    1.1%    129.9 ms  e.multiply @ _virtual_cc-9deb4621.js:1
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  e.updateAllDirtyRenderers @ _virtual_cc-9deb4621.js:1  <-  i.updateRenderer @ _virtual_cc-9deb4621.js:2  <-  updateRenderData @ _virtual_cc-9deb4621.js:2
+    1.1%    128.2 ms  i.advanceTime @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.update @ _virtual_cc-9deb4621.js:1  <-  i.update @ _virtual_cc-9deb4621.js:2
+    1.1%    127.4 ms  e.walk @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  e.frameMove @ _virtual_cc-9deb4621.js:1  <-  e._frameMoveProcess @ _virtual_cc-9deb4621.js:1
+      1%      124 ms  r.advanceTime @ _virtual_cc-9deb4621.js:2
+        调用链: (root) @ (inline):0  <-  _handleRAF @ _virtual_cc-9deb4621.js:1  <-  t @ _virtual_cc-9deb4621.js:1  <-  r._updateCallback @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.tick @ _virtual_cc-9deb4621.js:1  <-  target.<computed> @ (inline):40  <-  i.update @ _virtual_cc-9deb4621.js:1  <-  e.advanceTime @ _virtual_cc-9deb4621.js:2
+
+== 顶层入口分布（(root) 的直接子节点，按 inclusive） ==
+   68.7%  incl      8288 ms  self        9 ms  _handleRAF @ _virtual_cc-9deb4621.js:1
+   21.6%  incl    2609.2 ms  self   2609.2 ms  (program) @ (inline):0
+   13.6%  incl      1638 ms  self     1638 ms  (idle) @ (inline):0
+    5.4%  incl     654.9 ms  self    654.9 ms  (garbage collector) @ (inline):0
+    1.1%  incl     132.2 ms  self        0 ms  (anonymous) @ e51d3002-6723-4188-aacb-95e272cdf8c2:13512
+    0.3%  incl      41.2 ms  self        0 ms  (anonymous) @ e51d3002-6723-4188-aacb-95e272cdf8c2:2792
+    0.3%  incl      41.1 ms  self        0 ms  u @ bundle.js:18
+    0.2%  incl      21.9 ms  self        1 ms  (anonymous) @ _virtual_cc-9deb4621.js:2
+    0.2%  incl      21.7 ms  self      0.3 ms  (anonymous) @ touchPatch.js:72
+    0.2%  incl      21.2 ms  self      0.7 ms  (anonymous) @ touchPatch.js:131
+    0.1%  incl         8 ms  self      1.3 ms  loop @ (inline):125
+    0.1%  incl       7.4 ms  self      7.4 ms  (anonymous) @ (inline):0
+      0%  incl       5.8 ms  self        0 ms  (anonymous) @ e51d3002-6723-4188-aacb-95e272cdf8c2:2908
+      0%  incl       5.7 ms  self      0.3 ms  (anonymous) @ (inline):1
+      0%  incl       5.6 ms  self      1.5 ms  (anonymous) @ e51d3002-6723-4188-aacb-95e272cdf8c2:8427
+      0%  incl       5.2 ms  self        2 ms  (anonymous) @ (inline):6
+      0%  incl         5 ms  self      1.6 ms  awakenTick @ e51d3002-6723-4188-aacb-95e272cdf8c2:11578
+      0%  incl       4.7 ms  self        0 ms  (anonymous) @ _virtual_cc-9deb4621.js:2
+      0%  incl       3.6 ms  self      1.5 ms  (anonymous) @ _virtual_cc-9deb4621.js:2
+      0%  incl         3 ms  self        0 ms  document.addEventListener.capture @ touchPatch.js:48
+  顶层入口合计 13533.3 ms
+
+== 除 rAF 之外的最大顶层入口，展开两层 ==
+  ■ (program) @ (inline):0  incl 2609.2 ms (21.6%)
+  ■ (idle) @ (inline):0  incl 1638 ms (13.6%)
+  ■ (garbage collector) @ (inline):0  incl 654.9 ms (5.4%)
+  ■ (anonymous) @ e51d3002-6723-4188-aacb-95e272cdf8c2:13512  incl 132.2 ms (1.1%)
+      1.1%  incl     131.5  self     0.3  refreshHUD @ e51d3002-6723-4188-aacb-95e272cdf8c2:12307
+        1.1%  incl     129.4  self     0.3  updateHUD @ e51d3002-6723-4188-aacb-95e272cdf8c2:12336
+          0%  incl       0.7  self       0  syncSaveScope @ e51d3002-6723-4188-aacb-95e272cdf8c2:2566
+          0%  incl       0.7  self     0.3  scanPlantsOnLawn @ e51d3002-6723-4188-aacb-95e272cdf8c2:12213
+          0%  incl       0.4  self       0  snapshotWatchPlants @ e51d3002-6723-4188-aacb-95e272cdf8c2:12153
+        0%  incl       0.7  self     0.7  snapshotWatchPlants @ e51d3002-6723-4188-aacb-95e272cdf8c2:12153

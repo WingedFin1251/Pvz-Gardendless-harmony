@@ -24,6 +24,9 @@
 | 8 | **GC 不是"减少分配"能解决的**：实测总分配仅 **150–210 KB/s**，且 hp-overlay 不在分配榜（榜首是引擎内部的材质 uniform 块与 DragonBones 骨骼/槽时间线） | — | 🅐 §2.4 |
 | 9 | 已安装的 mod 包有 7 个周期定时器；最大的两个（500 ms）合计 **11 ms/s**；那个 50 ms（20 Hz）的 reaper **每次只 0.04 ms，可忽略** | 1.1% | 🅐 §2.1 |
 | 10 | **场景状态波动 2×**（相邻 20 s 窗口 38.10 / 20.25 / 19.90 fps）→ 任何 <10% 的端到端收益都**无法用 fps 验收**，必须改用「主线程占用 ms/s」 | — | 🅐 §2.2 |
+| 11 | 主线程时间**几乎全在 rAF 帧内**（`_handleRAF` = 61.2% 采样窗口）；稳态下**没有**量级 >0.3% 的 rAF 之外 JS 入口 | 61.2% | 🅐 §2.5 |
+| 12 | **一帧可以跑 0.4–2 秒**（最长的单帧 1960 ms，关卡加载发生在 rAF 内） | 1960 ms | 🅐 §2.5 |
+| 13 | GC 实为 **3.8%（tracing）/ 4.8%（profile）**，且 **JS 解析已在后台线程**（`v8.parseOnBackground` 458 ms） | — | 🅐 §2.5（并更正配套报告 §3.3 的 8.8–10.2%） |
 
 **一句话**：游戏侧能动的部分加起来约 **10% 的主线程占用**（其中 8 点是 hp-overlay），
 而**真正的大头**（引擎内部约 40% + GC 约 9%）在闭源构建产物里，只能提给上游。
@@ -126,6 +129,53 @@
 
 ---
 
+### 2.5 顶层入口实测：主线程时间到底分给了谁（并更正 GC 量级）
+
+方法：CDP `Profiler` 采 12 s（保存完整调用树），按「`(root)` 的**直接子节点**」聚合 inclusive ——
+这比 self time 更能回答"时间分给了哪些**顶层入口**"。
+
+| 顶层入口 | inclusive | 占**采样窗口**（13.53 s） |
+|:---|---:|---:|
+| **`_handleRAF`**（每一帧：引擎 tick + 渲染） | 8288 ms | **61.2%** |
+| `(program)`（无 JS 帧的 V8 内置/原生） | 2609 ms | 19.3% |
+| `(idle)` | 1638 ms | 12.1% |
+| `(garbage collector)` | 654.9 ms | **4.8%** |
+| mod 包的 HUD 刷新（`…:13512` → `refreshHUD` / `updateHUD`） | 132.2 ms | 1.0% |
+| `bundle.js:18`（`u`） | 41.1 ms | 0.3% |
+| `touchPatch.js:72` / `:131`（我们的合成鼠标事件） | 21.7 / 21.2 ms | 各 0.2% |
+
+**结论一：稳态下几乎没有「rAF 之外」的 JS 入口。** 除上表几项外，顶层再无量级 >0.3% 的异步入口。
+这否掉了一条看起来很诱人的假设：tracing 里 `RunMicrotasks` 曾达 14.2 s / 45 s（≈31% 墙钟），
+一度让人以为"异步资源加载的 promise 续体吃掉了一半主线程"。按顶层入口看，
+**这些微任务嵌套在 rAF 帧内部**，不是独立的消耗源。
+
+**结论二：GC 的量级要更正。** 本窗口 profile 里 GC 占 **4.8%**；tracing 实测主线程
+`MinorGC`（240 次）+ `MajorGC`（8 次）合计 1709 ms / 45 s = **3.8%**。
+配套报告 §3.3 里写的 8.8–10.2% 偏高，原因见下面的归一化说明（且该值本身随场景波动）。
+
+> ⚠️ **归一化更正**：profile 的采样窗口比探针窗口长（探针 12.04 s，采样合计 13.53 s ——
+> 因为 `Profiler.start` 早于探针求值、`stop` 晚于其结束）。因此配套报告 §3.3 里所有
+> "占墙钟"的百分比都**偏大约 12%**，应按 13.53 s 归一。**排序与结论不变**，
+> 归一化后的关键值：`_handleRAF` 61.2%、`(program)` 19.3%、`(idle)` 12.1%、GC 4.8%。
+
+**顺带确认（tracing，45 s，含一次 reload）**
+
+| 观察 | 数据 | 含义 |
+|:---|:---|:---|
+| 最长的顶层任务是**单帧** `FireAnimationFrame → FunctionCall _handleRAF` | **1960 / 885 / 694 / 617 / 613 / 607 / 604 / 604 / 518 / 455 / 400 / 385 ms** | 一帧可以跑 0.4–2 秒；与 `raf-baseline.json` 的 max 1674.8 ms 互相印证。帧内除 GC/微任务外没有其它事件 → 时间在**引擎 JS 内部**（关卡加载 / 场景构建） |
+| `v8.parseOnBackground` / `BackgroundProcessor::RunScriptStreamingTask` | 458 / 461 ms | **JS 解析已在后台线程** → 用 `precompileJavaScript` 削"解析开销"的收益有限（§3.1 A4 的价值因此下调） |
+| mod 包的 `TimerFire` | 1020 ms / 264 次，其中 `FunctionCall main.js:13513` 377 ms | 与 §2.1 排行榜的 11 ms/s 一致 |
+| `XHRLoad` | 949 次 / 722 ms | 我们的资源拦截路径总量不大（1.6%） |
+| `Layout` | 单帧内 18.8 ms | DOM 布局可忽略 |
+| `V8.ExternalMemoryPressure` | 15.4 ms | 外部内存压力事件（纹理等） |
+
+> tracing 的**时长**可信，但**线程归属不稳定**：三次运行只有第一次（在 reload 前启动 trace）
+> 抓到了渲染主线程的 `FireAnimationFrame` / `FunctionCall` / GC 事件，另两次只抓到别的线程集
+> （`complete=false`、事件数少一半）。因此本节只用 tracing 的**时长与 GC 计数**，
+> 占比与线程归属一律以 CPU Profile 的**顶层入口**为准。
+
+---
+
 ## 3. 方案清单
 
 ### 3.1 立即可做（不改负载、不需要源码）
@@ -135,7 +185,7 @@
 | **A1** | **hp-overlay 定时器降频**（壳层在 document-start 钩 `setInterval`，按注册栈匹配 `hp-overlay-`，每 3 个周期执行一次） | 主线程 −5.5 点（8.1% → 2.7%） | 血条刷新从 5 Hz 降到 1.7 Hz（视觉无感）；识别依赖模块名，负载改名则自动失效（行为不变） | **已实现，默认关闭**：`touchPatch.js` 的 `HP_OVERLAY_INTERVAL_MULTIPLIER`（0=关，3=降频） |
 | **A2** | **直接在 GP-Next 设置里关掉血条显示**（植物/僵尸/墓碑三项） | 主线程 **−8 点左右**（比 A1 更彻底） | 失去血条功能 | 零代码，用户自行决定 |
 | **A3** | 精简已安装的 mod 包（3 个包、7 个定时器） | −1.1 点（两个 500 ms 定时器） | 失去对应 mod 功能 | 零代码 |
-| **A4** | `WebviewController.precompileJavaScript` 注入字节码缓存 | 削**启动期**解析/编译长任务（0–15 s 那 16 个长任务共 4484 ms 的一部分） | 壳层 API，需实测命中率 | 待做（配套报告 §4 已列） |
+| **A4** | `WebviewController.precompileJavaScript` 注入字节码缓存 | 削**启动期**编译/求值（**解析已在后台线程**，见 §2.5，故收益低于原先估计） | 壳层 API，需实测命中率 | 待做（配套报告 §4 已列） |
 
 ### 3.2 需要上游（Gardendless 作者 / GP-Next 维护者）
 
@@ -195,6 +245,13 @@ node .tools/gp-gameprobe.mjs 127.0.0.1:9421 timers 20 out-hp3.json '{"*hp*":3}'
 
 # 6) 分配采样
 node .tools/gp-gameprobe.mjs 127.0.0.1:9421 alloc 12 alloc.json
+
+# 7) CPU Profile 的「顶层入口分布」（判断主线程时间分给了哪些入口）
+node .tools/cdp-attrib.mjs 127.0.0.1:9421 12 attrib.json
+node .tools/analyze-profile.mjs attrib.json        # 末尾会打印「顶层入口分布」
+
+# 8) Chromium Tracing（按事件类型/GC 拆解；注意：时长可信，线程归属不稳定）
+node .tools/cdp-trace.mjs 127.0.0.1:9421 45 trace.json reload
 ```
 
 探针的关键实现（`.tools/gp-gameprobe.mjs`）：
@@ -213,11 +270,18 @@ node .tools/gp-gameprobe.mjs 127.0.0.1:9421 alloc 12 alloc.json
 
 1. **测量包含已安装的 mod 包**（3 个包、7 个定时器），出厂长按时表现可能更好。
 2. **单一设备、单一关卡**（含 Zomboss 与恐龙的重载关）；轻载场景各占比会不同。
-3. **长任务拿不到脚本级归属**：ArkWeb 的 `longtask.attribution.containerSrc` 为空，
-   因此"稳态 42 个长任务是谁造成的"**仍未定位**——这是最值得继续追的一条。
-4. 分配采样对引擎侧大对象/纹理可能低估，故 §2.4 的"GC 不是分配驱动"结论**限于 JS 小对象**。
+3. **长任务已定位到"单帧"层面，但帧内那 1–2 秒的构成仍未拆开**：
+   §2.5 证明最长任务就是一次 `_handleRAF`（关卡加载/场景构建），且帧内除 GC/微任务外没有其它
+   trace 事件 —— 也就是说它的时间在**引擎 JS 内部**，要再细拆需要引擎源码。ArkWeb 的
+   `longtask.attribution.containerSrc` 为空，也无法从 longtask 侧归因。
+4. 分配采样对引擎侧大对象/纹理可能低估，故 §2.4 的"GC 不由 JS 小对象驱动"结论**限于 JS 堆**。
 5. hp-overlay 的降频效果**只验证了主线程占用**，端到端 fps 无法验收（§4）。
-6. 未验证 `precompileJavaScript` 的实际命中率与收益（A4 待做）。
+6. 未验证 `precompileJavaScript` 的实际命中率与收益（A4 待做）；且 §2.5 显示 JS 解析已在后台线程，
+   该手段的价值需要重新评估。
+7. **tracing 的线程归属不稳定**（三次运行只有一次抓到渲染主线程），因此本报告对 tracing 只采用
+   时长与 GC 计数；跨线程占比一律用 CPU Profile 的顶层入口。
+8. profile 的"占墙钟"百分比需要按**采样窗口**（≈13.5 s）而非探针窗口（12 s）归一，
+   否则偏大约 12%（§2.5 已说明；配套报告 §3.3 的 8.8–10.2% 即受此影响）。
 
 ---
 
@@ -226,3 +290,4 @@ node .tools/gp-gameprobe.mjs 127.0.0.1:9421 alloc 12 alloc.json
 | 日期 | 变更 |
 |:---|:---|
 | 2026-09-19 | 首版：可行边界（源码未公开 + patcher 行为钩子）、周期定时器成本排行榜、主线程构成、长任务分布、分配采样；方案清单（立即可做 / 需上游 / 不可行）与验收指标；`touchPatch.js` 加入默认关闭的 hp-overlay 降频开关 |
+| 2026-09-19 | 新增 §2.5「顶层入口实测」：用 CPU Profile 的 `(root)` 直接子节点给出主线程分布（`_handleRAF` **61.2%** / `(program)` 19.3% / `(idle)` 12.1% / **GC 4.8%** / mod HUD 1.0%）；**否掉**"异步 promise 续体吃掉一半主线程"的假设（rAF 之外无量级 >0.3% 的入口）；用 tracing 确认**最长任务是单帧**（1960 ms 等，与 `raf-baseline.json` 的 1674.8 ms 互印）且**JS 解析已在后台线程**（下调 A4 的价值）；补充 profile 需按**采样窗口**归一的更正（§2.5 与配套报告 §3.3 的 8.8–10.2% 偏高） |

@@ -1,0 +1,975 @@
+{
+  "host": "127.0.0.1:9441",
+  "seconds": 45,
+  "reload": true,
+  "at": "2026-09-19T16:13:30.709Z",
+  "events": 523798,
+  "wallMs": 9998438.359,
+  "byName": [
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 161338,
+      "ms": 78326.6,
+      "pctOfWall": 0.8
+    },
+    {
+      "name": "ThreadPool_RunTask",
+      "n": 50602,
+      "ms": 56806.9,
+      "pctOfWall": 0.6
+    },
+    {
+      "name": "FunctionCall",
+      "n": 3609,
+      "ms": 17947.8,
+      "pctOfWall": 0.2
+    },
+    {
+      "name": "FireAnimationFrame",
+      "n": 1486,
+      "ms": 14730.3,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "RunMicrotasks",
+      "n": 1472,
+      "ms": 14194.4,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "SimpleWatcher::OnHandleReady",
+      "n": 60196,
+      "ms": 13315,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "BlinkScheduler_OnTaskCompleted",
+      "n": 24778,
+      "ms": 12822.4,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "BlinkScheduler_PerformMicrotaskCheckpoint",
+      "n": 24778,
+      "ms": 12451.9,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "Receive mojo message",
+      "n": 54012,
+      "ms": 11036.2,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "EpollEvent",
+      "n": 34181,
+      "ms": 8868,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "V8.GC_MC_BACKGROUND_MARKING",
+      "n": 256,
+      "ms": 5445.8,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "EventDispatch",
+      "n": 571,
+      "ms": 3323.8,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_SCAVENGER_BACKGROUND_SCAVENGE_PARALLEL",
+      "n": 1078,
+      "ms": 2617,
+      "pctOfWall": 0
+    },
+    {
+      "name": "MinorGC",
+      "n": 240,
+      "ms": 1455.7,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_SCAVENGER",
+      "n": 240,
+      "ms": 1375.6,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_SCAVENGER_SCAVENGE",
+      "n": 240,
+      "ms": 1360.5,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+      "n": 240,
+      "ms": 1189,
+      "pctOfWall": 0
+    },
+    {
+      "name": "TimerFire",
+      "n": 264,
+      "ms": 1020.2,
+      "pctOfWall": 0
+    },
+    {
+      "name": "XHRLoad",
+      "n": 949,
+      "ms": 722.2,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+      "n": 371,
+      "ms": 698.1,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_MC_BACKGROUND_SWEEPING",
+      "n": 84,
+      "ms": 597.5,
+      "pctOfWall": 0
+    },
+    {
+      "name": "Receive mojo reply",
+      "n": 6648,
+      "ms": 521.7,
+      "pctOfWall": 0
+    },
+    {
+      "name": "BackgroundProcessor::RunScriptStreamingTask",
+      "n": 63,
+      "ms": 461.8,
+      "pctOfWall": 0
+    },
+    {
+      "name": "v8.parseOnBackground",
+      "n": 63,
+      "ms": 458.2,
+      "pctOfWall": 0
+    },
+    {
+      "name": "v8.parseOnBackgroundParsing",
+      "n": 70,
+      "ms": 445.5,
+      "pctOfWall": 0
+    },
+    {
+      "name": "ChannelMojo::OnMessageReceived",
+      "n": 4865,
+      "ms": 391.6,
+      "pctOfWall": 0
+    },
+    {
+      "name": "TaskGraphRunner::RunTask",
+      "n": 4721,
+      "ms": 371.7,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_BACKGROUND_SAFEPOINT",
+      "n": 53,
+      "ms": 362.6,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.StackGuard",
+      "n": 2882,
+      "ms": 348.3,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.HandleInterrupts",
+      "n": 2925,
+      "ms": 306.4,
+      "pctOfWall": 0
+    },
+    {
+      "name": "MajorGC",
+      "n": 8,
+      "ms": 253.6,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_MARK_COMPACTOR",
+      "n": 8,
+      "ms": 251.7,
+      "pctOfWall": 0
+    },
+    {
+      "name": "PrePaint",
+      "n": 1275,
+      "ms": 203.9,
+      "pctOfWall": 0
+    },
+    {
+      "name": "Closed mojo endpoint",
+      "n": 6488,
+      "ms": 194.5,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_BACKGROUND_UNPARK",
+      "n": 28,
+      "ms": 193.6,
+      "pctOfWall": 0
+    },
+    {
+      "name": "v8.evaluateModule",
+      "n": 24,
+      "ms": 189.9,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_MC_MARK",
+      "n": 8,
+      "ms": 143.1,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GC_MC_MARK_FULL_CLOSURE_PARALLEL",
+      "n": 8,
+      "ms": 133.3,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.ExternalMemoryPressure",
+      "n": 358,
+      "ms": 132,
+      "pctOfWall": 0
+    },
+    {
+      "name": "V8.GCHandleGCRequest",
+      "n": 3,
+      "ms": 115.6,
+      "pctOfWall": 0
+    }
+  ],
+  "gc": [
+    {
+      "name": "MinorGC",
+      "n": 240,
+      "ms": 1455.7,
+      "pctOfWall": 0
+    },
+    {
+      "name": "MajorGC",
+      "n": 8,
+      "ms": 253.6,
+      "pctOfWall": 0
+    }
+  ],
+  "topCalls": [
+    {
+      "fn": "_handleRAF @ _virtual_cc-9deb4621.js:2",
+      "n": 1232,
+      "ms": 13138.2,
+      "pctOfWall": 0.1
+    },
+    {
+      "fn": "r @ _virtual_cc-9deb4621.js:2",
+      "n": 127,
+      "ms": 2878.8,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ main.js:13513",
+      "n": 21,
+      "ms": 456.2,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "TS.r.onload @ _virtual_cc-9deb4621.js:2",
+      "n": 245,
+      "ms": 448.8,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "i @ _virtual_cc-9deb4621.js:2",
+      "n": 255,
+      "ms": 345.9,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ touchPatch.js:132",
+      "n": 3,
+      "ms": 144.2,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "r.onload @ _virtual_cc-9deb4621.js:3",
+      "n": 702,
+      "ms": 137.1,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ main.js:2909",
+      "n": 5,
+      "ms": 93.5,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "f @ engine-DlroBfK2.js:2",
+      "n": 52,
+      "ms": 85.8,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ touchPatch.js:73",
+      "n": 5,
+      "ms": 57.8,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ _virtual_cc-9deb4621.js:3",
+      "n": 711,
+      "ms": 57.5,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "document.addEventListener.capture @ touchPatch.js:81",
+      "n": 51,
+      "ms": 29,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "document.addEventListener.capture @ touchPatch.js:49",
+      "n": 5,
+      "ms": 17.4,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ main.js:8428",
+      "n": 123,
+      "ms": 15.1,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ main.js:13523",
+      "n": 2,
+      "ms": 13.8,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ touchPatch.js:118",
+      "n": 20,
+      "ms": 11.4,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "awakenTick @ main.js:11579",
+      "n": 20,
+      "ms": 10.2,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "n @ _virtual_cc-9deb4621.js:2",
+      "n": 1,
+      "ms": 1.6,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "document.addEventListener.capture @ touchPatch.js:127",
+      "n": 3,
+      "ms": 1,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "o @ _virtual_cc-9deb4621.js:3",
+      "n": 5,
+      "ms": 0.9,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "T @ system.bundle.js:2",
+      "n": 1,
+      "ms": 0.7,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ main.js:3818",
+      "n": 2,
+      "ms": 0.6,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ system.bundle.js:2",
+      "n": 7,
+      "ms": 0.5,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "(anonymous) @ _virtual_cc-9deb4621.js:2",
+      "n": 4,
+      "ms": 0.4,
+      "pctOfWall": 0
+    },
+    {
+      "fn": "rq.onsuccess @ main.js:2952",
+      "n": 2,
+      "ms": 0.4,
+      "pctOfWall": 0
+    }
+  ],
+  "taskCount": 6340,
+  "topTasks": [
+    {
+      "tsOffsetMs": 9965421,
+      "durMs": 1960.3,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 1959.2,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 1958.6,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "MinorGC",
+          "ms": 7.3,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 7.1,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 6.8,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 6.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 6.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 6.5,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9993262,
+      "durMs": 885.1,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 881.8,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 847.6,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "RunMicrotasks",
+          "ms": 34.1,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 8.5,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 6,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 5.9,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 5.1,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+          "ms": 5.1,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9995482,
+      "durMs": 694.5,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 691.4,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 690.7,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "MinorGC",
+          "ms": 8.1,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 7.9,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 7.9,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 7.6,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 7.5,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 7.4,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9994843,
+      "durMs": 617,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 593.2,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 593,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "Layout",
+          "ms": 18.8,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 12.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 10.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 10.6,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+          "ms": 9.9,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 8.7,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9973336,
+      "durMs": 612.9,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 611.2,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 610.7,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "V8.ExternalMemoryPressure",
+          "ms": 15.4,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MajorGC",
+          "ms": 11.6,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_MARK_COMPACTOR",
+          "ms": 11.4,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_MC_EVACUATE",
+          "ms": 5.6,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9990285,
+      "durMs": 606.7,
+      "inner": []
+    },
+    {
+      "tsOffsetMs": 9990288,
+      "durMs": 604.1,
+      "inner": []
+    },
+    {
+      "tsOffsetMs": 9988694,
+      "durMs": 603.6,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 600.4,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "RunMicrotasks",
+          "ms": 594.8,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 6.6,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 6.1,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 5.8,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 5.6,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+          "ms": 4.5,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9967459,
+      "durMs": 518.1,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 502.9,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 502.7,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "MinorGC",
+          "ms": 10,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 9.8,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 9.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+          "ms": 9,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+          "ms": 5.6,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9992806,
+      "durMs": 455.7,
+      "inner": [
+        {
+          "name": "TimerFire",
+          "ms": 455.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 377,
+          "fn": "",
+          "loc": "main.js:13513"
+        },
+        {
+          "name": "RunMicrotasks",
+          "ms": 78.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 5.7,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 5.5,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 5.5,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9961412,
+      "durMs": 400,
+      "inner": [
+        {
+          "name": "EventDispatch",
+          "ms": 400,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 399.8,
+          "fn": "r",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        }
+      ]
+    },
+    {
+      "tsOffsetMs": 9992419,
+      "durMs": 384.8,
+      "inner": [
+        {
+          "name": "FireAnimationFrame",
+          "ms": 384.4,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "FunctionCall",
+          "ms": 383.8,
+          "fn": "_handleRAF",
+          "loc": "_virtual_cc-9deb4621.js:2"
+        },
+        {
+          "name": "MinorGC",
+          "ms": 12.3,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 12.1,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE",
+          "ms": 12,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+          "ms": 11.1,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "MinorGC",
+          "ms": 8.5,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "V8.GC_SCAVENGER",
+          "ms": 8.1,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    }
+  ],
+  "earlyPhaseTop": [],
+  "latePhaseTop": [
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 3361,
+      "ms": 46160.5
+    },
+    {
+      "name": "ThreadPool_RunTask",
+      "n": 2968,
+      "ms": 45195
+    },
+    {
+      "name": "FunctionCall",
+      "n": 894,
+      "ms": 16190.2
+    },
+    {
+      "name": "RunMicrotasks",
+      "n": 410,
+      "ms": 13811.2
+    },
+    {
+      "name": "FireAnimationFrame",
+      "n": 800,
+      "ms": 13544.5
+    },
+    {
+      "name": "BlinkScheduler_OnTaskCompleted",
+      "n": 387,
+      "ms": 12275.6
+    },
+    {
+      "name": "BlinkScheduler_PerformMicrotaskCheckpoint",
+      "n": 387,
+      "ms": 12260.2
+    },
+    {
+      "name": "V8.GC_MC_BACKGROUND_MARKING",
+      "n": 134,
+      "ms": 5333.4
+    },
+    {
+      "name": "Receive mojo message",
+      "n": 394,
+      "ms": 4416.6
+    },
+    {
+      "name": "SimpleWatcher::OnHandleReady",
+      "n": 341,
+      "ms": 4020
+    },
+    {
+      "name": "EventDispatch",
+      "n": 83,
+      "ms": 3187.6
+    },
+    {
+      "name": "EpollEvent",
+      "n": 326,
+      "ms": 2872.2
+    },
+    {
+      "name": "V8.GC_SCAVENGER_BACKGROUND_SCAVENGE_PARALLEL",
+      "n": 212,
+      "ms": 1415
+    },
+    {
+      "name": "MinorGC",
+      "n": 160,
+      "ms": 1240.3
+    },
+    {
+      "name": "V8.GC_SCAVENGER",
+      "n": 144,
+      "ms": 1121.2
+    }
+  ]
+}

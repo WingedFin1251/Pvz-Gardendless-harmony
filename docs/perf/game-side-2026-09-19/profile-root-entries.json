@@ -1,0 +1,602 @@
+{
+  "host": "127.0.0.1:9441",
+  "seconds": 12,
+  "at": "2026-09-19T16:18:20.283Z",
+  "resources": {
+    "count": 250,
+    "totalBytes": 48878310,
+    "byExt": {
+      "css": 1,
+      "js": 36,
+      "json": 28,
+      "ico": 2,
+      "wasm": 2,
+      "bin": 1,
+      "png": 18,
+      "mp3": 161,
+      "ttf": 1
+    },
+    "wasm": [
+      {
+        "n": "bullet.release.wasm-10f8cbd4.wasm",
+        "ms": 11,
+        "bytes": 469107
+      },
+      {
+        "n": "spine-17c81aa0.wasm",
+        "ms": 9,
+        "bytes": 352121
+      }
+    ],
+    "spineRequests": [
+      "spine.wasm-a121967b.js",
+      "spine-d11505f0.js",
+      "spine-17c81aa0.wasm"
+    ],
+    "bulletRequests": [
+      "bullet.release.wasm-2c6a39be.js",
+      "bullet.release.wasm-e702f478.js",
+      "bullet.release.wasm-10f8cbd4.wasm"
+    ]
+  },
+  "probe": {
+    "ok": true,
+    "seconds": 12.04,
+    "frames": 397,
+    "wallFps": 32.98,
+    "frameMs": {
+      "mean": 30.32,
+      "p50": 26.5,
+      "p95": 56.3,
+      "max": 169.9
+    },
+    "over33ms": 102,
+    "over100ms": 1,
+    "scene": "inGameScene",
+    "ccFrameRate": 999,
+    "canvas": [
+      2240,
+      1472
+    ],
+    "dpr": 2.5,
+    "heapUsedMB": 756.3,
+    "distinctComponentClasses": 96,
+    "wrappedPrototypes": 36,
+    "systems": [
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
+      "e",
+      "i"
+    ],
+    "phases": {
+      "director.tick": {
+        "ms": 8572.5,
+        "calls": 397,
+        "msPerFrame": 21.593,
+        "percentOfWall": 71.2
+      },
+      "root.frameMove": {
+        "ms": 2529,
+        "calls": 397,
+        "msPerFrame": 6.37,
+        "percentOfWall": 21
+      },
+      "compScheduler.startPhase": {
+        "ms": 5,
+        "calls": 397,
+        "msPerFrame": 0.013,
+        "percentOfWall": 0
+      },
+      "compScheduler.updatePhase": {
+        "ms": 1058.7,
+        "calls": 397,
+        "msPerFrame": 2.667,
+        "percentOfWall": 8.8
+      },
+      "compScheduler.lateUpdatePhase": {
+        "ms": 27.3,
+        "calls": 397,
+        "msPerFrame": 0.069,
+        "percentOfWall": 0.2
+      },
+      "director.emit": {
+        "ms": 558.1,
+        "calls": 5161,
+        "msPerFrame": 1.406,
+        "percentOfWall": 4.6
+      },
+      "system:e": {
+        "ms": 0.3,
+        "calls": 397,
+        "msPerFrame": 0.001,
+        "percentOfWall": 0
+      },
+      "system:i": {
+        "ms": 0.1,
+        "calls": 397,
+        "msPerFrame": 0,
+        "percentOfWall": 0
+      }
+    },
+    "topComponents": [
+      {
+        "cls": "CardSelectAlmanac",
+        "instances": 1,
+        "calls": 5558,
+        "ms": 272.2,
+        "msPerFrame": 0.686,
+        "percentOfWall": 2.3
+      },
+      {
+        "cls": "SkyZombossMechZombie",
+        "instances": 1,
+        "calls": 2035,
+        "ms": 253.1,
+        "msPerFrame": 0.638,
+        "percentOfWall": 2.1
+      },
+      {
+        "cls": "CharacterManager",
+        "instances": 1,
+        "calls": 397,
+        "ms": 58.6,
+        "msPerFrame": 0.148,
+        "percentOfWall": 0.5
+      },
+      {
+        "cls": "Square",
+        "instances": 1,
+        "calls": 401,
+        "ms": 55.4,
+        "msPerFrame": 0.14,
+        "percentOfWall": 0.5
+      },
+      {
+        "cls": "SoundManager",
+        "instances": 1,
+        "calls": 397,
+        "ms": 54.9,
+        "msPerFrame": 0.138,
+        "percentOfWall": 0.5
+      },
+      {
+        "cls": "SunCount",
+        "instances": 1,
+        "calls": 397,
+        "ms": 51.4,
+        "msPerFrame": 0.129,
+        "percentOfWall": 0.4
+      },
+      {
+        "cls": "lawnSky",
+        "instances": 1,
+        "calls": 397,
+        "ms": 49.4,
+        "msPerFrame": 0.124,
+        "percentOfWall": 0.4
+      },
+      {
+        "cls": "LnC",
+        "instances": 1,
+        "calls": 19850,
+        "ms": 31,
+        "msPerFrame": 0.078,
+        "percentOfWall": 0.3
+      },
+      {
+        "cls": "Armor Features",
+        "instances": 1,
+        "calls": 1181,
+        "ms": 30.5,
+        "msPerFrame": 0.077,
+        "percentOfWall": 0.3
+      },
+      {
+        "cls": "ParticleSelfdestroy",
+        "instances": 1,
+        "calls": 1638,
+        "ms": 28.6,
+        "msPerFrame": 0.072,
+        "percentOfWall": 0.2
+      },
+      {
+        "cls": "levelController",
+        "instances": 1,
+        "calls": 397,
+        "ms": 21.2,
+        "msPerFrame": 0.053,
+        "percentOfWall": 0.2
+      },
+      {
+        "cls": "CardUIUpper",
+        "instances": 1,
+        "calls": 3176,
+        "ms": 21.1,
+        "msPerFrame": 0.053,
+        "percentOfWall": 0.2
+      },
+      {
+        "cls": "cc.Button",
+        "instances": 1,
+        "calls": 12704,
+        "ms": 11.5,
+        "msPerFrame": 0.029,
+        "percentOfWall": 0.1
+      },
+      {
+        "cls": "UIInGame",
+        "instances": 1,
+        "calls": 397,
+        "ms": 10.1,
+        "msPerFrame": 0.025,
+        "percentOfWall": 0.1
+      },
+      {
+        "cls": "PlantFoodCount",
+        "instances": 1,
+        "calls": 397,
+        "ms": 7.6,
+        "msPerFrame": 0.019,
+        "percentOfWall": 0.1
+      },
+      {
+        "cls": "Lane",
+        "instances": 1,
+        "calls": 3176,
+        "ms": 6.3,
+        "msPerFrame": 0.016,
+        "percentOfWall": 0.1
+      },
+      {
+        "cls": "Materials",
+        "instances": 1,
+        "calls": 397,
+        "ms": 5.9,
+        "msPerFrame": 0.015,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "zombieDrop",
+        "instances": 0,
+        "calls": 94,
+        "ms": 5.5,
+        "msPerFrame": 0.014,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "KeyListener",
+        "instances": 1,
+        "calls": 397,
+        "ms": 5.3,
+        "msPerFrame": 0.013,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "PowerupFingers",
+        "instances": 1,
+        "calls": 397,
+        "ms": 5.2,
+        "msPerFrame": 0.013,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "Mouse",
+        "instances": 1,
+        "calls": 397,
+        "ms": 5,
+        "msPerFrame": 0.013,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "sun",
+        "instances": 1,
+        "calls": 85,
+        "ms": 2.1,
+        "msPerFrame": 0.005,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "zombossMissileLocator",
+        "instances": 1,
+        "calls": 222,
+        "ms": 2.1,
+        "msPerFrame": 0.005,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "Plants",
+        "instances": 1,
+        "calls": 397,
+        "ms": 1.7,
+        "msPerFrame": 0.004,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "SandBoxZombieCards",
+        "instances": 1,
+        "calls": 397,
+        "ms": 1.6,
+        "msPerFrame": 0.004,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "GroundFiresManager",
+        "instances": 1,
+        "calls": 397,
+        "ms": 1.5,
+        "msPerFrame": 0.004,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "CoinCollecterInGame",
+        "instances": 1,
+        "calls": 397,
+        "ms": 1.4,
+        "msPerFrame": 0.004,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "SoundRescourses",
+        "instances": 1,
+        "calls": 397,
+        "ms": 1.1,
+        "msPerFrame": 0.003,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "Droppings",
+        "instances": 1,
+        "calls": 397,
+        "ms": 1.1,
+        "msPerFrame": 0.003,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "CoinCount",
+        "instances": 1,
+        "calls": 397,
+        "ms": 0.8,
+        "msPerFrame": 0.002,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "GemCount",
+        "instances": 1,
+        "calls": 397,
+        "ms": 0.6,
+        "msPerFrame": 0.002,
+        "percentOfWall": 0
+      },
+      {
+        "cls": "FrontYard",
+        "instances": 1,
+        "calls": 397,
+        "ms": 0.5,
+        "msPerFrame": 0.001,
+        "percentOfWall": 0
+      }
+    ]
+  },
+  "probeWallMs": 12069,
+  "metricsDelta": {
+    "TaskDuration": 12093.5,
+    "ScriptDuration": 9000.2,
+    "LayoutDuration": 30.1,
+    "RecalcStyleDuration": 8.2,
+    "JSHeapUsedSize": 78684748,
+    "JSHeapTotalSize": 29876224,
+    "Nodes": 1475,
+    "JSEventListeners": 0
+  },
+  "profile": {
+    "sampledMs": 13533.3,
+    "wallMs": 12069,
+    "top": [
+      {
+        "fn": "(program) @ (inline):0",
+        "ms": 2609.2,
+        "percentOfWall": 21.6
+      },
+      {
+        "fn": "(idle) @ (inline):0",
+        "ms": 1638,
+        "percentOfWall": 13.6
+      },
+      {
+        "fn": "r.advanceTime @ _virtual_cc-9deb4621.js:2",
+        "ms": 958.9,
+        "percentOfWall": 7.9
+      },
+      {
+        "fn": "mut @ _virtual_cc-9deb4621.js:2",
+        "ms": 772.8,
+        "percentOfWall": 6.4
+      },
+      {
+        "fn": "(garbage collector) @ (inline):0",
+        "ms": 654.9,
+        "percentOfWall": 5.4
+      },
+      {
+        "fn": "e.walk @ _virtual_cc-9deb4621.js:2",
+        "ms": 461.2,
+        "percentOfWall": 3.8
+      },
+      {
+        "fn": "i.update @ _virtual_cc-9deb4621.js:2",
+        "ms": 460.4,
+        "percentOfWall": 3.8
+      },
+      {
+        "fn": "e.multiply @ _virtual_cc-9deb4621.js:1",
+        "ms": 318,
+        "percentOfWall": 2.6
+      },
+      {
+        "fn": "e._onUpdateFrame @ _virtual_cc-9deb4621.js:2",
+        "ms": 312.8,
+        "percentOfWall": 2.6
+      },
+      {
+        "fn": "i.advanceTime @ _virtual_cc-9deb4621.js:2",
+        "ms": 281.5,
+        "percentOfWall": 2.3
+      },
+      {
+        "fn": "(anonymous) @ _virtual_cc-9deb4621.js:2",
+        "ms": 268.6,
+        "percentOfWall": 2.2
+      },
+      {
+        "fn": "e.update @ _virtual_cc-9deb4621.js:2",
+        "ms": 221.5,
+        "percentOfWall": 1.8
+      },
+      {
+        "fn": "Sct @ _virtual_cc-9deb4621.js:2",
+        "ms": 167.4,
+        "percentOfWall": 1.4
+      },
+      {
+        "fn": "i._updateGlobalTransformMatrix @ _virtual_cc-9deb4621.js:2",
+        "ms": 146.5,
+        "percentOfWall": 1.2
+      },
+      {
+        "fn": "e._setCurrentTime @ _virtual_cc-9deb4621.js:2",
+        "ms": 119.5,
+        "percentOfWall": 1
+      },
+      {
+        "fn": "_ut @ _virtual_cc-9deb4621.js:2",
+        "ms": 110.2,
+        "percentOfWall": 0.9
+      },
+      {
+        "fn": "set @ _virtual_cc-9deb4621.js:2",
+        "ms": 100.6,
+        "percentOfWall": 0.8
+      },
+      {
+        "fn": "e._render @ _virtual_cc-9deb4621.js:2",
+        "ms": 98.2,
+        "percentOfWall": 0.8
+      },
+      {
+        "fn": "e._recordUI @ _virtual_cc-9deb4621.js:2",
+        "ms": 91.4,
+        "percentOfWall": 0.8
+      },
+      {
+        "fn": "e.fillPasses @ _virtual_cc-9deb4621.js:2",
+        "ms": 91,
+        "percentOfWall": 0.8
+      },
+      {
+        "fn": "get @ _virtual_cc-9deb4621.js:1",
+        "ms": 91,
+        "percentOfWall": 0.8
+      },
+      {
+        "fn": "e.setVec4 @ _virtual_cc-9deb4621.js:2",
+        "ms": 77.6,
+        "percentOfWall": 0.6
+      },
+      {
+        "fn": "e._buildMaterialUniformBlocks @ _virtual_cc-9deb4621.js:1",
+        "ms": 75.8,
+        "percentOfWall": 0.6
+      },
+      {
+        "fn": "zl @ _virtual_cc-9deb4621.js:1",
+        "ms": 70.3,
+        "percentOfWall": 0.6
+      },
+      {
+        "fn": "bindVertexArray @ (inline):0",
+        "ms": 69.7,
+        "percentOfWall": 0.6
+      },
+      {
+        "fn": "e @ _virtual_cc-9deb4621.js:1",
+        "ms": 69.5,
+        "percentOfWall": 0.6
+      },
+      {
+        "fn": "bufferSubData @ (inline):0",
+        "ms": 68.3,
+        "percentOfWall": 0.6
+      },
+      {
+        "fn": "e._onArriveAtFrame @ _virtual_cc-9deb4621.js:2",
+        "ms": 60.7,
+        "percentOfWall": 0.5
+      },
+      {
+        "fn": "e.toArray @ _virtual_cc-9deb4621.js:1",
+        "ms": 57.2,
+        "percentOfWall": 0.5
+      },
+      {
+        "fn": "owner.<computed> @ (inline):107",
+        "ms": 54.8,
+        "percentOfWall": 0.5
+      },
+      {
+        "fn": "r._updateBoneAndSlotTimelines @ _virtual_cc-9deb4621.js:2",
+        "ms": 54.4,
+        "percentOfWall": 0.5
+      },
+      {
+        "fn": "e._doInit @ _virtual_cc-9deb4621.js:1",
+        "ms": 53.6,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "(anonymous) @ (inline):0",
+        "ms": 50.6,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "e.mergeBatchesForMiddleware @ _virtual_cc-9deb4621.js:2",
+        "ms": 49.8,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "t.getPassHash @ _virtual_cc-9deb4621.js:1",
+        "ms": 49.4,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "texSubImage2D @ (inline):0",
+        "ms": 47.5,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "kit @ _virtual_cc-9deb4621.js:2",
+        "ms": 46.6,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "(anonymous) @ patcher-ChdOorMb.js:64",
+        "ms": 45.4,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "target.<computed> @ (inline):40",
+        "ms": 42.5,
+        "percentOfWall": 0.4
+      },
+      {
+        "fn": "updateRenderData @ _virtual_cc-9deb4621.js:2",
+        "ms": 42.4,
+        "percentOfWall": 0.4
+      }
+    ]
+  }
+}

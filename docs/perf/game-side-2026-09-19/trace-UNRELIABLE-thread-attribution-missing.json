@@ -1,0 +1,241 @@
+{
+  "host": "127.0.0.1:9441",
+  "seconds": 45,
+  "reload": true,
+  "wallMs": 75494,
+  "mainTid": 13420,
+  "events": 300727,
+  "at": "2026-09-19T16:16:00.880Z",
+  "mainByType": [
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 21058,
+      "ms": 3233,
+      "pctOfWall": 4.3
+    },
+    {
+      "name": "SimpleWatcher::OnHandleReady",
+      "n": 11036,
+      "ms": 1618,
+      "pctOfWall": 2.1
+    },
+    {
+      "name": "EpollEvent",
+      "n": 8547,
+      "ms": 1489,
+      "pctOfWall": 2
+    },
+    {
+      "name": "Receive mojo message",
+      "n": 8597,
+      "ms": 1204.8,
+      "pctOfWall": 1.6
+    },
+    {
+      "name": "Receive mojo reply",
+      "n": 1751,
+      "ms": 177.1,
+      "pctOfWall": 0.2
+    },
+    {
+      "name": "ChannelMojo::OnMessageReceived",
+      "n": 950,
+      "ms": 57.3,
+      "pctOfWall": 0.1
+    },
+    {
+      "name": "Closed mojo endpoint",
+      "n": 49,
+      "ms": 3,
+      "pctOfWall": 0
+    }
+  ],
+  "mainGc": [],
+  "mainRoot": {
+    "count": 107,
+    "totalMs": 804.1,
+    "pctOfWall": 1.1,
+    "jsEntryMs": 0,
+    "jsEntryPct": 0,
+    "gcMs": 0,
+    "gcPct": 0,
+    "otherMs": 804.1,
+    "otherPct": 1.1,
+    "byName": [
+      {
+        "name": "EpollEvent",
+        "n": 76,
+        "ms": 408.8
+      },
+      {
+        "name": "ThreadControllerImpl::RunTask",
+        "n": 31,
+        "ms": 395.4
+      }
+    ]
+  },
+  "topTasks": [
+    {
+      "durMs": 106.9,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 48.1,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 29.9,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 21.9,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 18.9,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 17.6,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 17,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 11.9,
+      "name": "ThreadControllerImpl::RunTask",
+      "inner": []
+    },
+    {
+      "durMs": 11.5,
+      "name": "EpollEvent",
+      "inner": [
+        {
+          "name": "SimpleWatcher::OnHandleReady",
+          "ms": 11.2,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "Receive mojo message",
+          "ms": 11.1,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "durMs": 10.2,
+      "name": "EpollEvent",
+      "inner": [
+        {
+          "name": "SimpleWatcher::OnHandleReady",
+          "ms": 9.8,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "Receive mojo message",
+          "ms": 9.7,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "durMs": 9.6,
+      "name": "EpollEvent",
+      "inner": [
+        {
+          "name": "SimpleWatcher::OnHandleReady",
+          "ms": 9.4,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "Receive mojo message",
+          "ms": 9.2,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    },
+    {
+      "durMs": 8.6,
+      "name": "EpollEvent",
+      "inner": [
+        {
+          "name": "SimpleWatcher::OnHandleReady",
+          "ms": 8.3,
+          "fn": "",
+          "loc": ""
+        },
+        {
+          "name": "Receive mojo message",
+          "ms": 8,
+          "fn": "",
+          "loc": ""
+        }
+      ]
+    }
+  ],
+  "phaseEarly": [
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 9,
+      "ms": 89.5
+    },
+    {
+      "name": "EpollEvent",
+      "n": 2,
+      "ms": 14.1
+    },
+    {
+      "name": "SimpleWatcher::OnHandleReady",
+      "n": 1,
+      "ms": 5.8
+    },
+    {
+      "name": "Receive mojo message",
+      "n": 1,
+      "ms": 5.6
+    }
+  ],
+  "phaseLate": [
+    {
+      "name": "EpollEvent",
+      "n": 74,
+      "ms": 394.7
+    },
+    {
+      "name": "SimpleWatcher::OnHandleReady",
+      "n": 64,
+      "ms": 335.3
+    },
+    {
+      "name": "ThreadControllerImpl::RunTask",
+      "n": 22,
+      "ms": 305.8
+    },
+    {
+      "name": "Receive mojo message",
+      "n": 53,
+      "ms": 278.5
+    },
+    {
+      "name": "Receive mojo reply",
+      "n": 1,
+      "ms": 4.3
+    }
+  ],
+  "mainCalls": []
+}

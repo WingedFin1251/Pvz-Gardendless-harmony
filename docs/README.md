@@ -15,6 +15,7 @@
 | [BUILD.md](BUILD.md) | 构建配置、签名、部署流程 |
 | [ASPECT_RATIO.md](ASPECT_RATIO.md) | 画面比例约束（3:2 ~ 17:9）方案与取舍 |
 | [WEBVIEW_PERF.md](WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、壳层问题清单与优化优先级 |
+| [SHELL_PERF_2026-09-19.md](SHELL_PERF_2026-09-19.md) | **壳层性能真机复测报告**：Lite/GP-Next 对照、根因定位与假设排除、改动验证（原始数据见 `docs/perf/shell-ab-2026-09-19/`） |
 
 ---
 

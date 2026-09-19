@@ -38,10 +38,24 @@ ArkWeb 6.1.0.120 / Chromium 132，8 GB RAM + 6 GB swap，屏幕 1840×2800（测
 | `degrade-lite-contaminated.json` | `lite`，5 轮，**污染样本**：`gpnext` 同时在后台运行，见报告 §2.3 |
 | `degrade-earlier-7rounds.json` | 同日更早的 7 轮基线 |
 | `raf-baseline.json` | 30 s 逐帧间隔 + 长任务列表（抖动分析，报告 §3.3） |
-| `raf-framerate-ab.json` | `cc.game.frameRate` = 不设限 / 60 / 30 三档对照（报告 §4.3） |
-| `raf-framerate-30.json` | 30 上限的详细分布 |
+| `raf-framerate-ab.json` | ⚠️ **已作废**：`cc.game.frameRate` 三档的**顺序**采样。它用 rAF 回调间隔当帧数，限帧后会把空帧计成帧，因此「限帧 60 更快」是假象；结论见 `rate-ab-engine.json` 与报告 §4.3 |
+| `raf-framerate-30.json` | 同上，30 上限的详细分布（同样作废） |
+| `rate-ab-engine.json` | ✅ **交替 A/B**（每档 n=3，逐轮交替，读 `cc.director.getTotalFrames()` 真实引擎帧数）：999 → 16.44/16.10/17.04 fps，60 → 12.77/14.82/15.14 fps |
 | `reload-ab-control.json` | 分辨率/抗锯齿 A/B 的**对照**组：canvas 2240×1472、antialias `true`、dpr 2.5 |
 | `reload-ab-injected.json` | 分辨率/抗锯齿 A/B 的**降级**组：canvas 1400×920、antialias `false`、dpr 1.25 |
+
+### JS 逐帧归因（CDP Profiler + `Performance.getMetrics` + 引擎钩子）
+
+采集条件：`inGameScene`（含 Zomboss 与恐龙的重载场景），三次 12 s 窗口，200 µs 采样，
+`cc.game.frameRate = 999`。
+
+| 文件 | 内容 |
+|:---|:---|
+| `attrib-999-heavy.json` | 一次运行的完整结果：资源清单（含 wasm 请求）、`Performance` 指标增量、引擎阶段耗时、组件级耗时 top-40、V8 profile 的 self Top-40。**已裁掉 2.4 MB 的原始调用树** |
+| `analyze-attrib.txt` | 用原始调用树做的离线分析全文：按文件聚合、self Top 30、wasm/GC/idle 帧、`tick`/`frameMove`/`advanceTime` 子树展开、self Top 15 的**调用祖链** |
+
+> 想复现调用树分析，需要重新采集并保留原始 `profile`（驱动脚本 `.tools/cdp-attrib.mjs` 会把
+> 完整 profile 写进 JSON），再用 `.tools/analyze-profile.mjs` 分析。
 
 ## 引用这些数据的注意事项
 
@@ -52,3 +66,12 @@ ArkWeb 6.1.0.120 / Chromium 132，8 GB RAM + 6 GB swap，屏幕 1840×2800（测
 3. **污染样本已单独标注**，不要把它当作 `lite` 的真实表现。
 4. 官方导出的功耗/温度含采集工具自身开销（`/bin/hidumper` + `hidumper_service` 共 80.25 mA，
    占整机 8.5%），绝对值偏高。
+5. **单轮 fps 不可比**：同一配置连续三次为 27.38 / 21.05 / 18.20 fps（差 1.5 倍）。
+   任何 A/B 都要**逐轮交替**（`rate-ab-engine.json` 就是这么做的），
+   或改用更稳的「每帧 JS 执行时间」。
+6. **不要用 rAF 回调间隔当帧数**：限帧后部分回调是空帧，会把 fps 算高——
+   `raf-framerate-ab.json` 正是这么产生的错误结论（报告 §4.3 已推翻）。要用
+   `cc.director.getTotalFrames()` 的增量。
+7. 归因数据（`attrib-999-heavy.json`）里的组件名是 `cc.js.getClassName` 的真实类名，
+   但引擎内部函数名仍是压缩后的；且探针自身的包装帧在 profile 里显示为
+   `target.<computed> @ (inline):40`，**不要用经过它的 inclusive 数**。

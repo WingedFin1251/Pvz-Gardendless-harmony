@@ -1,0 +1,65 @@
+{
+  "info": {
+    "ua": "Mozilla/5.0 (Tablet; OpenHarmony 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36  ArkWeb/6.1.0.120",
+    "dpr": 2.5,
+    "viewport": [
+      1120,
+      736
+    ],
+    "screen": [
+      1120,
+      736
+    ],
+    "canvases": [
+      {
+        "w": 2240,
+        "h": 1472,
+        "cw": 1120,
+        "ch": 736,
+        "gl": true
+      }
+    ],
+    "ccFrameRate": 30,
+    "ccEngine": "3.8.4",
+    "hidden": false,
+    "visibility": "visible"
+  },
+  "frames": 549,
+  "seconds": 20,
+  "rafFps": 27.43,
+  "meanMs": 36.45,
+  "p50": 33.3,
+  "p95": 66.7,
+  "p99": 100,
+  "maxMs": 250,
+  "stdevMs": 20.68,
+  "over33ms": 226,
+  "over50ms": 79,
+  "longTasks": [
+    52,
+    109,
+    87,
+    54,
+    50,
+    109,
+    74,
+    89,
+    59,
+    53,
+    123,
+    110,
+    71,
+    64,
+    79,
+    65,
+    52,
+    55,
+    53,
+    52,
+    53,
+    100,
+    81,
+    99,
+    51
+  ]
+}

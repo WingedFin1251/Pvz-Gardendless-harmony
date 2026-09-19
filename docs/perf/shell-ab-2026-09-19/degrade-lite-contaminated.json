@@ -1,0 +1,67 @@
+[
+  {
+    "round": 1,
+    "t": "2026-09-19T14:01:05.996Z",
+    "heapUsedMB": 441,
+    "heapTotalMB": 561,
+    "tickFps": 21.4,
+    "tickP50": 33.2,
+    "tickP95": 51.5,
+    "tickMean": 34.54,
+    "stalls": 11,
+    "drawCalls": 327,
+    "scene": "inGameScene"
+  },
+  {
+    "round": 2,
+    "t": "2026-09-19T14:01:46.093Z",
+    "heapUsedMB": 441,
+    "heapTotalMB": 561,
+    "tickFps": 20.4,
+    "tickP50": 34.7,
+    "tickP95": 51,
+    "tickMean": 36.29,
+    "stalls": 12,
+    "drawCalls": 376,
+    "scene": "inGameScene"
+  },
+  {
+    "round": 3,
+    "t": "2026-09-19T14:02:26.123Z",
+    "heapUsedMB": 441,
+    "heapTotalMB": 561,
+    "tickFps": 18.7,
+    "tickP50": 38.3,
+    "tickP95": 54.3,
+    "tickMean": 39.06,
+    "stalls": 17,
+    "drawCalls": 334,
+    "scene": "inGameScene"
+  },
+  {
+    "round": 4,
+    "t": "2026-09-19T14:03:06.159Z",
+    "heapUsedMB": 441,
+    "heapTotalMB": 561,
+    "tickFps": 18.1,
+    "tickP50": 41,
+    "tickP95": 62.1,
+    "tickMean": 41.2,
+    "stalls": 22,
+    "drawCalls": 390,
+    "scene": "inGameScene"
+  },
+  {
+    "round": 5,
+    "t": "2026-09-19T14:03:46.313Z",
+    "heapUsedMB": 441,
+    "heapTotalMB": 561,
+    "tickFps": 18.2,
+    "tickP50": 39.5,
+    "tickP95": 57.2,
+    "tickMean": 41.37,
+    "stalls": 31,
+    "drawCalls": 395,
+    "scene": "inGameScene"
+  }
+]

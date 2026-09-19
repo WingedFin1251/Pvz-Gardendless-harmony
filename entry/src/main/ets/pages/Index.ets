@@ -18,8 +18,9 @@ const GP_BUTTON_SLIVER: number = 26;
 const GP_BUTTON_TOUCH_PAD: number = 10;
 
 // Web 调试开关（DevTools）：置 true 后可用 hdc fport + chrome://inspect 排查 GP-Next 的失败点。
-// ArkWeb 默认关闭，关闭时 DevTools 无法发现被调试的网页；正式发布前请改回 false。
-const ENABLE_WEB_DEBUG: boolean = true;
+// ArkWeb 默认关闭；正式发布保持 false（DevTools 常驻会带来额外开销与调试面暴露）。
+// 需要排查时改回 true 重新构建即可。
+const ENABLE_WEB_DEBUG: boolean = false;
 
 // 网页弹框无人应答时的兜底超时（ms）：到点自动按"取消"回调 JsResult。
 // 网页的 alert/confirm/prompt 是同步阻塞的，只要有一次没回调，render 进程就会一直卡住。
@@ -480,12 +481,17 @@ struct CocosJSApp {
           });
           return true;
         })
-        // 返回 false：控制台消息仍旧写进 hilog（返回 true 会抑制默认日志）
+        // 控制台只转发 warn/error，并 return true 抑制 ArkWeb 的默认日志：官方《Web帧率问题分析》
+        // 把「大量 JSB 任务阻塞应用主线程」列为丢帧典型根因，而逐条 console 回传正是这种逐帧 JSB；
+        // 游戏的 info 级日志在运行期没有价值，丢弃可显著减少跨进程调用。
         .onConsole((event) => {
           const message = event.message;
-          console.info(`[web-console][${message.getMessageLevel()}] ${message.getMessage()}` +
-            ` (${message.getSourceId()}:${message.getLineNumber()})`);
-          return false;
+          const level = message.getMessageLevel();
+          if (level === MessageLevel.Warn || level === MessageLevel.Error) {
+            console.info(`[web-console][${level}] ${message.getMessage()}` +
+              ` (${message.getSourceId()}:${message.getLineNumber()})`);
+          }
+          return true;
         })
         // 在页面自身脚本之前注入 Tauri 兼容层：payload 自带的 localStorage polyfill 只在
         // window.__TAURI_INTERNALS__ 缺失时才安装，于是会自动让位给原生桥。

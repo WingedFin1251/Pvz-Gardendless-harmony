@@ -27,10 +27,18 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', (err as BusinessError).message);
     }
 
-    // ========== 新增 WebView 性能优化（来自第一个片段） ==========
-    // 1. 设置渲染进程模式为多进程（根据设备性能决定）
+    // ========== WebView 渲染进程模式 ==========
+    // 官方《ArkWeb进程》：「默认策略：移动设备上共享渲染进程以节省内存，2in1 设备上独立渲染进程
+    // 提升安全与稳定性」。本应用只有一个 Web 组件，强制 MULTIPLE 只会额外占用内存：真机实测
+    // （MatePad 11.5"S / DMG-W00，8 GB + 6 GB swap）在 8 小时会话后 swap 用满、被系统以
+    // `SwapFull` 与 `LowMemoryKill` 各杀过一次，因此手机/平板按平台默认走 SINGLE（共享），
+    // 仅 2in1 保留 MULTIPLE。
     try {
-      webview.WebviewController.setRenderProcessMode(webview.RenderProcessMode.MULTIPLE);
+      const mode: webview.RenderProcessMode = IS_2IN1
+        ? webview.RenderProcessMode.MULTIPLE
+        : webview.RenderProcessMode.SINGLE;
+      webview.WebviewController.setRenderProcessMode(mode);
+      hilog.info(DOMAIN, 'testTag', '渲染进程模式: %{public}s', IS_2IN1 ? 'MULTIPLE(2in1)' : 'SINGLE(移动设备,省内存)');
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', '设置渲染进程模式失败: %{public}s', (err as BusinessError).message);
     }
@@ -81,6 +89,11 @@ export default class EntryAbility extends UIAbility {
       // 窗口背景色：Stage 模型下需在 loadContent() 生效后调用（见 onWindowStageCreate）
       // @SuppressWarnings syscap
       mainWindow.setWindowBackgroundColor('#000000');
+
+      // 游戏过程中保持屏幕常亮：既符合游戏体感，也避免熄屏后应用转入后台被系统回收
+      // （真机上曾观测到切到后台后因内存压力被 LowMemoryKill / SwapFull 杀掉）。
+      await mainWindow.setWindowKeepScreenOn(true);
+
       hilog.info(DOMAIN, 'testTag', '全屏沉浸设置成功');
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', '设置全屏或系统栏失败: %{public}s', (err as BusinessError).message);

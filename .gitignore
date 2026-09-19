@@ -48,3 +48,7 @@ desktop.ini
 
 # 构建产物归档目录（pvzge[-变体]-<版本>.hap，由 entry/hvigorfile.ts 自动生成）
 /dist/
+
+# 真机性能采集导出（DevEco Profiler / 华为性能分析）：单次数百 MB，
+# 且 dubai.db 含整机遥测（其它应用包名等），不纳入版本管理
+/testing data/

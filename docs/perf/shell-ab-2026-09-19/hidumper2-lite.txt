@@ -1,0 +1,235 @@
+
+===== [22:53:30] $ hdc shell aa force-stop com.gardendless.lite =====
+force stop process successfully.
+
+===== [22:53:35] $ hdc shell power-shell wakeup =====
+WakeupDevice is called
+
+===== [22:53:36] $ hdc shell aa start -b com.gardendless.lite -a EntryAbility =====
+start ability successfully.
+
+===== [22:54:04] $ hdc shell ps -ef | grep com.gardendless.lite =====
+20020334      50555    563 0 02:44:49 ?     00:00:25 com.gardendless.lite
+20100035      51035   4732 0 02:45:33 ?     00:00:00 com.gardendless.lite:render
+20100036      51039   4732 0 02:45:34 ?     00:00:38 com.gardendless.lite:render
+shell         51146   1733 0 02:46:01 ?     00:00:00 sh -c ps -ef | grep com.gardendless.lite
+shell         51149  51146 0 02:46:01 ?     00:00:00 grep com.gardendless.lite
+
+===== [22:54:04] $ hdc shell hidumper --mem 50555 =====
+
+-------------------------------[memory]-------------------------------
+
+                          Pss         Shared         Shared        Private        Private           Swap        SwapPss           Heap           Heap           Heap 
+                        Total          Clean          Dirty          Clean          Dirty          Total          Total           Size          Alloc           Free 
+                       ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB ) 
+              ------------------------------------------------------------------------------------------------------------------------------------------------------
+            GL         159756              0              0              0         159756              0              0              0              0              0 
+         Graph          81904              0              0              0          81904              0              0              0              0              0 
+   ark ts heap           9068           2272              0           8748              0           5268            570              0              0              0 
+         guard              0              0              0              0              0              0              0              0              0              0 
+   native heap          38243           7888              0          36420              0          32776           1891          82872          80186           5663 
+          .hap            388              8              0            384              0              0              0              0              0              0 
+AnonPage other          20548            244              0          20488              0           5824            247              0              0              0 
+         stack           1584              0           1024           1072              0              0              0              0              0              0 
+           .db             76              0              0             76              0              0              0              0              0              0 
+           .so          68825          72896           3808          39164          13380          17308            580              0              0              0 
+           dev             23              0            348             20              0              0              0              0              0              0 
+          .ttf             37            216              0              0              0              0              0              0              0              0 
+FilePage other           4383           1672           3560            924           1356           4272            223              0              0              0 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+         Total         388346          85196           8740         107296         256396          65448           3511          82872          80186           5663 
+
+native heap:
+  jemalloc meta:           903             76              0            884              0            588             47              0              0              0 
+  jemalloc heap:         35291           2932              0          34316              0          31940           1841              0              0              0 
+       brk heap:          2017           4880              0           1188              0            248              3              0              0              0 
+      musl heap:            32              0              0             32              0              0              0              0              0              0 
+
+Purgeable:
+        PurgSum:0 kB
+        PurgPin:0 kB
+
+DMA:
+            Dma:81904 kB
+
+Ashmem:
+Total Ashmem:5808 kB
+
+===== [22:54:04] $ hdc shell hidumper --cpuusage 50555 =====
+
+-------------------------------[cpuusage]-------------------------------
+
+Load average: 10.8 / 10.7 / 11.5; the cpu load average in 1 min, 5 min and 15 min
+CPU usage from 2026-09-19 22:53:55 to 2026-09-19 22:54:05
+Total: 33.78%; User Space: 27.05%; Kernel Space: 6.73%; iowait: 0.01%; irq: 0.14%; idle: 66.06%
+Details of Processes:
+    PID   Total Usage	   User Space    Kernel Space    Page Fault Minor    Page Fault Major    Name
+    50555      7.98%           5.96%          2.03%           26899               44004            com.gardendless.lite
+
+===== [22:54:04] $ hdc shell hidumper --mem 51035 =====
+
+-------------------------------[memory]-------------------------------
+
+                          Pss         Shared         Shared        Private        Private           Swap        SwapPss           Heap           Heap           Heap 
+                        Total          Clean          Dirty          Clean          Dirty          Total          Total           Size          Alloc           Free 
+                       ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB ) 
+              ------------------------------------------------------------------------------------------------------------------------------------------------------
+            GL              0              0              0              0              0              0              0              0              0              0 
+         Graph              0              0              0              0              0              0              0              0              0              0 
+         guard              0              0              0              0              0              0              0              0              0              0 
+   native heap           6398            304              0           6264              0            296             97              0              0              0 
+AnonPage other           7233             36              0           7224              0             60             15              0              0              0 
+         stack            144              0              0            144              0              0              0              0              0              0 
+           .so          30960          59700            340              4          18472            936            268              0              0              0 
+           dev              5              0            248              4              0              0              0              0              0              0 
+FilePage other            167            412             40              0              4              0              0              0              0              0 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+         Total          45287          60452            628          13640          18476           1292            380              0              0              0 
+
+native heap:
+  jemalloc meta:           409             12              0            404              0             32             10              0              0              0 
+  jemalloc heap:          4581            220              0           4488              0            264             87              0              0              0 
+       brk heap:          1392             72              0           1356              0              0              0              0              0              0 
+      musl heap:            16              0              0             16              0              0              0              0              0              0 
+
+Purgeable:
+        PurgSum:0 kB
+        PurgPin:0 kB
+
+DMA:
+            Dma:0 kB
+
+Ashmem:
+Total Ashmem:4764 kB
+
+===== [22:54:05] $ hdc shell hidumper --cpuusage 51035 =====
+
+-------------------------------[cpuusage]-------------------------------
+
+Load average: 10.7 / 10.7 / 11.5; the cpu load average in 1 min, 5 min and 15 min
+CPU usage from 2026-09-19 22:53:55 to 2026-09-19 22:54:05
+Total: 33.83%; User Space: 26.95%; Kernel Space: 6.88%; iowait: 0.01%; irq: 0.14%; idle: 66.02%
+Details of Processes:
+    PID   Total Usage	   User Space    Kernel Space    Page Fault Minor    Page Fault Major    Name
+    51035      0.00%           0.00%          0.00%            7577               22087            com.gardendless.lite:render
+
+===== [22:54:05] $ hdc shell hidumper --mem 51039 =====
+
+-------------------------------[memory]-------------------------------
+
+                          Pss         Shared         Shared        Private        Private           Swap        SwapPss           Heap           Heap           Heap 
+                        Total          Clean          Dirty          Clean          Dirty          Total          Total           Size          Alloc           Free 
+                       ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB )         ( kB ) 
+              ------------------------------------------------------------------------------------------------------------------------------------------------------
+            GL              0              0              0              0              0              0              0              0              0              0 
+         Graph              0              0              0              0              0              0              0              0              0              0 
+         guard              0              0              0              0              0              0              0              0              0              0 
+   native heap          10586            312              0          10448              0            296             97              0              0              0 
+AnonPage other         431901             36              0         431892              0             60             15              0              0              0 
+         stack           1380              0           1024            868              0              0              0              0              0              0 
+           .so          63373          66920            340          28876          18488            928            264              0              0              0 
+           dev              5              0            252              4              0              0              0              0              0              0 
+          .ttf           5366           4040              0           4052              0              0              0              0              0              0 
+FilePage other           2601            416           3576            420            248              0              0              0              0              0 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+         Total         515588          71724           5192         476560          18736           1284            376              0              0              0 
+
+native heap:
+  jemalloc meta:           493             12              0            488              0             32             10              0              0              0 
+  jemalloc heap:          8685            228              0           8588              0            264             87              0              0              0 
+       brk heap:          1392             72              0           1356              0              0              0              0              0              0 
+      musl heap:            16              0              0             16              0              0              0              0              0              0 
+
+Purgeable:
+        PurgSum:0 kB
+        PurgPin:0 kB
+
+DMA:
+            Dma:0 kB
+
+Ashmem:
+Total Ashmem:4764 kB
+
+===== [22:54:05] $ hdc shell hidumper --cpuusage 51039 =====
+
+-------------------------------[cpuusage]-------------------------------
+
+Load average: 10.7 / 10.7 / 11.5; the cpu load average in 1 min, 5 min and 15 min
+CPU usage from 2026-09-19 22:53:55 to 2026-09-19 22:54:05
+Total: 33.91%; User Space: 26.90%; Kernel Space: 7.01%; iowait: 0.01%; irq: 0.14%; idle: 65.94%
+Details of Processes:
+    PID   Total Usage	   User Space    Kernel Space    Page Fault Minor    Page Fault Major    Name
+    51039     12.13%          11.48%          0.65%          149697               42726            com.gardendless.lite:render
+
+===== [22:54:05] $ hdc shell cat /proc/meminfo =====
+MemTotal:        7997056 kB
+MemFree:          809580 kB
+MemAvailable:    2718720 kB
+Buffers:               0 kB
+Cached:          2005312 kB
+SwapCached:        94048 kB
+Active:          1064136 kB
+Inactive:        1873152 kB
+Active(anon):     502512 kB
+Inactive(anon):   986020 kB
+Active(file):     561624 kB
+Inactive(file):   887132 kB
+Active(purg):          0 kB
+Inactive(purg):        0 kB
+Pined(purg):           0 kB
+Unevictable:      243916 kB
+FileUnmap:       1572044
+FileUnmapFail:     82503
+Protected:        225256 kB
+Mlocked:          314980 kB
+SwapTotal:       6291456 kB
+SwapFree:        4038616 kB
+ZramUsed:         314916 kB
+Dirty:               448 kB
+Writeback:             0 kB
+AnonPages:       1684708 kB
+Mapped:           743148 kB
+Shmem:             67676 kB
+Slab:             415136 kB
+SReclaimable:     225129 kB
+SUnreclaim:       190006 kB
+SlabLarge:             0 kB
+KReclaimable:     225717 kB
+KernelStack:        2200 kB
+KernelDynamic:     38268 kB
+PageTables:       138516 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    10287936 kB
+Committed_AS:   89958616 kB
+VmallocTotal:   536870848 kB
+VmallocUsed:       23248 kB
+VmallocChunk:          0 kB
+Percpu:                0 kB
+HardwareCorrupted:     0 kB
+CmaTotal:        1052672 kB
+CmaFree:         1045536 kB
+CmaUsed:            7136 kB
+IonTotalCache:     62368 kB
+IonTotalUsed:     261292 kB
+GpuTotalUsed:     513084 kB
+DmaHeapTotalCache:    62368 kB
+DmaHeapTotalUsed:   261292 kB
+DmaHeapReusedlistCache:        0 kB
+DmaHeapFreelistCache:        0 kB
+DmaHeapThirdTotalUsed:        0 kB
+RsvTotalUsed:     200452 kB
+AnonHugePages:         0 kB
+ShmemHugePages:        0 kB
+ShmemPmdMapped:        0 kB
+HugePages_Total:       2
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:            4096 kB
+AshmemUsed:        35559 kB
+
+===== [22:54:05] $ hdc shell aa force-stop com.gardendless.lite =====
+force stop process successfully.

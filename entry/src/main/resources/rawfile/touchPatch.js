@@ -182,14 +182,18 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
 })();
 
 // ==================== 性能档位（可调常量） ====================
-// 真机实测（MatePad 11.5"S / DMG-W00，ArkWeb 6.1.0.120）：复杂场景每帧约 28 ms 出自游戏自身
-// JS/引擎逻辑，GL 提交约 10 ms（把全部 GL 调用置空的消融实验结果），因此下面这些开关对帧率的
-// 直接提升有限（降分辨率 + 关 MSAA 实测约 +6%），主要价值是降低显存与带宽、缓解整机内存/swap 压力。
-//   FRAME_RATE_CAP : 0 = 不改（payload 默认 999，不限帧）；60 = 上限 60 帧
+// 真机实测（MatePad 11.5"S / DMG-W00，ArkWeb 6.1.0.120）：逐帧成本的 73~85% 是页内 JS 执行
+// （CDP Profiler + Performance 指标实测），其中组件 update 仅约 11%，其余在引擎内部的
+// 渲染数据更新（约 24%）与 DragonBones 骨骼推进（约 16%）以及 GC（约 9~10%）。
+// 因此下面这些开关对本工程的帧率都没有正向收益，默认全部关闭；保留它们是为了后续按机型实验。
+//   FRAME_RATE_CAP : 0 = 不改（payload 自身会设成 999，即不限帧）；>0 = 上限该帧率。
+//                    注意：实测在重载场景把上限设为 60 反而更慢（交替 A/B：999 三轮 16.44/16.10/17.04 fps
+//                    vs 60 三轮 12.77/14.82/15.14 fps，每帧 JS 从 45.6 ms 升到 51.1 ms），故默认 0。
 //   RENDER_SCALE   : 0 = 不改（原生后备缓冲为 2.0 倍像素比）；例如 1.25 = 降低渲染分辨率
 //   DISABLE_MSAA   : true = 创建 WebGL 上下文时关闭 MSAA
+// 详见 docs/SHELL_PERF_2026-09-19.md。
 (function () {
-    var FRAME_RATE_CAP = 60;
+    var FRAME_RATE_CAP = 0;
     var RENDER_SCALE = 0;
     var DISABLE_MSAA = false;
 
@@ -214,20 +218,20 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
         console.warn('[perf] 渲染档位注入失败', e);
     }
 
-    // 2) 帧率上限：等引擎就绪后再设
+    // 2) 帧率上限：必须反复纠正，一次赋值会被 payload 覆盖
+    //    实测：payload 在引擎就绪后会把 frameRate 设为 999，一次性赋值随即失效
+    //    （发布版运行时读到的就是 999），因此在启动后 30 秒内持续纠正。
     if (FRAME_RATE_CAP > 0) {
         var tries = 0;
         var timer = setInterval(function () {
             tries++;
-            if (window.cc && window.cc.game) {
-                try {
+            try {
+                if (window.cc && window.cc.game && window.cc.game.frameRate !== FRAME_RATE_CAP) {
                     window.cc.game.frameRate = FRAME_RATE_CAP;
                     console.log('[perf] 帧率上限设为 ' + FRAME_RATE_CAP);
-                } catch (e) { /* ignore */ }
-                clearInterval(timer);
-            } else if (tries > 240) {
-                clearInterval(timer);
-            }
-        }, 250);
+                }
+            } catch (e) { /* ignore */ }
+            if (tries > 300) { clearInterval(timer); }   // 100ms × 300 = 30s
+        }, 100);
     }
 })();

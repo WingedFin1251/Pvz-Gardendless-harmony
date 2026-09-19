@@ -27,6 +27,14 @@
 > （`AppScope/app.json5`、`AppScope/resources/base/element/string.json`、
 > `entry/src/main/resources/base/element/string.json`、`README.md`、`docs/BUILD.md`）。
 > 划分与同步方式见 **[docs/REPOS.md](docs/REPOS.md)**。
+>
+> **选哪个？** 三条分支的壳层源码完全相同，**帧率没有差别**，区别只在游戏负载的体积与内存占用。
+> 真机实测（MatePad 11.5"S / 8 GB RAM，同一引擎、同一场景、各自冷启动单独运行）：
+> `gpnext` 的 GL 显存 ≈ 964 MB + 渲染进程匿名内存 ≈ 773 MB，`lite` 为 ≈ 337 MB + ≈ 814 MB——
+> **`lite` 省下约 600 MB，但每 draw 提交成本并无优势**（0.084 ms vs 0.075 ms）。
+> 8 GB 及以下内存的设备在后台驻留较多时有被系统 `LowMemoryKill` / `SwapFull` 回收的记录，
+> **这类设备以及以长时挂机为目标的场景，建议直接使用 `lite`**；`gpnext` 面向需要 GP-Next 面板
+> 与原生桥（数据包导入、另存为、原生指标）的场景。
 
 ---
 

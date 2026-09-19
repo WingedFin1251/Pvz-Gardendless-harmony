@@ -1,4 +1,8 @@
 // ==================== 缓存 DOM 引用 ====================
+// 说明：本文件里的 touchstart / touchmove / touchend 监听必须显式声明
+// `{ capture: true, passive: false }`。Chrome（含 ArkWeb）对 window/document/body 上的
+// touch 监听默认按 passive 处理，此时内部调用的 preventDefault() 会被忽略，并在每次触摸时
+// 打一条 Error 级日志（真机实测 1 分钟内 143 条，且每条都要跨 ArkWeb↔ArkTS 回传）。
 var _gameCanvas = null;
 function getGameCanvas() {
     if (!_gameCanvas) _gameCanvas = document.getElementById("GameCanvas");
@@ -70,7 +74,7 @@ document.addEventListener("touchstart", function(event) {
     }, DELAY_TIME);
     event.preventDefault();
     event.stopPropagation();
-}, true);
+}, { capture: true, passive: false });
 
 // ==================== touchmove ====================
 document.addEventListener("touchmove", function(event) {
@@ -116,7 +120,7 @@ document.addEventListener("touchmove", function(event) {
     }
     event.preventDefault();
     event.stopPropagation();
-}, true);
+}, { capture: true, passive: false });
 
 // ==================== touchend ====================
 document.addEventListener("touchend", function(event) {
@@ -129,7 +133,7 @@ document.addEventListener("touchend", function(event) {
     }, DELAY_TIME);
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
-}, true);
+}, { capture: true, passive: false });
 
 console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈值过滤+Wheel去抖），GP面板自动放行');
 
@@ -175,4 +179,55 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
             }).catch(function(e) { console.error('恢复 ' + key + ' 失败', e); });
         })).then(function() { console.log('[localStorage] 存档恢复完成'); });
     });
+})();
+
+// ==================== 性能档位（可调常量） ====================
+// 真机实测（MatePad 11.5"S / DMG-W00，ArkWeb 6.1.0.120）：复杂场景每帧约 28 ms 出自游戏自身
+// JS/引擎逻辑，GL 提交约 10 ms（把全部 GL 调用置空的消融实验结果），因此下面这些开关对帧率的
+// 直接提升有限（降分辨率 + 关 MSAA 实测约 +6%），主要价值是降低显存与带宽、缓解整机内存/swap 压力。
+//   FRAME_RATE_CAP : 0 = 不改（payload 默认 999，不限帧）；60 = 上限 60 帧
+//   RENDER_SCALE   : 0 = 不改（原生后备缓冲为 2.0 倍像素比）；例如 1.25 = 降低渲染分辨率
+//   DISABLE_MSAA   : true = 创建 WebGL 上下文时关闭 MSAA
+(function () {
+    var FRAME_RATE_CAP = 60;
+    var RENDER_SCALE = 0;
+    var DISABLE_MSAA = false;
+
+    // 1) 渲染分辨率 / MSAA：必须在引擎创建 canvas 与 WebGL 上下文之前生效
+    try {
+        if (RENDER_SCALE > 0) {
+            Object.defineProperty(window, 'devicePixelRatio', {
+                configurable: true,
+                get: function () { return RENDER_SCALE; }
+            });
+        }
+        if (DISABLE_MSAA) {
+            var origGetContext = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+                if (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') {
+                    attrs = Object.assign({}, attrs || {}, { antialias: false });
+                }
+                return origGetContext.call(this, type, attrs);
+            };
+        }
+    } catch (e) {
+        console.warn('[perf] 渲染档位注入失败', e);
+    }
+
+    // 2) 帧率上限：等引擎就绪后再设
+    if (FRAME_RATE_CAP > 0) {
+        var tries = 0;
+        var timer = setInterval(function () {
+            tries++;
+            if (window.cc && window.cc.game) {
+                try {
+                    window.cc.game.frameRate = FRAME_RATE_CAP;
+                    console.log('[perf] 帧率上限设为 ' + FRAME_RATE_CAP);
+                } catch (e) { /* ignore */ }
+                clearInterval(timer);
+            } else if (tries > 240) {
+                clearInterval(timer);
+            }
+        }, 250);
+    }
 })();

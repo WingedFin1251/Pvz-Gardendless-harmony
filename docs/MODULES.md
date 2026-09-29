@@ -20,7 +20,14 @@ webview.Web.WebStorage.setMaxStorageSize(128 * 1024 * 1024) // 128MB Web 存储
 
 **设备类型分流（2in1）**: 顶部 `IS_2IN1 = deviceInfo.deviceType === TYPE_2IN1`。
 `setWindowSystemBarEnable()` / `setPreferredOrientation()` 在 2in1（自由窗口、无传感器旋转）上
-「不生效也不报错」，故 2in1 分支改用 `maximize()`（默认进入沉浸式全屏）并跳过方向设置；
+「不生效也不报错」，故 2in1 分支改用**普通最大化**并跳过方向设置：
+
+```ts
+await mainWindow.setWindowLayoutFullScreen(false);                    // 布局避让系统栏（任务栏）
+await mainWindow.maximize(window.MaximizePresentation.EXIT_IMMERSIVE); // 最大化但不进入沉浸式全屏
+```
+
+**为什么必须显式传 `EXIT_IMMERSIVE`**：`maximize()` 不传参时默认是 `ENTER_IMMERSIVE`，即「最大化 + 进入全屏」——鸿蒙电脑上实测全屏会把显示边缘吞掉一点点，而普通最大化（保留任务栏）完全正常。手机/平板分支不变，仍是沉浸式布局 + 隐藏状态栏/导航栏。
 竖屏锁定由 `module.json5` 的 `"orientation": "landscape"` 声明保证。
 这类多设备告警用 `// @SuppressWarnings syscap`（注释形式只作用于紧邻的下一行语句）屏蔽。
 

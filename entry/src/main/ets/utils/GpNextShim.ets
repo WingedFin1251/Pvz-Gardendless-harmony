@@ -157,6 +157,28 @@ export const GPNEXT_SHIM: string = `(function () {
     console.warn('[gp-next-shim] 写入 jsModding 开关失败', err);
   }
 
+  // ==================== 隐藏面板热键徽标（左上角那个 F9） ====================
+  // payload 的叠加层会在左上角**无条件**画一个热键提示徽标（overlay-*.js 里的
+  // 「Hotkey Hint Badge」→ 「.gp-f1-hint」，position:fixed; top/left:8px，内容=当前热键）。
+  // 它只是提示：点它等价于切换面板，功能上并非必须；设置页里也没有关闭项（只有"改热键"）。
+  // 所以由壳层注入一条 CSS 隐藏它。
+  //   - 用 CSS 而不是删 DOM：负载更新后依然有效（徽标在 0.14.0 / 0.15.0 都存在），
+  //     也不会与它自己的「.gp-hidden」类逻辑打架；
+  //   - 想恢复提示：把 GPNEXT_HIDE_HOTKEY_HINT 改成 false（或删掉这一段）。
+  var GPNEXT_HIDE_HOTKEY_HINT = true;
+  if (GPNEXT_HIDE_HOTKEY_HINT) {
+    var installHintCss = function () {
+      if (document.getElementById('gp-next-shell-css')) { return; }
+      var style = document.createElement('style');
+      style.id = 'gp-next-shell-css';
+      style.textContent = '.gp-f1-hint{display:none !important;}';
+      var host = document.head || document.documentElement;
+      if (host) { host.appendChild(style); }
+    };
+    if (document.head || document.documentElement) { installHintCss(); }
+    else { document.addEventListener('DOMContentLoaded', installHintCss); }
+  }
+
   window.__gpNextNativeReady = true;
   console.info('[gp-next-shim] 原生桥已接管 __TAURI_INTERNALS__');
 })();`;

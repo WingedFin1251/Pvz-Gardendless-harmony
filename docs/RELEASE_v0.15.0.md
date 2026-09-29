@@ -67,9 +67,9 @@ lite 的负载因此**回退到 0.14.0（ASTC + OGG）**，本版只带壳层修
 
 ---
 
-## 🔧 壳层修复（三个变体都带）
+## 🔧 壳层修复
 
-### 1. 补齐 0.15.0 需要的文件命令（**重要**）
+### 1. 补齐 0.15.0 需要的文件命令（**重要**；三个变体都带）
 
 0.15.0 的 Tauri 包**去掉了 `index.html` 里内联的 `__TAURI_INTERNALS__` polyfill**，改由宿主提供。
 其中一条命令原先由那个 polyfill 用 localStorage 桩糊过去，polyfill 一撤就露出来了 ——
@@ -91,6 +91,18 @@ lite 的负载因此**回退到 0.14.0（ASTC + OGG）**，本版只带壳层修
 > lite 之所以仍暂缓，是因为解码器不存在，而不是 MIME。
 
 ---
+
+### 3. 隐藏面板热键徽标（左上角那个 F9；仅带 GP-Next 面板的变体）
+
+payload 的叠加层会在左上角**无条件**渲染一个热键提示徽标（`overlay-*.js` 里的
+`/* Hotkey Hint Badge */` → `.gp-f1-hint`，`position:fixed; top/left:8px`）。它只是提示
+（点它等价于切换面板），设置页里没有关闭项，且 0.14.0 与 0.15.0 的负载都有这个元素。
+
+本版由壳层在 document-start 注入一条 CSS 把它隐藏：`.gp-f1-hint{display:none !important;}`。
+
+- 用 CSS 而不是删 DOM：对负载更新免疫，也不与它自身的 `.gp-hidden` 逻辑打架；
+- 开关在 `GpNextShim.ets`：`GPNEXT_HIDE_HOTKEY_HINT`，改成 `false` 即恢复提示；
+- **不影响功能**：面板开关（浮动 GP 按钮 / 热键）实测照常。
 
 ## 📌 注意事项
 
@@ -122,3 +134,4 @@ lite 的负载因此**回退到 0.14.0（ASTC + OGG）**，本版只带壳层修
 | 资源路径 | `/assets/index-<hash>.js`（根绝对）与 `/game/assets/...` 两种写法都取到同一文件且非空 |
 | 存档 | 覆盖安装后存档与设置保留 |
 | `lite` | 回退 0.14.0 负载后正常进游戏（ASTC + OGG） |
+| 热键徽标 | 隐藏后 `display:none`、布局盒 0×0；`gpNext.toggle()` 与 F9 热键仍能开合面板 |

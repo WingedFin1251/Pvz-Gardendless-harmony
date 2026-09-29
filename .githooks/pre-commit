@@ -1,0 +1,103 @@
+#!/bin/sh
+# ============================================================================
+# 提交前隐私守卫（base / lite / gpnext 三仓通用）
+#
+# 背景：本仓库历史上曾把 DevEco 自动签名配置（含明文口令）与本机绝对路径提交
+# 进 lite / gpnext 的公开历史，另外真机 SN 也一度进入过文档。此脚本用于**根治
+# 复发路径**：只要钩子生效，这类内容就进不了新的提交。
+#
+# 检查三类内容 + 一类文件：
+#   1) 签名配置里的**明文口令**（掩码形式 `"****"` 视为安全）
+#   2) 本机绝对路径：Windows 盘符用户目录、MSYS/Git-Bash 风格用户目录（会暴露账号名）
+#   3) 设备标识：SN 形态串、序列号字段、MAC 地址、非 noreply 邮箱
+#   4) 不该入库的文件类型：签名材料（p12/p7b/cer/csr/jks/keystore）、HAP/APK/zip、
+#      数据库、签名配置文件（signing-config*.json5）、.ohos 目录
+#
+# 用法：
+#   - 作为钩子（推荐）：  git config core.hooksPath .githooks   # 每份克隆需执行一次
+#   - 手工扫描某区间：    PRIVACY_RANGE=<from>..<to> sh .githooks/pre-commit
+#   - CI：               见 .github/workflows/privacy-guard.yml
+#   - 确认无风险时跳过：  ALLOW_PRIVACY=1 git commit ...
+#
+# 输出只给「文件:行号 + 命中规则」，**刻意不打印命中内容** —— 否则在 CI 日志里
+# 等于二次泄露。要看内容就在本地 `git show :<file>` 或编辑器里看。
+# ============================================================================
+set -u
+
+if [ "${ALLOW_PRIVACY:-}" = "1" ]; then
+  echo "[privacy] ALLOW_PRIVACY=1，跳过隐私检查" >&2
+  exit 0
+fi
+
+# 守卫自身的实现文件必然包含这些模式，豁免之
+EXCLUDE=':(exclude).githooks/** :(exclude).github/workflows/**'
+
+if [ -n "${PRIVACY_RANGE:-}" ]; then
+  MODE="区间 $PRIVACY_RANGE"
+  REVS=$(git rev-list "$PRIVACY_RANGE" 2>/dev/null) || REVS=""
+  if [ -z "$REVS" ]; then
+    echo "[privacy] 区间 '$PRIVACY_RANGE' 无法解析，退化为只扫描 HEAD" >&2
+    REVS=$(git rev-parse HEAD)
+  fi
+  GREP_TARGET="$REVS"
+  FILES=$(git diff --name-only --diff-filter=ACM "$PRIVACY_RANGE" 2>/dev/null)
+else
+  MODE="暂存区"
+  GREP_TARGET="--cached"
+  FILES=$(git diff --cached --name-only --diff-filter=ACM)
+fi
+
+if [ -z "$FILES" ]; then
+  echo "[privacy] $MODE 无新增/修改文件，跳过"
+  exit 0
+fi
+
+fail=0
+note() { printf '  X %s\n' "$1"; fail=1; }
+
+# ---------------------------------------------------------------- 1) 文件类型
+bad=$(printf '%s\n' "$FILES" | grep -Ei '\.(p12|p7b|cer|csr|jks|keystore|hap|apk|zip|db|sqlite|sqlite3)$|signing-config|(^|/)\.ohos/' || true)
+if [ -n "$bad" ]; then
+  echo "[privacy] 以下文件不应入库："
+  printf '%s\n' "$bad" | sed 's/^/    /'
+  note "敏感文件类型"
+fi
+
+# ---------------------------------------------------------------- 2) 内容规则
+# 说明：一律使用 POSIX ERE（git grep -E）——不支持 \s，也不支持负向断言，
+# 因此"非掩码口令"用 [^*] 表达（掩码以 * 开头）。
+check() {
+  rule="$1"; pat="$2"
+  hits=$(git grep --no-color -n -E "$pat" $GREP_TARGET -- . $EXCLUDE 2>/dev/null \
+         | cut -d: -f1,2 | sort -u | head -20)
+  if [ -n "$hits" ]; then
+    echo "[privacy] 命中「$rule」："
+    printf '%s\n' "$hits" | sed 's/^/    /'
+    note "$rule"
+  fi
+}
+
+check "签名明文口令"        '"(store|key)Password"[[:space:]]*:[[:space:]]*"[^*]'
+check "本机用户目录路径"    '[A-Za-z]:[\\/]{1,2}Users[\\/]'
+check "本机用户目录路径(msys)" '[A-Za-z]/Users/'
+check "设备SN形态"          '45BUN[0-9A-Z]{8,}'
+check "序列号字段"          '(sn|serial|序列号)[[:space:]]*[:=][[:space:]]*"?[0-9A-Z]{12,}'
+check "MAC地址"             '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}'
+
+mails=$(git grep --no-color -h -o -E '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' $GREP_TARGET -- . $EXCLUDE 2>/dev/null \
+        | sort -u | grep -vi 'noreply\.github\.com' || true)
+if [ -n "$mails" ]; then
+  echo "[privacy] 命中「非 noreply 邮箱」："
+  printf '%s\n' "$mails" | sed 's/^/    /'
+  note "非 noreply 邮箱"
+fi
+
+# ---------------------------------------------------------------- 3) 结论
+if [ "$fail" = "1" ]; then
+  echo "" >&2
+  echo "[privacy] 检查未通过（$MODE）。请删除上述内容后重试；" >&2
+  echo "[privacy] 若确认无隐私风险，可用 ALLOW_PRIVACY=1 git commit ... 跳过。" >&2
+  exit 1
+fi
+echo "[privacy] 通过（$MODE）"
+exit 0

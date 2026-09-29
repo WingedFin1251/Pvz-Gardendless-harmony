@@ -1,0 +1,37 @@
+name: privacy-guard
+
+# 提交/PR 引入的内容里若含签名明文口令、本机绝对路径、设备标识等隐私信息，此检查会失败。
+# 与本地钩子共用同一份实现：.githooks/pre-commit
+# 本地启用：git config core.hooksPath .githooks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    name: 隐私守卫
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 计算扫描区间
+        id: range
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "range=${GITHUB_SHA}~1..${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            echo "range=${BASE}..${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 运行守卫
+        env:
+          PRIVACY_RANGE: ${{ steps.range.outputs.range }}
+        run: sh .githooks/pre-commit

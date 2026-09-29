@@ -1,0 +1,58 @@
+#!/bin/sh
+# ============================================================================
+# 推送前隐私守卫（base / lite / gpnext 三仓通用）
+#
+# 两道防线：
+#   1) 拒绝推送本地备份 ref（refs/backup/*、refs/tmp/*）——它们保存着"清洗前"的
+#      历史，其中含真机 SN；一旦 `git push --all` / `--mirror` 就会公开。
+#   2) 对每个被推送的分支区间跑一遍 .githooks/pre-commit（同一份实现）——
+#      即使本地 pre-commit 被跳过（ALLOW_PRIVACY=1）或换个机器提交，
+#      真正 push 前仍会拦一次。
+#
+# 跳过：ALLOW_PRIVACY=1 git push ...
+# ============================================================================
+set -u
+
+if [ "${ALLOW_PRIVACY:-}" = "1" ]; then
+  echo "[privacy] ALLOW_PRIVACY=1，跳过推送前检查" >&2
+  exit 0
+fi
+
+zero=0000000000000000000000000000000000000000
+fail=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "${local_ref:-}" ] && continue
+
+  case "$remote_ref" in
+    refs/backup/*|refs/tmp/*)
+      echo "[privacy] 拒绝推送 $remote_ref —— 本地备份 ref 保存着清洗前的历史（可能含真机 SN）。" >&2
+      echo "[privacy] 若确实要推，请显式指定目标引用或先删除该备份 ref。" >&2
+      fail=1
+      continue
+      ;;
+  esac
+
+  # 删除远端分支（local_sha 全 0）无需检查
+  [ "$local_sha" = "$zero" ] && continue
+
+  if [ "$remote_sha" != "$zero" ]; then
+    if ! out=$(PRIVACY_RANGE="$remote_sha..$local_sha" git hook run pre-commit </dev/null 2>&1); then
+      printf '%s\n' "$out" >&2
+      echo "[privacy] 拒绝推送 $local_ref（区间 $remote_sha..$local_sha 含隐私内容）" >&2
+      fail=1
+    fi
+  else
+    if ! out=$(PRIVACY_REV="$local_sha" git hook run pre-commit </dev/null 2>&1); then
+      printf '%s\n' "$out" >&2
+      echo "[privacy] 拒绝推送新分支 $local_ref（提交 $local_sha 含隐私内容）" >&2
+      fail=1
+    fi
+  fi
+done
+
+if [ "$fail" = "1" ]; then
+  echo "[privacy] 推送被拒绝。确认无隐私风险时可用 ALLOW_PRIVACY=1 git push ... 跳过。" >&2
+  exit 1
+fi
+exit 0

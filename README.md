@@ -105,11 +105,11 @@ ArkTS 侧负责窗口、资源、存档与文件能力。
 
 ## GP-Next 面板
 
-面板前端来自官方客户端版内置的 **GP-Next v1.4.6**（原本是跑在 Tauri 桌面容器里的 Web 应用，
+面板前端来自官方客户端版内置的 **GP-Next v1.5.0-pre.1**（原本是跑在 Tauri 桌面容器里的 Web 应用，
 所有文件 / 对话框 / 外链能力都经 `window.__TAURI_INTERNALS__.invoke()` 打到 Rust 后端）。
 本分支把它整体搬到 ArkWeb：注入兼容层 + ArkTS 原生桥，使面板**全部功能**可用，而不只是修改器。
 
-面板入口是壳层右上角的浮动 GP 按钮（设置页也支持热键，需外接键盘）。数据根目录为
+面板入口是壳层右下角的浮动 GP 按钮（也可用面板热键切换，默认 F9，需外接键盘）。左上角那个热键提示徽标（payload 的 `.gp-f1-hint`）已由壳层注入 CSS 隐藏，开关见 `GpNextShim.ets` 的 `GPNEXT_HIDE_HOTKEY_HINT`。数据根目录为
 `<filesDir>/gp-next/`（`packs/` 数据包、`patches/` 单文件补丁、`__gpn_edits/` 手动编辑、`settings.json`）。
 
 **已在真机验证**（平板 HUAWEI DMG-W00 / OpenHarmony 6.1.1；手机 HUAWEI BRA-AL00 / OpenHarmony 7.0 + ArkWeb 7.0）：

@@ -178,10 +178,17 @@ entry/src/main/resources/rawfile/
    `game/src/settings.json`，缺失时在顶部状态栏显示「负载缺失: …」。
 3. **`rawfile` 在构建时被打进 HAP**：只替换本地目录不会影响已安装的应用，必须重新构建并安装。
 
-## 提交前隐私守卫
+## 提交 / 推送前隐私守卫
 
-仓库带一个提交前钩子（`.githooks/pre-commit`）与同名 CI（`.github/workflows/privacy-guard.yml`），
-用于阻止隐私信息进入提交。启用（每份克隆执行一次）：
+仓库带两个钩子（`.githooks/pre-commit`、`.githooks/pre-push`）与一份同名 CI
+（`.github/workflows/privacy-guard.yml`），用于阻止隐私信息进入提交或推向远端：
+
+- **pre-commit**：检查暂存内容，命中即拒绝提交；
+- **pre-push**：① 拒绝推送本地备份 ref（`refs/backup/*` 保存着"清洗前"的历史，可能含真机 SN）；
+  ② 对每个被推送的分支区间再跑一遍 pre-commit 的检查 —— 即使本地提交时用
+  `ALLOW_PRIVACY=1` 跳过，push 前仍会拦一次。
+
+启用（每份克隆执行一次）：
 
 ```bash
 git config core.hooksPath .githooks

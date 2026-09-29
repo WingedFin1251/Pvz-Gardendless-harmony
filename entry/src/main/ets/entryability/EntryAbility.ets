@@ -73,15 +73,19 @@ export default class EntryAbility extends UIAbility {
   // 用 // @SuppressWarnings syscap 屏蔽多设备告警（注释形式只作用于紧邻的下一行语句）。
   private async setFullScreen(mainWindow: window.Window): Promise<void> {
     try {
-      // 沉浸式布局：三种设备类型均可正常调用，布局不避让系统栏
-      await mainWindow.setWindowLayoutFullScreen(true);
-
       if (IS_2IN1) {
-        // 2in1 无手机/平板式状态栏与导航条，setWindowSystemBarEnable 在此不生效（官方「设备行为差异」）。
-        // 改用最大化窗口：maximize() 默认使用 MaximizePresentation.ENTER_IMMERSIVE，即最大化并进入全屏。
-        await mainWindow.maximize();
+        // PC / 2in1：**只做普通最大化，不要默认进入沉浸式全屏**。
+        // 实测（鸿蒙电脑）：maximize() 不传参时用的是 MaximizePresentation.ENTER_IMMERSIVE，
+        // 即"最大化 + 进入全屏"——全屏状态下画面边缘会被吞掉一点点；而普通最大化
+        // （保留任务栏）完全没有这个问题。故显式传 EXIT_IMMERSIVE。
+        // 布局同时**避让系统栏**（setWindowLayoutFullScreen(false)）：否则布局会延伸到
+        // 任务栏之下，窗口底边会被任务栏盖住。
+        // 附注：2in1 无手机/平板式状态栏与导航条，setWindowSystemBarEnable 在此不生效（官方「设备行为差异」）。
+        await mainWindow.setWindowLayoutFullScreen(false);
+        await mainWindow.maximize(window.MaximizePresentation.EXIT_IMMERSIVE);
       } else {
-        // 手机/平板：隐藏状态栏和导航栏
+        // 手机/平板：沉浸式布局 + 隐藏状态栏和导航栏
+        await mainWindow.setWindowLayoutFullScreen(true);
         // @SuppressWarnings syscap
         await mainWindow.setWindowSystemBarEnable([]);
       }

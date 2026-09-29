@@ -1,6 +1,6 @@
 # Gardendless — 开发文档
 
-**版本**: 0.14.0（versionCode 1000007）  
+**版本**: 0.15.0（versionCode 1000008）  
 **目标平台**: HarmonyOS / OpenHarmony（`compatibleSdkVersion` 6.0.0(20)、`targetSdkVersion` 6.0.2(22)）  
 **应用类型**: Cocos Creator 游戏 WebView 容器
 

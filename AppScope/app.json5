@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.gardendless.gpnext",
     "vendor": "example",
-    "versionCode": 1000007,
-    "versionName": "0.14.0",
+    "versionCode": 1000008,
+    "versionName": "0.15.0",
     "icon": "$media:layered_image",
     "label": "$string:app_name"
   }

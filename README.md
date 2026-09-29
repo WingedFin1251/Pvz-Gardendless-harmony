@@ -8,7 +8,7 @@
 |:---|:---|
 | 应用名 | **Gardendless GP-Next** |
 | 包名 | `com.gardendless.gpnext` |
-| 版本 | `0.14.0`（versionCode `1000007`） |
+| 版本 | `0.15.0`（versionCode `1000008`） |
 | 设备类型 | `phone`、`tablet`、`2in1` |
 | SDK | `compatibleSdkVersion` 6.0.0(20) ／ `targetSdkVersion` 6.0.2(22) |
 | 本分支 | `gpnext` |
@@ -61,7 +61,7 @@
 | 位置 | 纳入 Git | 说明 |
 |:---|:---|:---|
 | `rawfile/touchPatch.js` | ✅ | 触摸 / GP-Next 面板补丁；由壳层读入后在 document-start 注入页面 |
-| `rawfile/game/` | ❌ | **游戏负载整目录**（本分支约 1.36 GB）：`index.html`、`assets/`、`cocos-js/`、`src/`、`application.js`、`index.js`、`style.css` |
+| `rawfile/game/` | ❌ | **游戏负载整目录**（本分支约 1.25 GB）：`index.html`、`assets/`、`cocos-js/`、`src/`、`application.js`、`index.js`、`style.css` |
 
 **更新负载 = 替换 `rawfile/game/` 目录**，不需要改 `index.html`，也不需要重新注入 `touchPatch.js`
 （目录名由 `Index.ets` 的 `PAYLOAD_DIR` 常量定义）。
@@ -280,6 +280,7 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 | [docs/MODULES.md](docs/MODULES.md) | 模块划分与职责 |
 | [docs/ASPECT_RATIO.md](docs/ASPECT_RATIO.md) | 画面比例方案记录 |
 | [docs/WEBVIEW_PERF.md](docs/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、壳层问题清单与优化优先级 |
+| [docs/RELEASE_v0.15.0.md](docs/RELEASE_v0.15.0.md) | v0.15.0 更新说明 |
 | [docs/RELEASE_v0.14.0.md](docs/RELEASE_v0.14.0.md) | v0.14.0 更新说明 |
 | [docs/PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md) | 性能优化方案 |
 | [docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md](docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md) | 性能优化总结 |

@@ -178,6 +178,41 @@ entry/src/main/resources/rawfile/
    `game/src/settings.json`，缺失时在顶部状态栏显示「负载缺失: …」。
 3. **`rawfile` 在构建时被打进 HAP**：只替换本地目录不会影响已安装的应用，必须重新构建并安装。
 
+## 提交前隐私守卫
+
+仓库带一个提交前钩子（`.githooks/pre-commit`）与同名 CI（`.github/workflows/privacy-guard.yml`），
+用于阻止隐私信息进入提交。启用（每份克隆执行一次）：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+它检查四类问题，命中即在本地**拒绝提交**，CI 上同样拦截：
+
+| 类别 | 说明 |
+|:---|:---|
+| 签名明文口令 | 签名配置里的口令字段若出现非掩码值；以星号开头的掩码写法（文档示例常用）视为安全 |
+| 本机绝对路径 | Windows 盘符形式的用户目录、MSYS/Git-Bash 形式的用户目录——会暴露本机账号名 |
+| 设备标识 | 设备 SN 的形态串、`sn` / 序列号字段、MAC 地址、非 noreply 邮箱 |
+| 不该入库的文件 | 签名材料（p12 / p7b / cer / csr / jks / keystore）、HAP / APK / zip、数据库、签名配置文件 |
+
+手工扫描某个区间（CI 用的就是这条）：
+
+```bash
+PRIVACY_RANGE=<from>..<to> sh .githooks/pre-commit
+```
+
+输出**只给「文件:行号 + 命中规则」，刻意不打印命中内容**——避免在 CI 日志里二次泄露。
+确认无风险时可临时跳过（会在输出里留记录）：
+
+```bash
+ALLOW_PRIVACY=1 git commit -m "…"
+```
+
+> 钩子只能防**新增**，历史里已有的旧内容不会因此消失；如需处理已有历史，
+> 需权衡历史重写（会改变所有提交哈希、且 GitHub 上旧对象短期内仍可按哈希访问）
+> 与签名材料轮换（会改变签名，导致已安装用户无法覆盖升级）两条路。
+
 ## 常见构建问题
 
 ### 签名失败

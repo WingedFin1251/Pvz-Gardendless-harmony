@@ -42,9 +42,16 @@ if [ -n "${PRIVACY_RANGE:-}" ]; then
   GREP_TARGET="$REVS"
   FILES=$(git diff --name-only --diff-filter=ACM "$PRIVACY_RANGE" 2>/dev/null)
 else
-  MODE="暂存区"
-  GREP_TARGET="--cached"
-  FILES=$(git diff --cached --name-only --diff-filter=ACM)
+  if [ -n "${PRIVACY_REV:-}" ]; then
+    # 单个提交的整棵树（pre-push 在"推送新分支"时用）
+    MODE="提交 $PRIVACY_REV"
+    GREP_TARGET="$PRIVACY_REV"
+    FILES=$(git ls-tree -r --name-only "$PRIVACY_REV" 2>/dev/null)
+  else
+    MODE="暂存区"
+    GREP_TARGET="--cached"
+    FILES=$(git diff --cached --name-only --diff-filter=ACM)
+  fi
 fi
 
 if [ -z "$FILES" ]; then

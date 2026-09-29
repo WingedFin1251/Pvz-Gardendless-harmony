@@ -542,9 +542,28 @@ struct CocosJSApp {
       case 'jpg':
       case 'jpeg': return 'image/jpeg';
       case 'webp': return 'image/webp';
+      case 'avif': return 'image/avif';
+      case 'gif': return 'image/gif';
+      // 音频/视频：Cocos 多数场景按 ArrayBuffer 解码，MIME 主要影响直接播放
+      case 'mp3': return 'audio/mpeg';
+      case 'm4a': return 'audio/mp4';
+      case 'aac': return 'audio/aac';
+      case 'ogg': return 'audio/ogg';
+      case 'wav': return 'audio/wav';
+      case 'mp4': return 'video/mp4';
+      case 'webm': return 'video/webm';
+      case 'ttf': return 'font/ttf';
+      case 'otf': return 'font/otf';
+      case 'woff': return 'font/woff';
+      case 'woff2': return 'font/woff2';
+      case 'txt': return 'text/plain';
+      case 'xml': return 'application/xml';
+      case 'csv': return 'text/csv';
       case 'svg': return 'image/svg+xml';
       case 'data': return 'application/octet-stream';
-      default: return 'text/plain';
+      // 其余一律按二进制：0.15.0 的 lite 用 .avif 纹理，先前 default=text/plain
+      // 会让图片解码失败、引擎资源加载卡死（表现为面板一直「Waiting for engine…」）
+      default: return 'application/octet-stream';
     }
   }
 }

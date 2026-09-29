@@ -12,7 +12,7 @@ ArkTS 原生壳层 + ArkWeb 承载 Cocos 构建产物，保留原版核心玩法
 |:---|:---|
 | 应用名 | **Gardendless**（Ability 标签 `Pvz2 Gardendless`） |
 | 包名 | `com.Pvz2.gardendless` |
-| 版本 | `0.14.0`（versionCode `1000007`） |
+| 版本 | `0.15.0`（versionCode `1000008`） |
 | 设备类型 | `phone`、`tablet`、`2in1` |
 | SDK | `compatibleSdkVersion` 6.0.0(20) ／ `targetSdkVersion` 6.0.2(22) |
 
@@ -47,7 +47,7 @@ ArkTS 原生壳层 + ArkWeb 承载 Cocos 构建产物，保留原版核心玩法
 | 位置 | 纳入 Git | 说明 |
 |:---|:---|:---|
 | `rawfile/touchPatch.js` | ✅ | 触摸转换补丁；由壳层读入后在 document-start 注入页面 |
-| `rawfile/game/` | ❌ | **游戏负载整目录**（v0.14.0 约 1.25 GB）：`index.html`、`assets/`、`cocos-js/`、`src/`、`application.js`、`index.js`、`style.css`、`tmpPatch.js` |
+| `rawfile/game/` | ❌ | **游戏负载整目录**（v0.15.0 约 1.25 GB）：`index.html`、`assets/`、`cocos-js/`、`src/`、`application.js`、`index.js`、`style.css`、`tmpPatch.js` |
 
 **更新负载 = 替换 `rawfile/game/` 目录**，不需要改 `index.html`，也不需要重新注入 `touchPatch.js`
 （目录名由 `Index.ets` 的 `PAYLOAD_DIR` 常量定义）。
@@ -143,6 +143,7 @@ Pvz-Gardendless-harmony/
 | [docs/BUILD.md](docs/BUILD.md) | 构建配置、签名、部署、常见问题 |
 | [docs/ASPECT_RATIO.md](docs/ASPECT_RATIO.md) | 画面比例约束方案与取舍 |
 | [docs/WEBVIEW_PERF.md](docs/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、问题清单与优化优先级 |
+| [docs/RELEASE_v0.15.0.md](docs/RELEASE_v0.15.0.md) | v0.15.0 更新说明 |
 | [docs/RELEASE_v0.14.0.md](docs/RELEASE_v0.14.0.md) | v0.14.0 更新说明 |
 | [docs/PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md) 等 | 性能优化与对比报告 |
 

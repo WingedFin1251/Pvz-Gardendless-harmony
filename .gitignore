@@ -22,11 +22,10 @@ keystore.properties
 # 本机 AI 工具配置（含绝对路径），不纳入版本管理
 /.claude/
 
-# 游戏负载（第三方 Cocos 构建产物）不纳入版本管理，仅保留两个手写壳层文件。
-# 注意：必须用 /* 只匹配直接子项；写成 /** 或忽略整个 rawfile/ 目录会使下面的反选失效。
-/entry/src/main/resources/rawfile/*
-!/entry/src/main/resources/rawfile/index.html
-!/entry/src/main/resources/rawfile/touchPatch.js
+# 游戏负载（第三方 Cocos 构建产物，**含它自带的 index.html**）整目录不纳入版本管理。
+# 更新负载 = 替换这个目录；壳层文件（如 touchPatch.js）留在 rawfile 根，不受影响。
+# 负载目录名若改动，需同步 Index.ets 里的 PAYLOAD_DIR 常量。
+/entry/src/main/resources/rawfile/game/
 
 # 安卓参考实现（第三方工程，GPL-3.0，仅本地参考）
 /gardendless-android*/

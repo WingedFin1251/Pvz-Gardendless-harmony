@@ -34,12 +34,13 @@ webview.Web.WebStorage.setMaxStorageSize(128 * 1024 * 1024) // 128MB Web 存储
 
 | 属性 | 值 | 说明 |
 |------|---|------|
-| `src` | `https://cocos.local/index.html` | 虚拟域名，由拦截器映射到 rawfile |
+| `src` | `https://cocos.local/game/index.html` | 虚拟域名，由拦截器映射到 `rawfile/game/` |
 | `renderMode` | `ASYNC_RENDER` | 异步渲染模式 |
 | `javaScriptAccess` | `true` | 启用 JS 执行 |
 | `domStorageAccess` | `true` | 启用 DOM 存储 |
 | `mediaPlayGestureAccess` | `false` | 允许自动播放（绕过手势限制） |
 | `enableWebAVSession` | `false` | 关闭音视频会话 |
+| `javaScriptOnDocumentStart` | `[{ script: injectedScript }]` | document-start 注入触摸补丁（`touchPatch.js` 内容在 `aboutToAppear` 里从 rawfile 读入；lite/gpnext 的注入内容为 `GPNEXT_SHIM + touchPatch.js`）。**不再依赖 `index.html` 里的 `<script src>`**，所以负载更新不会冲掉它 |
 
 ### 画面比例约束（3:2 ~ 17:9）
 
@@ -53,11 +54,17 @@ webview.Web.WebStorage.setMaxStorageSize(128 * 1024 * 1024) // 128MB Web 存储
 ### 资源拦截 (`onInterceptRequest`)
 
 ```typescript
-URL: https://cocos.local/{rawfilePath}
+URL: https://cocos.local/{path}
      → decodeURIComponent
+     → 若 path 不以 PAYLOAD_DIR('game/') 开头、且不在 SHELL_ROOT_FILES 里，
+       则补前缀：path = 'game/' + path        // 负载自带的 index.html 用根绝对路径 /assets/xxx.js
      → $rawfile(rawFilePath)
      → WebResourceResponse (MIME type 根据扩展名)
 ```
+
+> ⚠️ 文件不存在时 `$rawfile()` 不抛错，返回的是 **200 + 空体**而不是 404；因此壳层在启动时自检
+> `game/index.html` 与 `game/src/settings.json` 并在缺失时提示「负载缺失」（见
+> [BUILD.md](BUILD.md) 的「负载目录约定与更新流程」）。
 
 支持的 MIME 类型: `html`, `js`, `wasm`, `json`, `css`, `png`, `jpg/jpeg`, `webp`, `svg`, `data`
 

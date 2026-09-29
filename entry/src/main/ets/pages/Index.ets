@@ -5,6 +5,18 @@ import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelp
 import preferences from '@ohos.data.preferences';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 import { ResourceManager } from '../utils/ResourceManager';
+import { util } from '@kit.ArkTS';
+
+// ==================== 负载目录（单一真相点） ====================
+// 游戏负载（Cocos 构建产物，含它**自带的** index.html）统一放在 rawfile/<PAYLOAD_DIR> 下：
+//   - 更新负载 = 整目录替换，壳层文件、.gitignore、构建脚本都不用动；
+//   - 负载自带的 index.html 若用**根绝对路径**引用自己的模块（/assets/xxx.js），靠拦截器补这个前缀；
+//   - 留在 rawfile 根、由壳层自己提供的文件不补前缀（见 SHELL_ROOT_FILES）。
+// 想改名只需改这一处常量 + .gitignore 一行。
+const PAYLOAD_DIR: string = 'game/';
+const SHELL_ROOT_FILES: string[] = ['touchPatch.js'];
+// 触摸补丁的源文件（留在 rawfile 根，由壳层读入后在 document-start 注入，不再依赖 HTML 引用）
+const TOUCH_PATCH_RAWFILE: string = 'touchPatch.js';
 
 // 画面比例约束区间 3:2 ~ 17:9。
 // 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
@@ -17,6 +29,9 @@ const MAX_ASPECT_H: number = 90;
 @Component
 struct CocosJSApp {
   private webController: webview.WebviewController = new webview.WebviewController();
+  // document-start 注入脚本 = touchPatch.js 的内容（在 aboutToAppear 里从 rawfile 读入）。
+  // 这样负载更新（整目录替换 game/）不会再冲掉对它的引用 —— 原先它靠 index.html 里的一行 <script src>。
+  private injectedScript: string = '';
   private downloadDelegate: webview.WebDownloadDelegate = new webview.WebDownloadDelegate();
   private filePickerHelper?: FilePickerHelper;
   private tempDownloadPath: string = '';
@@ -46,6 +61,37 @@ struct CocosJSApp {
       return;
     }
     this.filePickerHelper = new FilePickerHelper(context);
+
+    // 读入 touchPatch.js 作为 document-start 注入脚本
+    try {
+      const bytes = context.resourceManager.getRawFileContentSync(TOUCH_PATCH_RAWFILE);
+      this.injectedScript = util.TextDecoder.create('utf-8').decodeToString(bytes);
+      console.info(`注入脚本就绪: touchPatch ${this.injectedScript.length} B`);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取 ${TOUCH_PATCH_RAWFILE} 失败: code=${error.code}, message=${error.message}`);
+    }
+
+    // 负载自检：新布局下「更新负载 = 替换 game/ 目录」，但拦截器对**不存在的文件**返回的是
+    // 200 + 空体（不是 404，见 docs/BUILD.md），所以换错/换漏目录会表现为静默黑屏。
+    // 这里在启动时把两个关键文件读一遍，缺失就直接报出来。
+    const missing: string[] = [];
+    for (const rel of [PAYLOAD_DIR + 'index.html', PAYLOAD_DIR + 'src/settings.json']) {
+      try {
+        const bytes = context.resourceManager.getRawFileContentSync(rel);
+        if (!bytes || bytes.byteLength === 0) {
+          missing.push(rel);
+        }
+      } catch (err) {
+        missing.push(rel);
+      }
+    }
+    if (missing.length > 0) {
+      console.error(`负载文件缺失: ${missing.join(', ')} —— 请确认 ${PAYLOAD_DIR} 目录已完整替换`);
+      this.showStatusMessage(`负载缺失: ${missing.join('、')}`, 8000);
+    } else {
+      console.info(`负载自检通过: ${PAYLOAD_DIR}`);
+    }
 
     // 初始化 ResourceManager（LRU 缓存，80MB/300项上限）
     ResourceManager.getInstance().setContext(context);
@@ -174,7 +220,7 @@ struct CocosJSApp {
     // 根容器用 Stack：Web 按比例铺满容器，状态提示叠加到顶部。
     // 叠加层只占用自身命中区域（状态栏另外放行触摸），不会遮挡游戏其余区域的操作。
     Stack({ alignContent: Alignment.BottomEnd }) {
-      Web({ src: "https://cocos.local/index.html",
+      Web({ src: "https://cocos.local/game/index.html",
         controller: this.webController,
         renderMode: RenderMode.ASYNC_RENDER // 不阻塞ArkUI主线程
       })
@@ -190,6 +236,8 @@ struct CocosJSApp {
         .overviewModeAccess(false)       // 禁用概览模式（减少手势处理开销）
         .zoomAccess(false)               // 禁用缩放（游戏不需要）
         .verticalScrollBarAccess(false)
+        // document-start 注入触摸补丁（负载更新不再会冲掉它）
+        .javaScriptOnDocumentStart([{ script: this.injectedScript, scriptRules: ['*'] }])
         .onControllerAttached(() => {
           this.registerNativeStorage();  // 注册 localStorage 持久化代理
           // ... 其他代码
@@ -221,6 +269,13 @@ struct CocosJSApp {
           if (url.startsWith("https://cocos.local/")) {
             let rawFilePath = decodeURIComponent(url.replace("https://cocos.local/", ""));
             rawFilePath = rawFilePath.split('?')[0];
+
+            // 负载在 rawfile/game/ 下（PAYLOAD_DIR）；壳层自带文件在 rawfile 根。
+            // 负载自带的 index.html 若用根绝对路径引用自己的模块，故这里补前缀；
+            // 已经是 game/ 开头的请求（来自页面的相对路径）不重复补。
+            if (!rawFilePath.startsWith(PAYLOAD_DIR) && SHELL_ROOT_FILES.indexOf(rawFilePath) < 0) {
+              rawFilePath = PAYLOAD_DIR + rawFilePath;
+            }
 
             // 1. 同步检查 ResourceManager LRU 缓存（快速路径，无异步开销）
             const resourceManager = ResourceManager.getInstance();

@@ -53,7 +53,7 @@ Gardendless/
 │   │   │   ├── entryability/      # UIAbility 入口
 │   │   │   ├── pages/             # 页面组件
 │   │   │   └── utils/             # 工具类
-│   │   └── resources/rawfile/    # Cocos Creator 游戏资源
+│   │   └── resources/rawfile/    # touchPatch.js（壳层，纳入 Git）+ game/（游戏负载，不纳入 Git）
 │   └── build-profile.json5
 ├── build-profile.json5    # 根构建配置
 ├── hvigorfile.ts          # Hvigor 构建入口

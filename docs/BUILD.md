@@ -146,6 +146,38 @@ hdc install entry/build/default/outputs/default/entry-default-signed.hap
 在 DevEco Studio 中右键 test 目录 → Run 'tests'
 ```
 
+## 负载目录约定与更新流程
+
+游戏负载（Cocos 构建产物）**整体**放在 `entry/src/main/resources/rawfile/game/` 下，`rawfile/` 根目录只留壳层自己提供的文件。
+
+```
+entry/src/main/resources/rawfile/
+├── touchPatch.js          # 壳层补丁（纳入 Git）；由壳层读入后在 document-start 注入页面
+└── game/                  # 游戏负载（不纳入 Git）—— 更新时整目录替换
+    ├── index.html         # 负载自带的入口页（原样保留，不要手改）
+    ├── application.js / index.js / style.css / tmpPatch.js …
+    └── assets/  cocos-js/  src/
+```
+
+目录名由 `Index.ets` 顶部的 `PAYLOAD_DIR` 常量定义（默认 `'game/'`），`.gitignore` 也只忽略这一个目录。
+**更新负载只需三步**：
+
+1. 删除旧的 `rawfile/game/`；
+2. 把新负载（解压 HAP 的 `rawfile/`，或从 [pvzge.com](https://pvzge.com/) 获取）**整体**放入 `rawfile/game/`；
+3. 重新构建。
+
+不需要再改 `index.html`，也不需要重新注入 `touchPatch.js` —— 这正是本约定的目的。
+
+### 三点必须知道的行为
+
+1. **负载自带的 `index.html` 可能用根绝对路径**引用自己的模块（如 `/assets/index-<hash>.js`，哈希随版本变），
+   所以拦截器会把 `rawfile/` 根之外的请求统一补上 `PAYLOAD_DIR` 前缀（见 `Index.ets` 的 `onInterceptRequest`）。
+   这也是负载目录名可以自由更改、只需同步 `PAYLOAD_DIR` 的原因。
+2. **不存在的文件返回的是 `200 + 空体`，不是 404** —— 因为拦截器用 `$rawfile()` 组装响应，文件缺失不会抛错。
+   因此"换错/换漏目录"的表现是**静默黑屏**而不是报错。为此壳层在启动时自检 `game/index.html` 与
+   `game/src/settings.json`，缺失时在顶部状态栏显示「负载缺失: …」。
+3. **`rawfile` 在构建时被打进 HAP**：只替换本地目录不会影响已安装的应用，必须重新构建并安装。
+
 ## 常见构建问题
 
 ### 签名失败
@@ -156,10 +188,11 @@ hdc install entry/build/default/outputs/default/entry-default-signed.hap
 
 ### 资源找不到
 
-- 确保 `rawfile` 资源在 `entry/src/main/resources/rawfile/` 下
+- 确保负载位于 `entry/src/main/resources/rawfile/game/` 下（见上文「负载目录约定」）
 - 检查文件路径大小写（Linux 文件系统区分大小写）
 
 ### WebView 白屏
 
 - 确认 `onInterceptRequest` 正确拦截 `https://cocos.local/*` 请求
-- 检查 `index.html` 及其引用资源是否完整存在于 `rawfile/` 中
+- 检查 `rawfile/game/index.html` 及其引用资源是否完整；壳层启动自检若提示「负载缺失」即为此因
+- 注意：缺失文件会被拦截器返回成 **200 + 空体**（不是 404），所以白屏时不要只看状态码

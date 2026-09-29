@@ -7,9 +7,9 @@
 
 ## 1. 背景
 
-- 游戏本体（Cocos Creator 3.8.4，位于 `entry/src/main/resources/rawfile/`）的
+- 游戏本体（Cocos Creator 3.8.4，位于 `entry/src/main/resources/rawfile/game/`）的
   **设计分辨率为 1024×640，即 16:10**：
-  - 定义位置：`rawfile/src/settings.json` → `screen.designResolution`
+  - 定义位置：`rawfile/game/src/settings.json` → `screen.designResolution`
     ```json
     "designResolution": { "width": 1024, "height": 640, "policy": 2 }
     ```
@@ -115,4 +115,4 @@ const MAX_ASPECT_H: number = 90;
 | 文件 | 作用 |
 |:---|:---|
 | `entry/src/main/ets/pages/Index.ets` | 壳层：比例计算、居中布局 |
-| `entry/src/main/resources/rawfile/src/settings.json` | 游戏设计分辨率（1024×640 = 16:10） |
+| `entry/src/main/resources/rawfile/game/src/settings.json` | 游戏设计分辨率（1024×640 = 16:10） |

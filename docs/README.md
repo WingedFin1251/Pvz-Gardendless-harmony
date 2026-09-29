@@ -1,7 +1,7 @@
 # Gardendless — 开发文档
 
-**版本**: 0.9.3  
-**目标平台**: HarmonyOS NEXT (API 23 / 6.0.2+)  
+**版本**: 0.14.0（versionCode 1000007）  
+**目标平台**: HarmonyOS / OpenHarmony（`compatibleSdkVersion` 6.0.0(20)、`targetSdkVersion` 6.0.2(22)）  
 **应用类型**: Cocos Creator 游戏 WebView 容器
 
 ---
@@ -53,7 +53,7 @@ Gardendless/
 │   │   │   ├── entryability/      # UIAbility 入口
 │   │   │   ├── pages/             # 页面组件
 │   │   │   └── utils/             # 工具类
-│   │   └── resources/rawfile/    # Cocos Creator 游戏资源
+│   │   └── resources/rawfile/    # touchPatch.js（壳层，纳入 Git）+ game/（游戏负载，不纳入 Git）
 │   └── build-profile.json5
 ├── build-profile.json5    # 根构建配置
 ├── hvigorfile.ts          # Hvigor 构建入口

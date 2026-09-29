@@ -70,6 +70,11 @@ WebView (Cocos 游戏)
 - 所有资源预置在 APK 包内，无需网络
 - MIME 类型根据文件扩展名动态设置
 
+游戏负载整体放在 `rawfile/game/`（入口为 `https://cocos.local/game/index.html`），因此拦截器会为
+「`rawfile/` 根之外的请求」补 `PAYLOAD_DIR`（默认 `game/`）前缀，只有壳层自带的
+`touchPatch.js` 等少数文件留在根目录。这样更新负载 = 整目录替换，不需要改动壳层与 `index.html`
+（详见 [BUILD.md](BUILD.md) 的「负载目录约定与更新流程」）。
+
 ### 2. JS-Native 桥接持久化
 
 游戏侧的 `localStorage` 操作通过 `registerJavaScriptProxy` 映射到原生 `preferences` 存储：

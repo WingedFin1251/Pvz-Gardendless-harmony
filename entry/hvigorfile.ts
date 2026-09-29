@@ -9,9 +9,9 @@ import * as path from 'path';
  * 产物名规则：pvzge[-变体]-<versionName>[-signed].hap
  *   - 变体取 bundleName 后缀：`.lite` → `-lite`，`.gpnext` → `-gpnext`，其它（基础版）不带
  *   - 版本取 AppScope/app.json5 的 versionName 完整值（构建时读取，改版本号即改产物名）
- *   - **未签名包为主产物**：`pvzge-0.14.0.hap`
- *   - 若工程配置了签名（存在 signed 产物），额外输出 `pvzge-0.14.0-signed.hap`
- *   - 例：pvzge-0.14.0.hap、pvzge-lite-0.14.0.hap、pvzge-lite-0.14.0-signed.hap
+ *   - **未签名包为主产物**：`pvzge-0.15.0.hap`
+ *   - 若工程配置了签名（存在 signed 产物），额外输出 `pvzge-0.15.0-signed.hap`
+ *   - 例：pvzge-0.15.0.hap、pvzge-lite-0.15.0.hap、pvzge-lite-0.15.0-signed.hap
  *
  * 输出位置：<工程根>/dist/（硬链接指向 build 里的 HAP，不额外占用磁盘；
  * 硬链接不可用时退化为复制）。每次构建会先清理 dist 下的旧 HAP。

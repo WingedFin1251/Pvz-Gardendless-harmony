@@ -28,6 +28,9 @@ interface GpNextHeaders {
 
 interface GpNextOptions {
   baseDir?: number;
+  /** 仅 plugin:fs|rename 使用：源 / 目标各自的 baseDir */
+  oldPathBaseDir?: number;
+  newPathBaseDir?: number;
   recursive?: boolean;
   encoding?: string;
   headers?: GpNextHeaders;
@@ -37,6 +40,8 @@ interface GpNextOptions {
 
 interface GpNextArgs {
   path?: string;
+  oldPath?: string;
+  newPath?: string;
   url?: string;
   directory?: number;
   options?: GpNextOptions;
@@ -47,6 +52,24 @@ interface GpNextArgs {
   handler?: number;
   target?: Object;
   protocol?: string;
+}
+
+/**
+ * Tauri plugin-fs 的 `FileInfo`（`plugin:fs|lstat` / `plugin:fs|stat` 的返回值）。
+ * 0.15.0 的数据包加载器靠它逐级校验路径祖先：`isSymlink` 为真就拒绝、`!isDirectory` 也拒绝，
+ * 最后按 `isFile` 分流。旧负载里这条命令由页面内联的 polyfill 用 localStorage 桩糊过去，
+ * 0.15.0 去掉 polyfill 后必须由原生桥提供 —— 实测缺失时报
+ * 「[Files] 未兼容的 GP-Next 命令：plugin:fs|lstat」，模组页显示 1 项错误。
+ */
+interface GpNextFileInfo {
+  isFile: boolean;
+  isDirectory: boolean;
+  isSymlink: boolean;
+  size: number;
+  mtime: number;
+  atime: number;
+  birthtime: number;
+  readonly: boolean;
 }
 
 interface GpNextRequest {
@@ -290,8 +313,27 @@ export class GpNextBridge {
         const value: GpNextBytesValue = { __gpNextBytes: this.base64.encodeToStringSync(bytes) };
         return JSON.stringify(value);
       }
-      case 'plugin:fs|write_text_file': {
+      case 'plugin:fs|write_text_file':
+      case 'plugin:fs|write_file': {
         return JSON.stringify(this.writeFile(request));
+      }
+      case 'plugin:fs|lstat':
+      case 'plugin:fs|stat': {
+        const target = this.resolve(this.requirePath(args), this.effectiveOptions(request));
+        return JSON.stringify(this.statInfo(target, command === 'plugin:fs|lstat'));
+      }
+      case 'plugin:fs|rename': {
+        if (!args || !args.oldPath || !args.newPath) {
+          throw new Error('GP-Next rename 需要 oldPath / newPath');
+        }
+        const options: GpNextOptions | undefined = this.effectiveOptions(request);
+        const oldOptions: GpNextOptions = { baseDir: options ? options.oldPathBaseDir : undefined };
+        const newOptions: GpNextOptions = { baseDir: options ? options.newPathBaseDir : undefined };
+        const oldTarget = this.resolve(args.oldPath, oldOptions);
+        const newTarget = this.resolve(args.newPath, newOptions);
+        this.ensureDir(this.dirname(newTarget));
+        fs.renameSync(oldTarget, newTarget);
+        return 'null';
       }
       case 'plugin:fs|read_dir': {
         const target = this.resolve(this.requirePath(args), this.effectiveOptions(request));
@@ -507,9 +549,27 @@ export class GpNextBridge {
     }
   }
 
+  /** Tauri FileInfo：lstat/stat 的返回值（见 GpNextFileInfo 的说明） */
+  private statInfo(path: string, noFollow: boolean): GpNextFileInfo {
+    const stat = noFollow ? fs.lstatSync(path) : fs.statSync(path);
+    const info: GpNextFileInfo = {
+      isFile: stat.isFile(),
+      isDirectory: stat.isDirectory(),
+      isSymlink: stat.isSymbolicLink(),
+      size: stat.size,
+      // Tauri 的 FileInfo 用毫秒；HarmonyOS 的 Stat.mtime/atime/ctime 是秒
+      mtime: stat.mtime * 1000,
+      atime: stat.atime * 1000,
+      birthtime: stat.ctime * 1000,
+      readonly: false
+    };
+    return info;
+  }
+
   /**
    * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
-   */  private writeFile(request: GpNextRequest): null {
+   */
+  private writeFile(request: GpNextRequest): null {
     const args: GpNextArgs | undefined = request.args;
     const headers: GpNextHeaders | undefined = request.options ? request.options.headers : undefined;
     let path: string | undefined = headers ? decodeURIComponent(headers.path) : undefined;

@@ -32,7 +32,7 @@ lite 与 gpnext 逐文件比对后，**只有 6 个文件不同**，全部属于
 | `build-profile.json5` | 各自的签名 profile（按包名绑定） |
 
 **除此之外的一切都应保持一致**：壳层源码（`entry/src/main/ets/**`）、其余文档、
-`.gitignore`、以及 `rawfile/index.html` 与 `rawfile/touchPatch.js` 这两个被跟踪的负载文件。
+`.gitignore`、以及 `rawfile/touchPatch.js`。游戏负载 `rawfile/game/` 不纳入 Git，也不参与同步。
 
 ---
 
@@ -49,7 +49,6 @@ git -C <gpnext> fetch lite
 git -C <gpnext> checkout lite/main -- \
   entry/src/main/ets .gitignore \
   docs/MODULES.md docs/ASPECT_RATIO.md docs/ARCHITECTURE.md docs/REPOS.md docs/WEBVIEW_PERF.md \
-  entry/src/main/resources/rawfile/index.html \
   entry/src/main/resources/rawfile/touchPatch.js
 ```
 

@@ -46,25 +46,24 @@
 
 ## ⚠️ 重要：游戏资源不在仓库中
 
-`entry/src/main/resources/rawfile/` 下的**游戏负载不纳入版本管理**，仓库只保留两个手写壳层文件：
+游戏负载（Cocos 构建产物，**含它自带的 `index.html`**）整体放在 `entry/src/main/resources/rawfile/game/` 下，
+**不纳入版本管理**；`rawfile/` 根目录只保留壳层自己提供的文件：
 
-| 纳入 Git | 说明 |
-|:---|:---|
-| `index.html` | 壳层入口页 |
-| `touchPatch.js` | 触摸 / GP-Next 面板补丁 |
+| 位置 | 纳入 Git | 说明 |
+|:---|:---|:---|
+| `rawfile/touchPatch.js` | ✅ | 触摸 / GP-Next 面板补丁；由壳层读入后在 document-start 注入页面 |
+| `rawfile/game/` | ❌ | **游戏负载整目录**（本分支约 576 MB）：`index.html`、`assets/`、`cocos-js/`、`src/`、`application.js`、`index.js`、`style.css` |
 
-缺少下列内容时，工程**可以编译通过，但运行会白屏**：
-
-| 缺失内容 | 说明 |
-|:---|:---|
-| `rawfile/assets/` | Cocos 资源包（本分支约 576 MB） |
-| `rawfile/cocos-js/` | Cocos 引擎运行时 |
-| `rawfile/src/` | `settings.json` 等构建配置 |
-| `rawfile/application.js`、`index.js`、`style.css` | Cocos 构建产物 |
+**更新负载 = 替换 `rawfile/game/` 目录**，不需要改 `index.html`，也不需要重新注入 `touchPatch.js`
+（目录名由 `Index.ets` 的 `PAYLOAD_DIR` 常量定义）。
 
 **获取方式**：从本仓库 [Release](https://github.com/WingedFin1251/Pvz-Gardendless-harmony/releases)
-下载对应 HAP（解压后取其中的 `rawfile/`），或从 [pvzge.com](https://pvzge.com/) 获取游戏资源，放入
-`entry/src/main/resources/rawfile/` 即可。
+下载对应 HAP（解压后取其中的 `rawfile/game/`），或从 [pvzge.com](https://pvzge.com/) 获取游戏资源，
+整体放入 `entry/src/main/resources/rawfile/game/` 即可。缺少该目录时工程**可以编译通过，但运行会白屏**
+—— 壳层会在启动时自检并在顶部提示「负载缺失」。
+
+> 细节见 [docs/BUILD.md](docs/BUILD.md) 的「负载目录约定与更新流程」（含两个易踩的坑：
+> 负载的 `index.html` 用根绝对路径引用模块，以及缺失文件被拦截器返回成 **200 + 空体** 而不是 404）。
 
 ---
 
@@ -213,7 +212,7 @@ Gardendless-lite/
 │   │   └── resources/
 │   │       ├── base/               # 图标、颜色、字符串、profile
 │   │       ├── dark/               # 深色模式资源
-│   │       └── rawfile/            # 游戏负载（仅 index.html / touchPatch.js 纳入 Git）
+│   │       └── rawfile/            # touchPatch.js（壳层，纳入 Git）+ game/（负载，不纳入 Git）
 │   ├── src/ohosTest/               # 仪器化测试
 │   ├── src/test/                   # 本地单元测试
 │   └── build-profile.json5         # 模块构建配置（含发布混淆开关）

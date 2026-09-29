@@ -7,7 +7,7 @@
 | 生命周期方法 | 操作 |
 |-------------|------|
 | `onCreate()` | 初始化 ArkWeb 引擎：启用多进程模式、整页绘制（RENDER_SURFACE），设置 Web 存储内存上限（128MB） |
-| `onWindowStageCreate()` | 设置全屏 + 横屏定向，注册内存压力回调，加载 `pages/Index` |
+| `onWindowStageCreate()` | 先加载 `pages/Index`，再设置全屏 + 横屏定向（官方要求 `setWindowBackgroundColor()` 在 `loadContent()` 生效后调用，原实现并发存在竞态），注册内存压力回调 |
 | `onMemoryLevel()` | 响应系统内存警告 |
 
 **关键配置**:
@@ -18,31 +18,53 @@ webview.Web.SET_RENDER_MODE_WHOLE_PAGE_DRAWING(true)    // 全页渲染
 webview.Web.WebStorage.setMaxStorageSize(128 * 1024 * 1024) // 128MB Web 存储
 ```
 
+**设备类型分流（2in1）**: 顶部 `IS_2IN1 = deviceInfo.deviceType === TYPE_2IN1`。
+`setWindowSystemBarEnable()` / `setPreferredOrientation()` 在 2in1（自由窗口、无传感器旋转）上
+「不生效也不报错」，故 2in1 分支改用 `maximize()`（默认进入沉浸式全屏）并跳过方向设置；
+竖屏锁定由 `module.json5` 的 `"orientation": "landscape"` 声明保证。
+这类多设备告警用 `// @SuppressWarnings syscap`（注释形式只作用于紧邻的下一行语句）屏蔽。
+
 ---
 
 ## 2. Index 主页面 (`pages/Index.ets`)
 
-**职责**: 应用唯一页面，承载 WebView、资源拦截、数据持久化、文件下载、调试入口。
+**职责**: 应用唯一页面，承载 WebView、资源拦截、数据持久化、文件下载、画面比例约束。
 
 ### WebView 配置
 
 | 属性 | 值 | 说明 |
 |------|---|------|
-| `src` | `https://cocos.local/index.html` | 虚拟域名，由拦截器映射到 rawfile |
+| `src` | `https://cocos.local/game/index.html` | 虚拟域名，由拦截器映射到 `rawfile/game/` |
 | `renderMode` | `ASYNC_RENDER` | 异步渲染模式 |
 | `javaScriptAccess` | `true` | 启用 JS 执行 |
 | `domStorageAccess` | `true` | 启用 DOM 存储 |
 | `mediaPlayGestureAccess` | `false` | 允许自动播放（绕过手势限制） |
 | `enableWebAVSession` | `false` | 关闭音视频会话 |
+| `javaScriptOnDocumentStart` | `[{ script: injectedScript }]` | document-start 注入触摸补丁（`touchPatch.js` 内容在 `aboutToAppear` 里从 rawfile 读入；lite/gpnext 的注入内容为 `GPNEXT_SHIM + touchPatch.js`）。**不再依赖 `index.html` 里的 `<script src>`**，所以负载更新不会冲掉它 |
+
+### 画面比例约束（3:2 ~ 17:9）
+
+| 项 | 说明 |
+|------|------|
+| 常量 | `MIN_ASPECT_W/H = 3/2`、`MAX_ASPECT_W/H = 171/90`，交叉相乘判定避免浮点误差 |
+| 容器尺寸 | `onAreaChange` 实测（小窗 / 分屏 / 2in1 均正确），`parseVp` 兜底带单位字符串 |
+| 布局 | Web 用 `.width/.height/.position()` 居中；四周黑边由根 `Stack` 的黑色背景提供 |
+| 详细说明 | 见 `docs/ASPECT_RATIO.md` |
 
 ### 资源拦截 (`onInterceptRequest`)
 
 ```typescript
-URL: https://cocos.local/{rawfilePath}
+URL: https://cocos.local/{path}
      → decodeURIComponent
+     → 若 path 不以 PAYLOAD_DIR('game/') 开头、且不在 SHELL_ROOT_FILES 里，
+       则补前缀：path = 'game/' + path        // 负载自带的 index.html 用根绝对路径 /assets/xxx.js
      → $rawfile(rawFilePath)
      → WebResourceResponse (MIME type 根据扩展名)
 ```
+
+> ⚠️ 文件不存在时 `$rawfile()` 不抛错，返回的是 **200 + 空体**而不是 404；因此壳层在启动时自检
+> `game/index.html` 与 `game/src/settings.json` 并在缺失时提示「负载缺失」（见
+> [BUILD.md](BUILD.md) 的「负载目录约定与更新流程」）。
 
 支持的 MIME 类型: `html`, `js`, `wasm`, `json`, `css`, `png`, `jpg/jpeg`, `webp`, `svg`, `data`
 
@@ -50,23 +72,7 @@ URL: https://cocos.local/{rawfilePath}
 
 - **Preferences 键值对**: 通过 JS 代理 `NativeStorage` 暴露 `saveToNative(key, value)` / `loadFromNative(key)` 给 WebView
 - **Cookie**: `onPageEnd` 时调用 `WebCookieManager.saveCookieAsync()`
-- **画面"铺满"偏好**: `preferences`（`game_save` 库）键 `webview_fullscreen`，见"画面比例约束"
 - **文件下载**: 见下方"下载流程"
-
-### 画面比例约束（3:2 ~ 17:9）
-
-Web 不再铺满整屏，而是按比例约束后居中，四周黑边由根 `Stack` 的黑色背景提供：
-
-```typescript
-applyAspectRatio()   // 由根 Stack 的 onAreaChange 触发
-├── w/h > 171/90（> 17:9，如 20:9）→ 以高度为基准，宽度卡 17:9，左右留黑边
-├── w/h < 3/2（< 3:2，如 4:3）    → 以宽度为基准，高度卡 3:2，上下留黑边
-└── 落在区间内                    → 铺满
-```
-
-- 容器尺寸取自 `onAreaChange` 实测值，**不用 `display`**：小窗 / 分屏 / 2in1 窗口模式下同样正确。
-- `@State isFillScreen` 为 `true` 时跳过约束、直接铺满；**长按 GP-Next 按钮**可切换并持久化。
-- 详细规则、常量与取舍说明见 [ASPECT_RATIO.md](./ASPECT_RATIO.md)。
 
 ### 下载流程
 
@@ -81,28 +87,15 @@ setupDownloadDelegate()
     └── fallback: 复制失败则保存到 filesDir 备用
 ```
 
-### GP-Next 入口按钮
+### 隐形 GP-Next 调试按钮（已移除）
 
-**可见按钮**，贴在画面**右下角**（`Alignment.BottomEnd`），默认 44×44 vp、半透明黑底白字圆形，
-标注 `GP`，点击时按以下顺序切换 GP-Next 面板显隐：
+早期版本在 `(0, 0)` 放了一个 30×30 透明按钮，点击时依次尝试 `window.gpNext.open()`、
+`window.Zt()`、模拟 `F10` 按键事件来打开 GP-Next 面板。
 
-1. `window.gpNext.toggle()` —— payload 真实暴露的 API
-   （`index-lw1dPoCM.js` 挂载 `window.gpNext = { toggle, show, hide, ... }`，**没有 `open` 方法**）
-2. `window.gpNext.open()` —— 兼容其他 / 旧版本
-3. `window.Zt()` —— 兼容旧壳层写法
-4. 派发 `F9` 按键事件 —— GP-Next 的默认热键
-   （`gp-next-settings` 的 `overlayHotkey` 默认 `{ key:'F9', code:'F9', 无修饰键 }`）
-
-> 尺寸与边距由 `Index.ets` 顶部常量 `GP_BUTTON_SIZE` / `GP_BUTTON_MARGIN` 控制。
-> **长按该按钮**可切换"铺满 / 3:2 ~ 17:9 留边"并记住选择（见"画面比例约束"）。
-> **无操作一段时间后自动贴边隐藏**：延迟由 `GP_BUTTON_HIDE_DELAY`（默认 4000 ms）控制，
-> 隐藏时向右移出屏幕、保留 `GP_BUTTON_SLIVER`（默认 26 vp）宽度可见可点，不透明度降到 0.45，带 220 ms 过渡；
-> 隐藏态下命中区域另用 `responseRegion` 向屏幕内扩 `GP_BUTTON_TOUCH_PAD`（默认 10 vp），
-> 补偿"贴边后可见面积小、容易点不中"；**可见态不扩展**，避免在画面上留下不可见的触摸死区。
-> 隐藏态下**单击 / 长按先唤出**（不执行动作），唤出后重新计时；任何与按钮的交互都会重置计时。
-> 该按钮为 `Stack` 的叠加子节点，只占用自身命中区域，其余区域的触摸仍由 `Web` 接收；
-> 顶部的下载/加载状态提示额外设置了 `HitTestMode.Transparent`，同样不拦截游戏操作。
-> 注意：热键可在面板设置里改（存于 `gp-next-settings`）；改后第 4 级失效，前三级不受影响。
+本仓库的 payload（`rawfile/`）中不存在任何 `gpNext` 挂载点（全目录 grep 无命中），
+该按钮恒为死代码，并且会吞掉画面左上角 30×30 区域的游戏点击，故在壳层改进中删除。
+若后续要接入 GP-Next（面板 + 入口按钮），做法可参考带 GP-Next 的变体发行版：
+右下角可见按钮 + 无操作自动贴边隐藏 + `F9` 兜底热键。
 
 ---
 

@@ -1,15 +1,15 @@
 # 游戏画面比例（宽高比）约束方案
 
 > 本文档记录 Gardendless 鸿蒙版如何把游戏画面约束在 **3:2 ~ 17:9** 区间内、区间外留黑边，
-> 以及如何调整区间与"铺满"开关。实现位置：`entry/src/main/ets/pages/Index.ets`。
+> 以及如何调整区间。实现位置：`entry/src/main/ets/pages/Index.ets`。
 
 ---
 
 ## 1. 背景
 
-- 游戏本体（Cocos Creator 3.8.4，位于 `entry/src/main/resources/rawfile/`）的
+- 游戏本体（Cocos Creator 3.8.4，位于 `entry/src/main/resources/rawfile/game/`）的
   **设计分辨率为 1024×640，即 16:10**：
-  - 定义位置：`rawfile/src/settings.json` → `screen.designResolution`
+  - 定义位置：`rawfile/game/src/settings.json` → `screen.designResolution`
     ```json
     "designResolution": { "width": 1024, "height": 640, "policy": 2 }
     ```
@@ -51,7 +51,7 @@ Web 用 `.position()` 居中：`x = (w - targetW) / 2`、`y = (h - targetH) / 2`
   画面实际占用降为 `1.5 / 1.6 = 93.75%`；
 - 容器比 16:10 **更宽**（17:9）→ 游戏在内部加**左右**黑边。
 
-即：下限放宽到 3:2 能让 **Web 视口更高**（GP-Next 等 HTML 面板可用空间变大），
+即：下限放宽到 3:2 能让 **Web 视口更高**（可用于显示更多 HTML 内容），
 但**游戏画面本身会变小**。若目标是"画面尽可能大"，下限应设 **16:10**。
 
 ---
@@ -81,8 +81,8 @@ const MAX_ASPECT_H: number = 90;
 
 ```ts
 .onAreaChange((_oldArea: Area, newArea: Area) => {
-  const w = Number(newArea.width);
-  const h = Number(newArea.height);
+  const w = this.parseVp(newArea.width);    // 可能是 '720.00vp' 这类带单位字符串
+  const h = this.parseVp(newArea.height);
   if (w !== this.containerW || h !== this.containerH) {
     this.containerW = w;
     this.containerH = h;
@@ -99,20 +99,7 @@ const MAX_ASPECT_H: number = 90;
 
 ---
 
-## 5. "铺满"开关与持久化
-
-| 项 | 说明 |
-|:---|:---|
-| 状态 | `@State isFillScreen: boolean`，`true` 时 Web 铺满整屏（不约束比例） |
-| 持久化 | `preferences`（`game_save` 库）键 `webview_fullscreen` |
-| 切换方式 | **长按右下角的 GP-Next 按钮**，弹出「画面：铺满 / 画面：3:2 ~ 17:9 留边」提示 |
-| 恢复时机 | `aboutToAppear()` 中读回该偏好 |
-
-> 目前提供手动开关；若需网页侧驱动，可通过 `registerJavaScriptProxy` 把对应方法暴露给页面。
-
----
-
-## 6. 注意事项
+## 5. 注意事项
 
 1. **黑边在 Web 之外**：触摸坐标映射不受影响（`touchPatch.js` 只处理 Web 内部坐标）；
    黑边区域不属于游戏视口，点不到游戏。
@@ -123,9 +110,9 @@ const MAX_ASPECT_H: number = 90;
 
 ---
 
-## 7. 相关文件
+## 6. 相关文件
 
 | 文件 | 作用 |
 |:---|:---|
-| `entry/src/main/ets/pages/Index.ets` | 壳层：比例计算、居中布局、铺满开关 |
-| `entry/src/main/resources/rawfile/src/settings.json` | 游戏设计分辨率（1024×640 = 16:10） |
+| `entry/src/main/ets/pages/Index.ets` | 壳层：比例计算、居中布局 |
+| `entry/src/main/resources/rawfile/game/src/settings.json` | 游戏设计分辨率（1024×640 = 16:10） |

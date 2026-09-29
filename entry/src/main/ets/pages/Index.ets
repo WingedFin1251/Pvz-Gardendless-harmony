@@ -7,6 +7,7 @@ import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 import { ResourceManager } from '../utils/ResourceManager';
 import { GpNextBridge } from '../utils/GpNextBridge';
 import { GPNEXT_SHIM } from '../utils/GpNextShim';
+import { util } from '@kit.ArkTS';
 
 // GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
 const GP_BUTTON_SIZE: number = 44;
@@ -36,11 +37,29 @@ const MAX_ASPECT_H: number = 90;
 // "铺满画面"偏好在 preferences 中的键名
 const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
 
+// ==================== 负载目录（单一真相点） ====================
+// 游戏负载（Cocos 构建产物，含它**自带的** index.html）统一放在 rawfile/<PAYLOAD_DIR> 下：
+//   - 更新负载 = 整目录替换，壳层文件、.gitignore、构建脚本都不用动；
+//   - 负载自带的 index.html 用**根绝对路径**引用自己的模块（/assets/<hash>.js），
+//     所以拦截器必须补这个前缀，否则会 404；
+//   - 留在 rawfile 根、由壳层自己提供的文件不补前缀（见 SHELL_ROOT_FILES）。
+// 想改名只需改这一处常量 + .gitignore 一行。
+const PAYLOAD_DIR: string = 'game/';
+const SHELL_ROOT_FILES: string[] = ['touchPatch.js'];
+// 触摸/性能补丁的源文件（留在 rawfile 根，由壳层读入后注入页面，不再依赖 HTML 引用）
+const TOUCH_PATCH_RAWFILE: string = 'touchPatch.js';
+
 
 @Entry
 @Component
 struct CocosJSApp {
   private webController: webview.WebviewController = new webview.WebviewController();
+  // 注入到页面的脚本 = GPNEXT_SHIM（接管 __TAURI_INTERNALS__）+ touchPatch.js（触摸/性能补丁）。
+  // 必须合成**一条** ScriptItem：javaScriptOnDocumentStart 按**字典序**而不是数组序执行
+  //（SDK 原文：executed in the lexicographic order instead of array sequence），
+  // 拆成两条无法保证"先 shim、后 touchPatch"；顺序敏感时应整体改用 runJavaScriptOnDocumentStart。
+  // 初值只给 shim，真正内容在 aboutToAppear 里读入 touchPatch.js 后拼接。
+  private injectedScript: string = GPNEXT_SHIM;
   private downloadDelegate: webview.WebDownloadDelegate = new webview.WebDownloadDelegate();
   private filePickerHelper?: FilePickerHelper;
   private tempDownloadPath: string = '';
@@ -96,6 +115,43 @@ struct CocosJSApp {
       return;
     }
     this.filePickerHelper = new FilePickerHelper(context);
+
+    // 读入 touchPatch.js，与 GPNEXT_SHIM 拼成一条注入脚本（原因见 injectedScript 的注释）。
+    // 这样负载更新时不会再冲掉对 touchPatch.js 的引用 —— 原先它靠 index.html 里的一行 <script src>。
+    try {
+      const bytes = context.resourceManager.getRawFileContentSync(TOUCH_PATCH_RAWFILE);
+      const touchPatch = util.TextDecoder.create('utf-8').decodeToString(bytes);
+      if (touchPatch.length > 0) {
+        this.injectedScript = GPNEXT_SHIM + '\n;\n' + touchPatch;
+        console.info(`注入脚本就绪: shim ${GPNEXT_SHIM.length} B + touchPatch ${touchPatch.length} B`);
+      } else {
+        console.error('touchPatch.js 内容为空，仅注入 shim');
+      }
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取 ${TOUCH_PATCH_RAWFILE} 失败: code=${error.code}, message=${error.message}`);
+    }
+
+    // 负载自检：新布局下「更新负载 = 替换 game/ 目录」，但拦截器对**不存在的文件**返回的是
+    // 200 + 空体（不是 404，见 docs/BUILD.md），所以换错/换漏目录会表现为静默黑屏。
+    // 这里在启动时把两个关键文件读一遍，缺失就直接报出来。
+    const missing: string[] = [];
+    for (const rel of [PAYLOAD_DIR + 'index.html', PAYLOAD_DIR + 'src/settings.json']) {
+      try {
+        const bytes = context.resourceManager.getRawFileContentSync(rel);
+        if (!bytes || bytes.byteLength === 0) {
+          missing.push(rel);
+        }
+      } catch (err) {
+        missing.push(rel);
+      }
+    }
+    if (missing.length > 0) {
+      console.error(`负载文件缺失: ${missing.join(', ')} —— 请确认 ${PAYLOAD_DIR} 目录已完整替换`);
+      this.showStatusMessage(`负载缺失: ${missing.join('、')}`, 8000);
+    } else {
+      console.info(`负载自检通过: ${PAYLOAD_DIR}`);
+    }
 
     // 原生桥需要宿主提供三件事：打开外链、另存为、导入数据包
     // （ArkTS 不允许用对象字面量实现带方法的接口，故直接传函数）
@@ -421,7 +477,7 @@ struct CocosJSApp {
     // 根容器用 Stack：Web 铺满整屏，状态提示与 GP-Next 入口按钮分别叠加到顶部和右下角。
     // 叠加层只占用自身命中区域（状态栏另外放行触摸），不会遮挡游戏其余区域的操作。
     Stack({ alignContent: Alignment.BottomEnd }) {
-      Web({ src: "https://cocos.local/index.html",
+      Web({ src: "https://cocos.local/game/index.html",
         controller: this.webController,
         renderMode: RenderMode.ASYNC_RENDER // 不阻塞ArkUI主线程
       })
@@ -495,7 +551,7 @@ struct CocosJSApp {
         })
         // 在页面自身脚本之前注入 Tauri 兼容层：payload 自带的 localStorage polyfill 只在
         // window.__TAURI_INTERNALS__ 缺失时才安装，于是会自动让位给原生桥。
-        .javaScriptOnDocumentStart([{ script: GPNEXT_SHIM, scriptRules: ['*'] }])
+        .javaScriptOnDocumentStart([{ script: this.injectedScript, scriptRules: ['*'] }])
         .onControllerAttached(() => {
           this.registerNativeStorage();  // 注册 localStorage 持久化代理
           this.registerGpNextBridge();   // 注册 GP-Next 原生桥（__gpNextNative.invoke）
@@ -527,6 +583,13 @@ struct CocosJSApp {
           if (url.startsWith("https://cocos.local/")) {
             let rawFilePath = decodeURIComponent(url.replace("https://cocos.local/", ""));
             rawFilePath = rawFilePath.split('?')[0];
+
+            // 负载在 rawfile/game/ 下（PAYLOAD_DIR）；壳层自带文件在 rawfile 根。
+            // 负载自带的 index.html 用根绝对路径引用自己的模块（/assets/<hash>.js），故这里补前缀；
+            // 已经是 game/ 开头的请求（来自页面的相对路径）不重复补。
+            if (!rawFilePath.startsWith(PAYLOAD_DIR) && SHELL_ROOT_FILES.indexOf(rawFilePath) < 0) {
+              rawFilePath = PAYLOAD_DIR + rawFilePath;
+            }
 
             // 1. 同步检查 ResourceManager LRU 缓存（快速路径，无异步开销）
             const resourceManager = ResourceManager.getInstance();

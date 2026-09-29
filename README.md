@@ -74,7 +74,7 @@ ArkTS 侧负责窗口、资源、存档与文件能力。
 
 | 模块 | 职责 |
 |:---|:---|
-| `entryability/EntryAbility.ets` | 主 Ability。沉浸式全屏与横屏；`2in1` 上改用 `maximize()` 进入全屏；初始化 Web 多进程渲染、响应内存压力回收 |
+| `entryability/EntryAbility.ets` | 主 Ability。手机/平板走沉浸式全屏 + 隐藏系统栏；`2in1`（鸿蒙电脑）上改为**普通最大化**（`maximize(EXIT_IMMERSIVE)`，保留任务栏与标题栏）——**不要默认进沉浸式全屏**，否则会吞显示边缘；初始化 Web 多进程渲染、响应内存压力回收 |
 | `entrybackupability/EntryBackupAbility.ets` | 备份扩展（配合 `backup_config.json`） |
 | `pages/Index.ets` | 页面主体。Web 组件（`ASYNC_RENDER` 异步渲染）、`cocos.local` 请求拦截、外链转系统浏览器、下载委托与文件保存、`NativeStorage` 存档代理；GP-Next 相关：`javaScriptOnDocumentStart` 注入兼容层、`registerJavaScriptProxy` 注册原生桥、自绘 JS 对话框（`onAlert/onConfirm/onPrompt`）、`multiWindowAccess` + `onWindowNew` |
 | `pages/FilePickerHelper.ets` | 文件选择与公共目录保存；数据包导入（`fileSuffixFilters` 限定 `.zip` / `.json` / `.json5`，最多 20 个） |
@@ -89,7 +89,7 @@ ArkTS 侧负责窗口、资源、存档与文件能力。
   未命中则读取 `$rawfile` 并回填缓存；网络请求与 `data:` / `blob:` 等协议放行。
 - **存档持久化**：通过 `registerJavaScriptProxy` 向页面暴露 `NativeStorage.saveToNative` / `loadFromNative`，
   底层使用 `preferences`（`game_save`）落盘。
-- **多设备适配**：`setWindowSystemBarEnable`、`setPreferredOrientation`、`overviewModeAccess` 在 `2in1`
+- **多设备适配**：`2in1` 上窗口走"最大化但不进沉浸式全屏"（`setWindowLayoutFullScreen(false)` + `maximize(EXIT_IMMERSIVE)`）；`setWindowSystemBarEnable`、`setPreferredOrientation`、`overviewModeAccess` 在 `2in1`
   上按官方文档属「不生效也不报错」，已在调用点用 `// @SuppressWarnings syscap` 抑制相应多设备告警。
 
 ---

@@ -104,6 +104,19 @@ payload 的叠加层会在左上角**无条件**渲染一个热键提示徽标�
 - 开关在 `GpNextShim.ets`：`GPNEXT_HIDE_HOTKEY_HINT`，改成 `false` 即恢复提示；
 - **不影响功能**：面板开关（浮动 GP 按钮 / 热键）实测照常。
 
+### 4. 鸿蒙电脑（2in1）不再默认进入沉浸式全屏，改为普通最大化（仅 PC 形态）
+
+`maximize()` 不传参时的默认值是 `MaximizePresentation.ENTER_IMMERSIVE` —— **最大化并进入全屏**。
+鸿蒙电脑上实测：进入全屏后**画面边缘会被吞掉一点点**（窗口连任务栏区域一起铺满），而**普通最大化**
+（保留任务栏）完全没有这个问题。故 2in1 分支改为：
+
+```ts
+await mainWindow.setWindowLayoutFullScreen(false);                    // 布局避让系统栏，避免底边被任务栏盖住
+await mainWindow.maximize(window.MaximizePresentation.EXIT_IMMERSIVE); // 最大化，但不进入沉浸式全屏
+```
+
+手机/平板分支一行未改（仍是沉浸式布局 + 隐藏状态栏/导航栏）。
+
 ## 📌 注意事项
 
 - **存档自动继承**：直接覆盖安装即可。实测 `PvZ2_PlayerProperties`（约 100 KB）、`PvZ2_Settings`
@@ -135,3 +148,5 @@ payload 的叠加层会在左上角**无条件**渲染一个热键提示徽标�
 | 存档 | 覆盖安装后存档与设置保留 |
 | `lite` | 回退 0.14.0 负载后正常进游戏（ASTC + OGG） |
 | 热键徽标 | 隐藏后 `display:none`、布局盒 0×0；`gpNext.toggle()` 与 F9 热键仍能开合面板 |
+| PC 最大化（鸿蒙电脑 VM） | 窗口矩形 `[0 0 3120 2080]`（沉浸式，吞掉任务栏区域）→ **`[0 0 3120 1955]`**，Dock `[0 1955 3120 125]` 不变；截图可见标题栏 + 任务栏完整保留 |
+| 平板回归 | 手机/平板分支未改动，实机仍为沉浸式全屏（无标题栏/状态栏） |

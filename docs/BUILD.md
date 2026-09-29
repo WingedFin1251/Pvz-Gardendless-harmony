@@ -71,7 +71,7 @@
 
 | 字段 | 值 | 说明 |
 |------|---|------|
-| `bundleName` | `com.gardendless.gpnext` | 应用包名（唯一标识） |
+| `bundleName` | `com.Pvz2.gardendless` | 应用包名（唯一标识） |
 | `versionCode` | `1000001` | 版本号（整数递增） |
 | `versionName` | `0.9.3` | 用户可见版本号 |
 
@@ -109,7 +109,7 @@ hdc install entry/build/default/outputs/default/entry-default-signed.hap
 
 ### 方式三：AppGallery 发布
 
-1. 在 AppGallery Connect 创建应用（包名 `com.gardendless.gpnext`）
+1. 在 AppGallery Connect 创建应用（包名 `com.Pvz2.gardendless`）
 2. 上传 release 签名的 HAP
 3. 填写应用信息、截图、隐私政策等
 4. 提交审核
@@ -146,32 +146,37 @@ hdc install entry/build/default/outputs/default/entry-default-signed.hap
 在 DevEco Studio 中右键 test 目录 → Run 'tests'
 ```
 
-## 游戏资源（不纳入版本管理）
+## 负载目录约定与更新流程
 
-`entry/src/main/resources/rawfile/` 下的游戏负载来自第三方 Cocos 构建产物，**不纳入版本管理**，
-仓库中只保留两个手写壳层文件：
+游戏负载（Cocos 构建产物）**整体**放在 `entry/src/main/resources/rawfile/game/` 下，`rawfile/` 根目录只留壳层自己提供的文件。
 
-| 保留跟踪 | 说明 |
-|:---|:---|
-| `index.html` | 壳层入口页 |
-| `touchPatch.js` | 触摸 / GP-Next 面板补丁 |
+```
+entry/src/main/resources/rawfile/
+├── touchPatch.js          # 壳层补丁（纳入 Git）；由壳层读入后在 document-start 注入页面
+└── game/                  # 游戏负载（不纳入 Git）—— 更新时整目录替换
+    ├── index.html         # 负载自带的入口页（原样保留，不要手改）
+    ├── application.js / index.js / style.css / tmpPatch.js …
+    └── assets/  cocos-js/  src/
+```
 
-其余内容已被 `.gitignore` 忽略，**需自行获取后放入该目录**；否则应用能编译通过，但运行时会白屏：
+目录名由 `Index.ets` 顶部的 `PAYLOAD_DIR` 常量定义（默认 `'game/'`），`.gitignore` 也只忽略这一个目录。
+**更新负载只需三步**：
 
-- `assets/` — Cocos 资源包（约 570 MB）
-- `cocos-js/` — Cocos 引擎运行时
-- `src/` — `settings.json` 等构建配置
-- `application.js`、`index.js`、`style.css` — Cocos 构建产物
+1. 删除旧的 `rawfile/game/`；
+2. 把新负载（解压 HAP 的 `rawfile/`，或从 [pvzge.com](https://pvzge.com/) 获取）**整体**放入 `rawfile/game/`；
+3. 重新构建。
 
-这些文件**不在本仓库的 git 历史中**（本仓库为独立重建的精简历史，不含游戏负载），
-需自行获取后放入该目录：
+不需要再改 `index.html`，也不需要重新注入 `touchPatch.js` —— 这正是本约定的目的。
 
-- 原仓库：[WingedFin1251/Pvz-Gardendless-harmony](https://github.com/WingedFin1251/Pvz-Gardendless-harmony)
-  （可从其 Release 下载 HAP，解压后取 `rawfile/`）
-- 游戏本体：[pvzge.com](https://pvzge.com/)
+### 三点必须知道的行为
 
-> 注意：`.gitignore` 中的规则必须写成 `/entry/src/main/resources/rawfile/*` 加反选（`!`）。
-> 若写成 `rawfile/**` 或直接忽略整个 `rawfile/` 目录，反选会失效——Git 不允许反选“父目录已被排除”的文件。
+1. **负载自带的 `index.html` 可能用根绝对路径**引用自己的模块（如 `/assets/index-<hash>.js`，哈希随版本变），
+   所以拦截器会把 `rawfile/` 根之外的请求统一补上 `PAYLOAD_DIR` 前缀（见 `Index.ets` 的 `onInterceptRequest`）。
+   这也是负载目录名可以自由更改、只需同步 `PAYLOAD_DIR` 的原因。
+2. **不存在的文件返回的是 `200 + 空体`，不是 404** —— 因为拦截器用 `$rawfile()` 组装响应，文件缺失不会抛错。
+   因此"换错/换漏目录"的表现是**静默黑屏**而不是报错。为此壳层在启动时自检 `game/index.html` 与
+   `game/src/settings.json`，缺失时在顶部状态栏显示「负载缺失: …」。
+3. **`rawfile` 在构建时被打进 HAP**：只替换本地目录不会影响已安装的应用，必须重新构建并安装。
 
 ## 常见构建问题
 
@@ -183,11 +188,11 @@ hdc install entry/build/default/outputs/default/entry-default-signed.hap
 
 ### 资源找不到
 
-- 确保 `rawfile` 资源在 `entry/src/main/resources/rawfile/` 下
+- 确保负载位于 `entry/src/main/resources/rawfile/game/` 下（见上文「负载目录约定」）
 - 检查文件路径大小写（Linux 文件系统区分大小写）
-- 若缺少游戏负载，参见上文「游戏资源（不纳入版本管理）」
 
 ### WebView 白屏
 
 - 确认 `onInterceptRequest` 正确拦截 `https://cocos.local/*` 请求
-- 检查 `index.html` 及其引用资源是否完整存在于 `rawfile/` 中
+- 检查 `rawfile/game/index.html` 及其引用资源是否完整；壳层启动自检若提示「负载缺失」即为此因
+- 注意：缺失文件会被拦截器返回成 **200 + 空体**（不是 404），所以白屏时不要只看状态码

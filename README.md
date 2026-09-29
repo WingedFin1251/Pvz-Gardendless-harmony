@@ -8,7 +8,7 @@
 |:---|:---|
 | 应用名 | **Gardendless Lite** |
 | 包名 | `com.gardendless.lite` |
-| 版本 | `0.14.0`（versionCode `1000007`） |
+| 版本 | `0.14.0`（versionCode `1000008`，负载仍为 0.14.0） |
 | 设备类型 | `phone`、`tablet`、`2in1` |
 | SDK | `compatibleSdkVersion` 6.0.0(20) ／ `targetSdkVersion` 6.0.2(22) |
 | 本分支 | `lite` |
@@ -271,6 +271,7 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 | [docs/MODULES.md](docs/MODULES.md) | 模块划分与职责 |
 | [docs/ASPECT_RATIO.md](docs/ASPECT_RATIO.md) | 画面比例方案记录 |
 | [docs/WEBVIEW_PERF.md](docs/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、壳层问题清单与优化优先级 |
+| [docs/RELEASE_v0.15.0.md](docs/RELEASE_v0.15.0.md) | v0.15.0 更新说明 |
 | [docs/RELEASE_v0.14.0.md](docs/RELEASE_v0.14.0.md) | v0.14.0 更新说明 |
 | [docs/PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md) | 性能优化方案 |
 | [docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md](docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md) | 性能优化总结 |

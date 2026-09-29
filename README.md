@@ -6,7 +6,7 @@ ArkTS 原生壳层 + ArkWeb 承载 Cocos 构建产物，保留原版核心玩法
 
 - 非 EA / PopCap 官方产品，为爱好者社群开源移植项目
 - 一次开发、多端部署：支持鸿蒙手机、平板与 2in1（PC）形态
-- 原生壳层：沉浸式全屏、横屏适配、画面比例约束、资源拦截与存档桥接
+- 原生壳层：沉浸式全屏（手机/平板）／普通最大化（`2in1` 鸿蒙电脑，保留任务栏）、横屏适配、画面比例约束、资源拦截与存档桥接
 
 | | |
 |:---|:---|
@@ -105,7 +105,7 @@ Pvz-Gardendless-harmony/
 ├── entry/                        # 主模块（entry HAP）
 │   ├── src/main/
 │   │   ├── ets/
-│   │   │   ├── entryability/     # EntryAbility：沉浸式全屏、横屏、Web 引擎初始化
+│   │   │   ├── entryability/     # EntryAbility：全屏/最大化（按设备分流）、横屏、Web 引擎初始化
 │   │   │   ├── entrybackupability/
 │   │   │   ├── pages/            # Index 页面（Web 组件、请求拦截、下载、文件选择）
 │   │   │   └── utils/            # 资源缓存、性能监控
@@ -129,7 +129,7 @@ Pvz-Gardendless-harmony/
 | 文件 | 内容 |
 |:---|:---|
 | `entry/src/main/ets/pages/Index.ets` | **画面比例约束 3:2 ~ 17:9**（超出区间由壳层补黑边）：`onAreaChange` 实测容器尺寸、`parseVp` 兜底带单位字符串、Web 用 `width/height/position` 居中；根容器 `Stack`，状态提示叠加在画面顶部并放行触摸 |
-| `entry/src/main/ets/entryability/EntryAbility.ets` | 先 `loadContent` 再配置窗口（官方要求 `setWindowBackgroundColor()` 在 `loadContent()` 生效后调用）；`IS_2IN1` 分流：`2in1` 改用 `maximize()` 进入沉浸式全屏并跳过方向设置 |
+| `entry/src/main/ets/entryability/EntryAbility.ets` | 先 `loadContent` 再配置窗口（官方要求 `setWindowBackgroundColor()` 在 `loadContent()` 生效后调用）；`IS_2IN1` 分流：手机/平板走沉浸式全屏 + 隐藏系统栏；`2in1` 改为**普通最大化**（`setWindowLayoutFullScreen(false)` + `maximize(EXIT_IMMERSIVE)`，保留任务栏与标题栏）并跳过方向设置 |
 | `entry/src/main/ets/utils/ResourceManager.ets` | `getRawFile`（API 9 起废弃）→ `getRawFileContent` |
 
 ---

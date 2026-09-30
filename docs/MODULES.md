@@ -185,3 +185,53 @@ Index.ets
 ```
 
 > **注意**: `ResourceManager` 和 `PerformanceMonitor` 目前为独立工具类，未在 `Index.ets` 中集成。如需启用资源缓存和性能监控，需在 `Index.ets` 中实例化并挂钩。
+
+---
+
+## 期望帧率投票（可变帧率 / LTPO）
+
+**现象**：鸿蒙电脑 / 平板上，游戏内"有触摸时 120Hz，闲置一会儿掉到 60Hz"。
+
+**原因（官方文档）**：鸿蒙的**控帧系统**收集应用的"期望绘制帧率"，参与**整机刷新率决策**：
+
+> 应用层的多种 UI（动画组件、UI 绘制、XComponent 自绘制及非 UI 线程绘制）可以通过相对应的可变帧率接口
+> （**expectedFrameRateRange、displaySync、OH_NativeXComponent_SetExpectedFrameRateRange 及 DisplaySoloist**）
+> 接入到控帧系统。控帧系统收集 UI 设置的期望绘制帧率，参与到框架层的**整机刷新率决策**；服务端根据决策出的
+> 刷新率结果进行绘制帧率分发……硬件层也会根据整机刷新率的决策结果，完成硬件器件的刷新率切换。
+
+游戏的官方入口是 Graphics Accelerate Kit 的 **OpenGTX**（LTPO 三模式：`SCENE_MODE` / **`TOUCH_MODE`** /
+`ADAPTIVE_MODE`）。本应用画面由**系统 Web 组件**承载：拿不到 XComponent 那套自绘制接口，也不在 OpenGTX 的
+适用范围 —— 属于**不投票的 Vsync 请求者**（官方《Vsync 低功耗优化》把 WebView 单列为一类），因此系统在闲置时
+会自适应降档。应用侧也无法直接设置刷新率（`@ohos.display` 只有只读的 `refreshRate` / `supportedRefreshRates`，
+外加 `@ohos.settings.openScreenRefreshRateSettingsPage()` 让用户去系统设置里改）。
+
+**做法**：壳层用 `displaySync` 参与投票（`pages/Index.ets`）：
+
+```ts
+const ENABLE_HIGH_REFRESH_VOTE: boolean = true;   // 想关掉就改 false
+const HIGH_REFRESH_EXPECTED: number = 120;
+const HIGH_REFRESH_MIN: number = 60;
+
+const vote = displaySync.create();
+vote.setExpectedFrameRateRange({ expected: 120, min: 60, max: 120 });
+vote.on('frame', () => { /* 刻意留空：只为投票，不做任何绘制 */ });
+vote.start();
+```
+
+只在**页面可见期间**持有（`onPageShow` / `onPageHide` / `aboutToDisappear` 里 start / stop），避免后台空刷帧。
+
+**实测**（平板 DMG-W00；读 `hidumper -s RenderService -a screen` 的 `activeMode`；全程零输入）：
+
+| 条件（唯一变量=投票） | 场景 | GP-Next 帧率 | 引擎 frameRate | 显示刷新率（90 秒） |
+| :--- | :--- | :--- | :--- | :--- |
+| 投票关闭 | `mainScene` | `0`（不限） | `999` | **60Hz × 18（120 占比 0%）** |
+| 投票开启 | `mainScene` | `0`（不限） | `999` | **120Hz × 18（120 占比 100%）** |
+
+**代价与限制**：
+
+- 官方最佳实践明确警告 `displaySync` 滥用会增加功耗、干扰可变帧率机制（"expected / min / max 都设 120"被点名）——
+  这里把 `min` 设为 60 以避开该反模式，且回调刻意留空。
+- 期望帧率**不保证生效**：官方原文"不能代表最终实际效果，会受限于系统功耗性能约束和屏幕刷新率硬件能力限制"。
+- 与 GP-Next 面板的「帧率」设置**相互独立**：后者决定**引擎**渲染上限（30/60/120/144/不限，默认 60），
+  前者只影响**系统刷新率决策**；两者都设对才可能长期 > 60fps。
+- 关闭方式：把 `ENABLE_HIGH_REFRESH_VOTE` 改成 `false`（三仓同源，改动后需重新构建）。

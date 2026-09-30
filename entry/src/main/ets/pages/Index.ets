@@ -8,6 +8,7 @@ import { ResourceManager } from '../utils/ResourceManager';
 import { GpNextBridge } from '../utils/GpNextBridge';
 import { GPNEXT_SHIM } from '../utils/GpNextShim';
 import { util } from '@kit.ArkTS';
+ import { displaySync } from '@kit.ArkGraphics2D';
 
 // GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
 const GP_BUTTON_SIZE: number = 44;
@@ -33,6 +34,21 @@ const MIN_ASPECT_W: number = 3;    // 最窄 3:2  ≈ 1.500
 const MIN_ASPECT_H: number = 2;
 const MAX_ASPECT_W: number = 171;  // 最宽 17:9 ≈ 1.889
 const MAX_ASPECT_H: number = 90;
+
+// ==================== 期望帧率投票（可变帧率 / LTPO） ====================
+// 背景：鸿蒙的"控帧系统"收集应用的**期望绘制帧率**参与整机刷新率决策；没有高帧率投票时，
+// 系统在无触摸/内容静止时会自适应降到 60Hz（真机实测：平板支持 30/60/90/120/144，但
+// activeMode 常驻 60，有触摸时回到 120）。本 Web 组件属系统组件，拿不到 XComponent 那套
+// 自绘制接口，只能用 displaySync 参与投票。
+//
+// 代价与限制（官方最佳实践：displaySync 滥用会增加功耗、干扰可变帧率机制）：
+//   - 应用会按期望帧率接收 Vsync（回调里刻意不做任何工作）；
+//   - 真实生效还取决于 GP-Next 面板的「帧率」设置（默认 60，设成 120 或"不限"才有意义）
+//     以及屏幕硬件能力与系统功耗策略 —— 官方原文：期望帧率"不能代表最终实际效果"。
+// 想关闭：把 ENABLE_HIGH_REFRESH_VOTE 改成 false。
+const ENABLE_HIGH_REFRESH_VOTE: boolean = true;
+const HIGH_REFRESH_EXPECTED: number = 120;
+const HIGH_REFRESH_MIN: number = 60;
 
 // "铺满画面"偏好在 preferences 中的键名
 const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
@@ -86,6 +102,9 @@ struct CocosJSApp {
   @State webY: number = 0;
   // true：Web 铺满整屏；false：约束在 3:2 ~ 17:9，超出部分留黑边
   @State isFillScreen: boolean = false;
+
+  /** 期望帧率投票实例（仅在页面可见期间持有，避免后台空刷帧） */
+  private highRefreshVote: displaySync.DisplaySync | undefined = undefined;
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
   @State gpButtonHidden: boolean = false;
 
@@ -181,6 +200,9 @@ struct CocosJSApp {
 
     // 启动后开始计时：无操作一段时间后把 GP 按钮贴边隐藏
     this.scheduleGpHide();
+
+    // 期望帧率投票（页面可见期间持有；页面不可见时在 onPageHide 里停掉）
+    this.startHighRefreshVote();
   }
 
   /**
@@ -225,6 +247,51 @@ struct CocosJSApp {
     this.webH = targetH;
     this.webX = (w - targetW) / 2;
     this.webY = (h - targetH) / 2;
+  }
+
+  /**
+   * 向系统"投票"期望帧率（可变帧率机制）。
+   * 只在页面可见期间持有；回调里不做任何工作 —— 它的唯一作用是让控帧系统知道
+   * "这个页面期望高帧率"，从而在无触摸时也尽量维持高刷新率。
+   */
+  private startHighRefreshVote(): void {
+    if (!ENABLE_HIGH_REFRESH_VOTE || this.highRefreshVote !== undefined) {
+      return;
+    }
+    try {
+      const vote = displaySync.create();
+      vote.setExpectedFrameRateRange({
+        expected: HIGH_REFRESH_EXPECTED,
+        min: HIGH_REFRESH_MIN,
+        max: HIGH_REFRESH_EXPECTED
+      });
+      vote.on('frame', () => {
+        // 刻意留空：只为投票，不做任何绘制 / 计算
+      });
+      vote.start();
+      this.highRefreshVote = vote;
+      console.info(`期望帧率投票已开启: expected=${HIGH_REFRESH_EXPECTED} min=${HIGH_REFRESH_MIN}`);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`期望帧率投票失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
+  /** 停止投票并释放实例（页面不可见 / 退出时调用） */
+  private stopHighRefreshVote(): void {
+    const vote = this.highRefreshVote;
+    if (vote === undefined) {
+      return;
+    }
+    this.highRefreshVote = undefined;
+    try {
+      vote.stop();
+      vote.off('frame');
+      console.info('期望帧率投票已停止');
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`停止期望帧率投票失败: code=${error.code}, message=${error.message}`);
+    }
   }
 
   /** 切换 铺满 / 按比例留边，并持久化（长按 GP-Next 按钮触发） */
@@ -417,7 +484,19 @@ struct CocosJSApp {
     }
   }
 
+  /** 页面重新可见：恢复期望帧率投票 */
+  onPageShow() {
+    this.startHighRefreshVote();
+  }
+
+  /** 页面不可见（切后台 / 跳转）：停止投票，避免空刷帧与额外功耗 */
+  onPageHide() {
+    this.stopHighRefreshVote();
+  }
+
   aboutToDisappear() {
+    // 页面销毁：停掉期望帧率投票
+    this.stopHighRefreshVote();
     if (this.timeoutId) clearTimeout(this.timeoutId);
     if (this.hideButtonTimer !== undefined) {
       clearTimeout(this.hideButtonTimer);

@@ -9,6 +9,7 @@ import { GpNextBridge } from '../utils/GpNextBridge';
 import { GPNEXT_SHIM } from '../utils/GpNextShim';
 import { util } from '@kit.ArkTS';
  import { displaySync } from '@kit.ArkGraphics2D';
+import display from '@ohos.display';
 
 // GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
 const GP_BUTTON_SIZE: number = 44;
@@ -49,9 +50,11 @@ const MAX_ASPECT_H: number = 90;
 const ENABLE_HIGH_REFRESH_VOTE: boolean = true;
 const HIGH_REFRESH_EXPECTED: number = 120;
 const HIGH_REFRESH_MIN: number = 60;
+const DEFAULT_EXPECTED_REFRESH: string = '120';            // 首次启动默认值（面板可改，已持久化）
 
 // "铺满画面"偏好在 preferences 中的键名
 const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
+const PREF_EXPECTED_REFRESH: string = 'expected_refresh';   // 'off' | '60' | '120' | 'max'
 
 // ==================== 负载目录（单一真相点） ====================
 // 游戏负载（Cocos 构建产物，含它**自带的** index.html）统一放在 rawfile/<PAYLOAD_DIR> 下：
@@ -105,6 +108,11 @@ struct CocosJSApp {
 
   /** 期望帧率投票实例（仅在页面可见期间持有，避免后台空刷帧） */
   private highRefreshVote: displaySync.DisplaySync | undefined = undefined;
+  @State expectedRefresh: string = DEFAULT_EXPECTED_REFRESH;
+  @State shellSettingsOpen: boolean = false;
+  @State currentRefresh: number = 0;
+  @State supportedRefresh: number[] = [];
+  private refreshPollTimer?: number;
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
   @State gpButtonHidden: boolean = false;
 
@@ -190,6 +198,8 @@ struct CocosJSApp {
       this.prefs = await preferences.getPreferences(context, 'game_save');
       // 恢复"铺满画面"偏好
       this.isFillScreen = await this.prefs.get(PREF_WEB_FULLSCREEN, false) as boolean;
+      // 恢复"期望刷新率"偏好（面板里可改）
+      this.expectedRefresh = await this.prefs.get(PREF_EXPECTED_REFRESH, DEFAULT_EXPECTED_REFRESH) as string;
       // aboutToAppear 是异步的，首次布局触发的 onAreaChange 很可能先于这里完成，
       // 故读完偏好必须重算一次，否则保存过的"铺满"在启动时会被静默忽略。
       this.applyAspectRatio();
@@ -255,22 +265,45 @@ struct CocosJSApp {
    * "这个页面期望高帧率"，从而在无触摸时也尽量维持高刷新率。
    */
   private startHighRefreshVote(): void {
-    if (!ENABLE_HIGH_REFRESH_VOTE || this.highRefreshVote !== undefined) {
+    this.stopHighRefreshVote();
+    if (!ENABLE_HIGH_REFRESH_VOTE || this.expectedRefresh === 'off') {
       return;
     }
+    // 期望帧率：max = 屏幕可用上限；否则取面板选择的数值
+    let expected = HIGH_REFRESH_EXPECTED;
+    if (this.expectedRefresh === 'max') {
+      if (this.supportedRefresh.length === 0) {
+        this.refreshDisplayInfo();
+      }
+      let top = 0;
+      for (let i = 0; i < this.supportedRefresh.length; i++) {
+        if (this.supportedRefresh[i] > top) {
+          top = this.supportedRefresh[i];
+        }
+      }
+      if (top > 0) {
+        expected = top;
+      }
+    } else {
+      expected = Number(this.expectedRefresh);
+      if (!Number.isFinite(expected) || expected <= 0) {
+        expected = HIGH_REFRESH_EXPECTED;
+      }
+    }
+    const max = Math.max(expected, HIGH_REFRESH_MIN);
     try {
       const vote = displaySync.create();
       vote.setExpectedFrameRateRange({
-        expected: HIGH_REFRESH_EXPECTED,
+        expected: expected,
         min: HIGH_REFRESH_MIN,
-        max: HIGH_REFRESH_EXPECTED
+        max: max
       });
       vote.on('frame', () => {
         // 刻意留空：只为投票，不做任何绘制 / 计算
       });
       vote.start();
       this.highRefreshVote = vote;
-      console.info(`期望帧率投票已开启: expected=${HIGH_REFRESH_EXPECTED} min=${HIGH_REFRESH_MIN}`);
+      console.info(`期望帧率投票已开启: expected=${expected} min=${HIGH_REFRESH_MIN} max=${max}`);
     } catch (err) {
       const error = err as BusinessError;
       console.error(`期望帧率投票失败: code=${error.code}, message=${error.message}`);
@@ -294,6 +327,180 @@ struct CocosJSApp {
     }
   }
 
+  /** 读取当前/可用屏幕刷新率（只读，仅用于面板显示） */
+  private refreshDisplayInfo(): void {
+    try {
+      const d = display.getDefaultDisplaySync();
+      this.currentRefresh = d.refreshRate;
+      const sup = d.supportedRefreshRates;
+      const next: number[] = (sup !== undefined && sup.length > 0) ? sup : [d.refreshRate];
+      // 仅在真正变化时写状态，避免每秒一次无谓重渲染
+      let same = next.length === this.supportedRefresh.length;
+      if (same) {
+        for (let i = 0; i < next.length; i++) {
+          if (next[i] !== this.supportedRefresh[i]) {
+            same = false;
+            break;
+          }
+        }
+      }
+      if (!same) {
+        this.supportedRefresh = next;
+      }
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取屏幕刷新率失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
+  /** 长按 GP 按钮：打开壳层设置面板（画面模式 + 期望刷新率） */
+  private openShellSettings(): void {
+    this.refreshDisplayInfo();
+    this.shellSettingsOpen = true;
+    if (this.refreshPollTimer === undefined) {
+      this.refreshPollTimer = setInterval(() => {
+        this.refreshDisplayInfo();
+      }, 1000);
+    }
+  }
+
+  /** 关闭设置面板并停掉刷新率轮询 */
+  private closeShellSettings(): void {
+    this.shellSettingsOpen = false;
+    if (this.refreshPollTimer !== undefined) {
+      clearInterval(this.refreshPollTimer);
+      this.refreshPollTimer = undefined;
+    }
+  }
+
+  /** 面板里切换期望刷新率：立即生效 + 持久化 */
+  private setExpectedRefresh(value: string): void {
+    this.expectedRefresh = value;
+    this.startHighRefreshVote();
+    const label = value === 'off' ? '关闭' : (value === 'max' ? '最高' : value + 'Hz');
+    this.showStatusMessage(`期望刷新率：${label}`, 2000);
+    this.persistExpectedRefresh();
+  }
+
+  private async persistExpectedRefresh(): Promise<void> {
+    if (!this.prefs) {
+      return;
+    }
+    try {
+      await this.prefs.put(PREF_EXPECTED_REFRESH, this.expectedRefresh);
+      await this.prefs.flush();
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`保存期望刷新率失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
+  /** 壳层设置面板（长按 GP 按钮打开） */
+  @Builder
+  shellSettingsPanel() {
+    Column() {
+      Column() {
+        Text('设置')
+          .fontSize(18)
+          .fontColor(Color.White)
+          .fontWeight(FontWeight.Bold)
+          .width('100%')
+          .margin({ bottom: 14 })
+
+        Text('画面')
+          .fontSize(13)
+          .fontColor('#9A9AA0')
+          .width('100%')
+          .margin({ bottom: 6 })
+        Row({ space: 8 }) {
+          Button(this.isFillScreen ? '铺满 ✓' : '铺满')
+            .fontSize(14)
+            .backgroundColor(this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
+            .layoutWeight(1)
+            .onClick(() => {
+              if (!this.isFillScreen) {
+                this.toggleFillScreen();
+              }
+            })
+          Button(!this.isFillScreen ? '留边 ✓' : '留边')
+            .fontSize(14)
+            .backgroundColor(!this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
+            .layoutWeight(1)
+            .onClick(() => {
+              if (this.isFillScreen) {
+                this.toggleFillScreen();
+              }
+            })
+        }
+        .width('100%')
+        .margin({ bottom: 16 })
+
+        Text('期望刷新率（缓解闲置掉到 60Hz）')
+          .fontSize(13)
+          .fontColor('#9A9AA0')
+          .width('100%')
+          .margin({ bottom: 6 })
+        Row({ space: 6 }) {
+          Button('关闭')
+            .fontSize(13)
+            .backgroundColor(this.expectedRefresh === 'off' ? '#2E6BD6' : '#33FFFFFF')
+            .layoutWeight(1)
+            .onClick(() => { this.setExpectedRefresh('off'); })
+          Button('60')
+            .fontSize(13)
+            .backgroundColor(this.expectedRefresh === '60' ? '#2E6BD6' : '#33FFFFFF')
+            .layoutWeight(1)
+            .onClick(() => { this.setExpectedRefresh('60'); })
+          Button('120')
+            .fontSize(13)
+            .backgroundColor(this.expectedRefresh === '120' ? '#2E6BD6' : '#33FFFFFF')
+            .layoutWeight(1)
+            .onClick(() => { this.setExpectedRefresh('120'); })
+          Button('最高')
+            .fontSize(13)
+            .backgroundColor(this.expectedRefresh === 'max' ? '#2E6BD6' : '#33FFFFFF')
+            .layoutWeight(1)
+            .onClick(() => { this.setExpectedRefresh('max'); })
+        }
+        .width('100%')
+        .margin({ bottom: 10 })
+
+        Text(`当前屏幕刷新率：${this.currentRefresh} Hz`)
+          .fontSize(12)
+          .fontColor('#CFCFD6')
+          .width('100%')
+          .margin({ bottom: 2 })
+        Text('可用档位：' + this.supportedRefresh.join(' / ') + ' Hz')
+          .fontSize(12)
+          .fontColor('#CFCFD6')
+          .width('100%')
+          .margin({ bottom: 8 })
+        Text('提示：游戏引擎帧率由 GP-Next 面板 → 设置 → 帧率 决定（默认 60），建议设为 120 或 不限。')
+          .fontSize(12)
+          .fontColor('#8E8E96')
+          .width('100%')
+          .margin({ bottom: 16 })
+
+        Button('完成')
+          .fontSize(15)
+          .backgroundColor('#2E6BD6')
+          .width('100%')
+          .onClick(() => { this.closeShellSettings(); })
+      }
+      .width('84%')
+      .padding(20)
+      .backgroundColor('#F21C1C1E')
+      .borderRadius(16)
+      .onClick(() => { })
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor('#88000000')
+    .onClick(() => { this.closeShellSettings(); })
+  }
+
+  /** 切换 铺满 / 按比例留边，并持久化（面板里触发） */
   /** 切换 铺满 / 按比例留边，并持久化（长按 GP-Next 按钮触发） */
   private async toggleFillScreen(): Promise<void> {
     this.isFillScreen = !this.isFillScreen;
@@ -492,11 +699,13 @@ struct CocosJSApp {
   /** 页面不可见（切后台 / 跳转）：停止投票，避免空刷帧与额外功耗 */
   onPageHide() {
     this.stopHighRefreshVote();
+    this.closeShellSettings();   // 顺带关掉设置面板并清理轮询定时器
   }
 
   aboutToDisappear() {
-    // 页面销毁：停掉期望帧率投票
+    // 页面销毁：停掉期望帧率投票 + 关掉设置面板（清理轮询定时器）
     this.stopHighRefreshVote();
+    this.closeShellSettings();
     if (this.timeoutId) clearTimeout(this.timeoutId);
     if (this.hideButtonTimer !== undefined) {
       clearTimeout(this.hideButtonTimer);
@@ -823,14 +1032,14 @@ struct CocosJSApp {
         .opacity(this.gpButtonHidden ? 0.45 : 1)
         // 隐藏态扩大命中区域，缓解"贴边后点不到"；可见态不扩展
         .responseRegion(this.gpButtonResponseRegion())
-        .accessibilityText('打开 GP-Next 面板（长按切换铺满 / 留边）')
+        .accessibilityText('打开 GP-Next 面板（长按打开设置）')
         .gesture(LongPressGesture().onAction(() => {
           if (this.gpButtonHidden) {   // 已隐藏时长按先唤出，避免误触切换
             this.setGpButtonHidden(false);
             return;
           }
           this.scheduleGpHide();
-          this.toggleFillScreen();
+          this.openShellSettings();   // 长按 = 壳层设置面板（画面模式 / 期望刷新率）
         }))
         .onClick(async () => {
           if (this.gpButtonHidden) {   // 已隐藏时单击先唤出
@@ -860,6 +1069,11 @@ struct CocosJSApp {
             console.error('执行打开面板脚本失败:', error);
           }
         })
+
+      // 壳层设置面板（长按 GP 按钮打开）；放最后 = 图层最上，可拦截触摸
+      if (this.shellSettingsOpen) {
+        this.shellSettingsPanel()
+      }
     }
     .width('100%')
     .height('100%')

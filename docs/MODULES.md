@@ -220,6 +220,21 @@ vote.start();
 
 只在**页面可见期间**持有（`onPageShow` / `onPageHide` / `aboutToDisappear` 里 start / stop），避免后台空刷帧。
 
+### 用户可调：长按 GP 按钮 → 壳层设置面板
+
+**长按右下角 GP 按钮**打开壳层设置面板（原先的"长按切换铺满 / 留边"已并入面板第一项，功能未丢）：
+
+| 面板项 | 说明 |
+| :--- | :--- |
+| 画面：铺满 / 留边 | 等同原先的长按动作，持久化在 `PREF_WEB_FULLSCREEN` |
+| 期望刷新率：关闭 / 60 / 120 / 最高 | 立即生效并持久化（`PREF_EXPECTED_REFRESH`）；`最高` = 取屏幕 `supportedRefreshRates` 的上限 |
+| 当前屏幕刷新率 / 可用档位 | 只读；面板打开期间每秒刷新一次（`display.getDefaultDisplaySync()`） |
+
+面板里同时提示：「引擎帧率由 GP-Next 面板 → 设置 → 帧率 决定（默认 60），建议设为 120 或 不限」——
+两个开关**相互独立**：面板管**系统刷新率决策**，GP-Next 管**引擎渲染上限**。
+
+> `base` 变体没有悬浮 GP 按钮，因此它只有编译期开关（`ENABLE_HIGH_REFRESH_VOTE` + `DEFAULT_EXPECTED_REFRESH`），没有面板。
+
 **实测**（平板 DMG-W00；读 `hidumper -s RenderService -a screen` 的 `activeMode`；全程零输入）：
 
 | 条件（唯一变量=投票） | 场景 | GP-Next 帧率 | 引擎 frameRate | 显示刷新率（90 秒） |
@@ -234,4 +249,4 @@ vote.start();
 - 期望帧率**不保证生效**：官方原文"不能代表最终实际效果，会受限于系统功耗性能约束和屏幕刷新率硬件能力限制"。
 - 与 GP-Next 面板的「帧率」设置**相互独立**：后者决定**引擎**渲染上限（30/60/120/144/不限，默认 60），
   前者只影响**系统刷新率决策**；两者都设对才可能长期 > 60fps。
-- 关闭方式：把 `ENABLE_HIGH_REFRESH_VOTE` 改成 `false`（三仓同源，改动后需重新构建）。
+- 关闭方式：面板里选「关闭」（运行时、立即生效、持久化）；或把 `ENABLE_HIGH_REFRESH_VOTE` 改成 `false`（编译期；base 变体只有这条）。

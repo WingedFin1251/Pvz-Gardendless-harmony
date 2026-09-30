@@ -126,6 +126,31 @@ await mainWindow.maximize(window.MaximizePresentation.EXIT_IMMERSIVE); // 最大
 
 ---
 
+## 📦 产物（发布用**未签名包**）
+
+| 产物 | 应用名 | 包名 | 大小 | SHA256 |
+| :--- | :--- | :--- | :--- | :--- |
+| `pvzge-0.15.0.hap` | Gardendless | `com.Pvz2.gardendless` | 1285.83 MB | `D4A18BC20E3E4AF98BC2327DCDCD75F4B3734F434FD68B44D4369808EC8163EE` |
+| `pvzge-lite-0.14.0.hap` | Gardendless Lite | `com.gardendless.lite` | 580.32 MB | `F172112FA0ABD9AA7A62DD015C21656018B97D48AE95927A7AE658F82BD381C6` |
+| `pvzge-gpnext-0.15.0.hap` | Gardendless GP-Next | `com.gardendless.gpnext` | 1287.56 MB | `8CF0729ECF8E5A67C92671EA2B466DE71B9801C53C97F69B978911053B41D297` |
+
+三个产物均为**未签名包**（`hap-sign-tool verify-app` 的结果是 `signature not found / No Hap Signing Block`），
+安装前需自行签名：用 DevEco Studio 打开对应分支，`Project Structure → Signing Configs` 勾选自动签名后
+重新 `Build Hap(s)`；或用自己的证书与 profile 通过 SDK 的 `hap-sign-tool.jar` 重签。
+
+校验方式：`sha256sum <文件>`（Windows：`Get-FileHash <文件> -Algorithm SHA256`）。
+
+> 本地构建会同时产出 `-signed.hap`（用本机 DevEco 自动签名材料签名）。它**不随本 release 发布**，
+> 仅用于本机 `hdc install` 调试。
+
+### 各产物对应的源码分支
+
+| 产物 | 分支 | 最后一次改动应用代码的提交 |
+| :--- | :--- | :--- |
+| `pvzge-0.15.0.hap` | `main` | `3e82383` |
+| `pvzge-lite-0.14.0.hap` | `lite` | `de2dbfc` |
+| `pvzge-gpnext-0.15.0.hap` | `gpnext` | `6ac1d9f` |
+
 ## 🔢 版本
 
 | 变体 | versionName | versionCode | 负载 |
@@ -150,3 +175,5 @@ await mainWindow.maximize(window.MaximizePresentation.EXIT_IMMERSIVE); // 最大
 | 热键徽标 | 隐藏后 `display:none`、布局盒 0×0；`gpNext.toggle()` 与 F9 热键仍能开合面板 |
 | PC 最大化（鸿蒙电脑 VM） | 窗口矩形 `[0 0 3120 2080]`（沉浸式，吞掉任务栏区域）→ **`[0 0 3120 1955]`**，Dock `[0 1955 3120 125]` 不变；截图可见标题栏 + 任务栏完整保留 |
 | 平板回归 | 手机/平板分支未改动，实机仍为沉浸式全屏（无标题栏/状态栏） |
+| 本版**产物**冒烟（鸿蒙电脑 VM） | `pvzge-0.15.0.hap`、`pvzge-lite-0.14.0.hap` 安装成功（69 s / 12 s）、启动成功；包内版本 `0.15.0` / `0.14.0` + `versionCode 1000008`；窗口 `[0 0 3120 1955]`（普通最大化、Dock 保留）⇒ PC 修复已进产物 |
+| 产物结构验收 | 包内 `resources/rawfile/game/` 条目数与磁盘一致（base 8437 / lite 8438 / gpnext 8512），`touchPatch.js` 均在；`hap-sign-tool verify-app`：发布包 = 未签名、本地 `-signed.hap` = 已签名 |

@@ -113,7 +113,8 @@ struct CocosJSApp {
   @State shellSettingsOpen: boolean = false;
   @State currentRefresh: number = 0;
   @State supportedRefresh: number[] = [];
-  @State engineFrameRate: string = '读取中…';
+  @State engineFrameRate: string = '读取中…';   // GP-Next 的帧率设置值
+  @State engineFpsMeasured: string = '—';        // 实测帧率（director 帧数采样）
   private refreshPollTimer?: number;
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
   @State gpButtonHidden: boolean = false;
@@ -366,6 +367,7 @@ struct CocosJSApp {
   private openShellSettings(): void {
     this.refreshDisplayInfo();
     this.readEngineFrameRate();   // 只读展示：GP-Next 的「帧率」设置
+    this.measureEngineFps();      // 实测一次（约 1 秒后出结果）
     this.shellSettingsOpen = true;
     if (this.refreshPollTimer === undefined) {
       this.refreshPollTimer = setInterval(() => {
@@ -442,25 +444,56 @@ struct CocosJSApp {
     return '未生效（可能受系统策略限制）';
   }
 
-  /** 读页面里 GP-Next 的「帧率」设置（只读展示；设置入口在 GP-Next 面板里） */
+  /** 读页面里 GP-Next 的「帧率」设置（只读展示；设置入口在 GP-Next 面板 → 实验性） */
   private async readEngineFrameRate(): Promise<void> {
     try {
+      // 字段归属（源码 + 真机核对）：实验性页签的「帧率」下拉写的是 settings.experimental.frameRate；
+      // 顶层 settings.frameRate 是另一个遗留设置（默认 60，不随实验性变化）——之前读错的就是它。
+      // 页面侧只返回**数字**（-1 表示读不到），避免字符串带引号需要额外处理。
       const raw = await this.webController.runJavaScript(`(function(){
         try {
-          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}');
-          if (!s || s.frameRate === undefined || s.frameRate === null) { return ''; }
-          return String(s.frameRate);
-        } catch (e) { return ''; }
+          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
+          var ex = s.experimental || {};
+          var v = (ex.frameScheduler === true) ? ex.frameRate : s.frameRate;
+          if (v === undefined || v === null || v === '') { return -1; }
+          var n = Number(v);
+          return isNaN(n) ? -1 : n;
+        } catch (e) { return -1; }
       })()`);
-      let v = (raw === undefined || raw === null) ? '' : String(raw).trim();
-      if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
-        v = v.substring(1, v.length - 1);
+      const n = Number(String(raw).trim());
+      if (!Number.isFinite(n) || n < 0) {
+        this.engineFrameRate = '未知';
+      } else {
+        this.engineFrameRate = (n === 0 || n === 999) ? '不限' : n + ' fps';
       }
-      this.engineFrameRate = v === '' ? '未知' : (v === '0' ? '不限' : v + ' fps');
     } catch (err) {
       const error = err as BusinessError;
       console.error(`读取 GP-Next 帧率失败: code=${error.code}, message=${error.message}`);
       this.engineFrameRate = '未知';
+    }
+  }
+
+  /** 实测引擎帧率：间隔约 1 秒采样两次 cc.director.getTotalFrames()（设置 ≠ 实际时能看出来） */
+  private async measureEngineFps(): Promise<void> {
+    const sample = `(function(){
+      try { if (!window.cc || !cc.director) { return -1; } return cc.director.getTotalFrames(); }
+      catch (e) { return -1; }
+    })()`;
+    try {
+      const f0 = Number(String(await this.webController.runJavaScript(sample)).trim());
+      if (!Number.isFinite(f0) || f0 < 0) {
+        this.engineFpsMeasured = '不可用';
+        return;
+      }
+      await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 1000); });
+      const f1 = Number(String(await this.webController.runJavaScript(sample)).trim());
+      if (!Number.isFinite(f1) || f1 < f0) {
+        this.engineFpsMeasured = '不可用';
+        return;
+      }
+      this.engineFpsMeasured = (f1 - f0) + ' fps';
+    } catch (err) {
+      this.engineFpsMeasured = '不可用';
     }
   }
 
@@ -597,10 +630,18 @@ struct CocosJSApp {
             .width('100%')
             .margin({ bottom: 6 })
           Row({ space: 8 }) {
-            Text('当前：' + this.engineFrameRate)
+            Text('设置：' + this.engineFrameRate + '　实测：' + this.engineFpsMeasured)
               .fontSize(12)
               .fontColor('#E6E6EC')
               .layoutWeight(1)
+            Button('↻')
+              .fontSize(13)
+              .backgroundColor('#33FFFFFF')
+              .width(38)
+              .onClick(() => {
+                this.readEngineFrameRate();
+                this.measureEngineFps();
+              })
             Button('打开 GP-Next 设置')
               .fontSize(12)
               .backgroundColor('#33FFFFFF')

@@ -1077,8 +1077,10 @@ struct CocosJSApp {
         if (this.downloadStatus) {
           Text(this.downloadStatus)
             .fontSize(14)
+            // 固定深色半透明 + 白字：不随主题变化，深/浅色模式下都清晰
+            .fontColor('#FFFFFF')
             .padding(8)
-            .backgroundColor('#f0f0f0')
+            .backgroundColor('#E6000000')
             .width('100%')
             .textAlign(TextAlign.Center)
             .opacity(this.statusOpacity)

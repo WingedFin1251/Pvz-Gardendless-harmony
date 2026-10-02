@@ -55,6 +55,7 @@ const DEFAULT_EXPECTED_REFRESH: string = '120';            // 首次启动默认
 // "铺满画面"偏好在 preferences 中的键名
 const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
 const PREF_EXPECTED_REFRESH: string = 'expected_refresh';   // 'off' | '60' | '120' | 'max'
+const PREF_SETTINGS_HINT_SEEN: string = 'settings_hint_seen'; // 首次启动提示过长按 GP 按钮
 
 // ==================== 负载目录（单一真相点） ====================
 // 游戏负载（Cocos 构建产物，含它**自带的** index.html）统一放在 rawfile/<PAYLOAD_DIR> 下：
@@ -112,6 +113,7 @@ struct CocosJSApp {
   @State shellSettingsOpen: boolean = false;
   @State currentRefresh: number = 0;
   @State supportedRefresh: number[] = [];
+  @State engineFrameRate: string = '读取中…';
   private refreshPollTimer?: number;
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
   @State gpButtonHidden: boolean = false;
@@ -200,6 +202,13 @@ struct CocosJSApp {
       this.isFillScreen = await this.prefs.get(PREF_WEB_FULLSCREEN, false) as boolean;
       // 恢复"期望刷新率"偏好（面板里可改）
       this.expectedRefresh = await this.prefs.get(PREF_EXPECTED_REFRESH, DEFAULT_EXPECTED_REFRESH) as string;
+      // 首次启动提示一次：设置面板在长按 GP 按钮里（发现性）
+      const hintSeen = await this.prefs.get(PREF_SETTINGS_HINT_SEEN, false) as boolean;
+      if (!hintSeen) {
+        this.showStatusMessage('提示：长按右下角 GP 按钮可打开设置', 5000);
+        await this.prefs.put(PREF_SETTINGS_HINT_SEEN, true);
+        await this.prefs.flush();
+      }
       // aboutToAppear 是异步的，首次布局触发的 onAreaChange 很可能先于这里完成，
       // 故读完偏好必须重算一次，否则保存过的"铺满"在启动时会被静默忽略。
       this.applyAspectRatio();
@@ -356,6 +365,7 @@ struct CocosJSApp {
   /** 长按 GP 按钮：打开壳层设置面板（画面模式 + 期望刷新率） */
   private openShellSettings(): void {
     this.refreshDisplayInfo();
+    this.readEngineFrameRate();   // 只读展示：GP-Next 的「帧率」设置
     this.shellSettingsOpen = true;
     if (this.refreshPollTimer === undefined) {
       this.refreshPollTimer = setInterval(() => {
@@ -395,98 +405,225 @@ struct CocosJSApp {
     }
   }
 
+  /** 面板用：期望刷新率的可读文案 */
+  private expectedRefreshLabel(): string {
+    if (this.expectedRefresh === 'off') {
+      return '已关闭';
+    }
+    if (this.expectedRefresh === 'max') {
+      return '最高';
+    }
+    return this.expectedRefresh + ' Hz';
+  }
+
+  /** 面板用：判断投票看起来是否已生效（只做展示，不参与逻辑） */
+  private voteStatusText(): string {
+    if (this.expectedRefresh === 'off') {
+      return '未声明，由系统自行决定';
+    }
+    let top = 0;
+    for (let i = 0; i < this.supportedRefresh.length; i++) {
+      if (this.supportedRefresh[i] > top) {
+        top = this.supportedRefresh[i];
+      }
+    }
+    let want = 0;
+    if (this.expectedRefresh === 'max') {
+      want = top;
+    } else {
+      want = Number(this.expectedRefresh);
+    }
+    if (want > 0 && this.currentRefresh >= want) {
+      return '生效中 ✓';
+    }
+    if (top > 0 && top <= 60) {
+      return '本机屏幕只有 60 Hz';
+    }
+    return '未生效（可能受系统策略限制）';
+  }
+
+  /** 读页面里 GP-Next 的「帧率」设置（只读展示；设置入口在 GP-Next 面板里） */
+  private async readEngineFrameRate(): Promise<void> {
+    try {
+      const raw = await this.webController.runJavaScript(`(function(){
+        try {
+          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}');
+          if (!s || s.frameRate === undefined || s.frameRate === null) { return ''; }
+          return String(s.frameRate);
+        } catch (e) { return ''; }
+      })()`);
+      let v = (raw === undefined || raw === null) ? '' : String(raw).trim();
+      if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
+        v = v.substring(1, v.length - 1);
+      }
+      this.engineFrameRate = v === '' ? '未知' : (v === '0' ? '不限' : v + ' fps');
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取 GP-Next 帧率失败: code=${error.code}, message=${error.message}`);
+      this.engineFrameRate = '未知';
+    }
+  }
+
+  /** 打开 GP-Next 面板（与 GP 按钮单击走同一条路径：window.gpNext.toggle → F9 兜底） */
+  private async openGpNextPanel(): Promise<void> {
+    try {
+      await this.webController.runJavaScript(`
+        (function() {
+          var g = window.gpNext;
+          if (g) {
+            if (typeof g.toggle === 'function') { g.toggle(); return; }
+            if (typeof g.open === 'function') { g.open(); return; }
+          }
+          if (typeof window.Zt === 'function') { window.Zt(); return; }
+          document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'F9', code: 'F9', keyCode: 120, bubbles: true
+          }));
+        })();
+      `);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`打开 GP-Next 面板失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
   /** 壳层设置面板（长按 GP 按钮打开） */
   @Builder
   shellSettingsPanel() {
     Column() {
-      Column() {
-        Text('设置')
-          .fontSize(18)
-          .fontColor(Color.White)
-          .fontWeight(FontWeight.Bold)
+      Scroll() {
+        Column() {
+          Row() {
+            Text('设置')
+              .fontSize(18)
+              .fontColor(Color.White)
+              .fontWeight(FontWeight.Bold)
+              .layoutWeight(1)
+            Button('✕')
+              .fontSize(15)
+              .fontColor('#CFCFD6')
+              .backgroundColor('#33FFFFFF')
+              .width(34)
+              .height(34)
+              .accessibilityText('关闭设置')
+              .onClick(() => { this.closeShellSettings(); })
+          }
           .width('100%')
           .margin({ bottom: 14 })
 
-        Text('画面')
-          .fontSize(13)
-          .fontColor('#9A9AA0')
+          Text('画面')
+            .fontSize(13)
+            .fontColor('#9A9AA0')
+            .width('100%')
+            .margin({ bottom: 6 })
+          Row({ space: 8 }) {
+            Button(this.isFillScreen ? '铺满 ✓' : '铺满')
+              .fontSize(14)
+              .backgroundColor(this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
+              .layoutWeight(1)
+              .accessibilityText('画面铺满')
+              .onClick(() => {
+                if (!this.isFillScreen) {
+                  this.toggleFillScreen();
+                }
+              })
+            Button(!this.isFillScreen ? '留边 ✓' : '留边')
+              .fontSize(14)
+              .backgroundColor(!this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
+              .layoutWeight(1)
+              .accessibilityText('画面按比例留边')
+              .onClick(() => {
+                if (this.isFillScreen) {
+                  this.toggleFillScreen();
+                }
+              })
+          }
           .width('100%')
-          .margin({ bottom: 6 })
-        Row({ space: 8 }) {
-          Button(this.isFillScreen ? '铺满 ✓' : '铺满')
-            .fontSize(14)
-            .backgroundColor(this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
-            .layoutWeight(1)
-            .onClick(() => {
-              if (!this.isFillScreen) {
-                this.toggleFillScreen();
-              }
-            })
-          Button(!this.isFillScreen ? '留边 ✓' : '留边')
-            .fontSize(14)
-            .backgroundColor(!this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
-            .layoutWeight(1)
-            .onClick(() => {
-              if (this.isFillScreen) {
-                this.toggleFillScreen();
-              }
-            })
-        }
-        .width('100%')
-        .margin({ bottom: 16 })
+          .margin({ bottom: 4 })
+          Text('留边：按 3:2 ~ 17:9 比例显示，四周留黑边（不拉伸画面）')
+            .fontSize(11)
+            .fontColor('#7E7E86')
+            .width('100%')
+            .margin({ bottom: 16 })
 
-        Text('期望刷新率（缓解闲置掉到 60Hz）')
-          .fontSize(13)
-          .fontColor('#9A9AA0')
-          .width('100%')
-          .margin({ bottom: 6 })
-        Row({ space: 6 }) {
-          Button('关闭')
+          Text('期望刷新率')
             .fontSize(13)
-            .backgroundColor(this.expectedRefresh === 'off' ? '#2E6BD6' : '#33FFFFFF')
-            .layoutWeight(1)
-            .onClick(() => { this.setExpectedRefresh('off'); })
-          Button('60')
-            .fontSize(13)
-            .backgroundColor(this.expectedRefresh === '60' ? '#2E6BD6' : '#33FFFFFF')
-            .layoutWeight(1)
-            .onClick(() => { this.setExpectedRefresh('60'); })
-          Button('120')
-            .fontSize(13)
-            .backgroundColor(this.expectedRefresh === '120' ? '#2E6BD6' : '#33FFFFFF')
-            .layoutWeight(1)
-            .onClick(() => { this.setExpectedRefresh('120'); })
-          Button('最高')
-            .fontSize(13)
-            .backgroundColor(this.expectedRefresh === 'max' ? '#2E6BD6' : '#33FFFFFF')
-            .layoutWeight(1)
-            .onClick(() => { this.setExpectedRefresh('max'); })
-        }
-        .width('100%')
-        .margin({ bottom: 10 })
-
-        Text(`当前屏幕刷新率：${this.currentRefresh} Hz`)
-          .fontSize(12)
-          .fontColor('#CFCFD6')
-          .width('100%')
-          .margin({ bottom: 2 })
-        Text('可用档位：' + this.supportedRefresh.join(' / ') + ' Hz')
-          .fontSize(12)
-          .fontColor('#CFCFD6')
+            .fontColor('#9A9AA0')
+            .width('100%')
+            .margin({ bottom: 6 })
+          Row({ space: 6 }) {
+            Button('关闭')
+              .fontSize(13)
+              .backgroundColor(this.expectedRefresh === 'off' ? '#2E6BD6' : '#33FFFFFF')
+              .layoutWeight(1)
+              .onClick(() => { this.setExpectedRefresh('off'); })
+            Button('60')
+              .fontSize(13)
+              .backgroundColor(this.expectedRefresh === '60' ? '#2E6BD6' : '#33FFFFFF')
+              .layoutWeight(1)
+              .onClick(() => { this.setExpectedRefresh('60'); })
+            Button('120')
+              .fontSize(13)
+              .backgroundColor(this.expectedRefresh === '120' ? '#2E6BD6' : '#33FFFFFF')
+              .layoutWeight(1)
+              .onClick(() => { this.setExpectedRefresh('120'); })
+            Button('最高')
+              .fontSize(13)
+              .backgroundColor(this.expectedRefresh === 'max' ? '#2E6BD6' : '#33FFFFFF')
+              .layoutWeight(1)
+              .onClick(() => { this.setExpectedRefresh('max'); })
+          }
           .width('100%')
           .margin({ bottom: 8 })
-        Text('提示：游戏引擎帧率由 GP-Next 面板 → 设置 → 帧率 决定（默认 60），建议设为 120 或 不限。')
-          .fontSize(12)
-          .fontColor('#8E8E96')
-          .width('100%')
-          .margin({ bottom: 16 })
 
-        Button('完成')
-          .fontSize(15)
-          .backgroundColor('#2E6BD6')
+          Text(`当前 ${this.currentRefresh} Hz ｜ 期望 ${this.expectedRefreshLabel()} ｜ ${this.voteStatusText()}`)
+            .fontSize(12)
+            .fontColor('#E6E6EC')
+            .width('100%')
+            .margin({ bottom: 2 })
+          Text('屏幕档位：' + (this.supportedRefresh.length > 0 ? this.supportedRefresh.join(' / ') + ' Hz' : '读取中…'))
+            .fontSize(11)
+            .fontColor('#9A9AA0')
+            .width('100%')
+            .margin({ bottom: 6 })
+          Text('这是向系统声明期望帧率（不是锁帧）：系统在无触摸、画面静止时仍可能自行降档。若一直无效，请到「系统设置 → 显示 → 屏幕刷新率」把屏幕调到高刷。')
+            .fontSize(11)
+            .fontColor('#7E7E86')
+            .width('100%')
+            .margin({ bottom: 16 })
+
+          Text('引擎帧率（GP-Next）')
+            .fontSize(13)
+            .fontColor('#9A9AA0')
+            .width('100%')
+            .margin({ bottom: 6 })
+          Row({ space: 8 }) {
+            Text('当前：' + this.engineFrameRate)
+              .fontSize(12)
+              .fontColor('#E6E6EC')
+              .layoutWeight(1)
+            Button('打开 GP-Next 设置')
+              .fontSize(12)
+              .backgroundColor('#33FFFFFF')
+              .onClick(() => { this.openGpNextPanel(); })
+          }
           .width('100%')
-          .onClick(() => { this.closeShellSettings(); })
+          .margin({ bottom: 4 })
+          Text('两个开关相互独立：这里管系统刷新率，GP-Next 的「帧率」管引擎渲染上限（默认 60，建议改成 120 或不限）。')
+            .fontSize(11)
+            .fontColor('#7E7E86')
+            .width('100%')
+            .margin({ bottom: 16 })
+
+          Button('完成')
+            .fontSize(15)
+            .backgroundColor('#2E6BD6')
+            .width('100%')
+            .onClick(() => { this.closeShellSettings(); })
+        }
+        .width('100%')
       }
+      .scrollBar(BarState.Off)
+      .constraintSize({ maxHeight: '76%' })
       .width('84%')
       .padding(20)
       .backgroundColor('#F21C1C1E')

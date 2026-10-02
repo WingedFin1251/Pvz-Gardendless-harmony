@@ -230,7 +230,7 @@ vote.start();
 | 期望刷新率：关闭 / 60 / 120 / 最高 | 立即生效并持久化（`PREF_EXPECTED_REFRESH`）；`最高` = 取屏幕 `supportedRefreshRates` 的上限 |
 | 当前屏幕刷新率 / 可用档位 | 只读；面板打开期间每秒刷新一次（`display.getDefaultDisplaySync()`） |
 
-面板里同时提示：「引擎帧率由 GP-Next 面板 → 设置 → 帧率 决定（默认 60），建议设为 120 或 不限」——
+面板里同时提示：「引擎帧率由 GP-Next 面板 → 实验性 → 帧率 决定（默认 60），建议设为 120 或 不限」——
 两个开关**相互独立**：面板管**系统刷新率决策**，GP-Next 管**引擎渲染上限**。
 
 > `base` 变体没有悬浮 GP 按钮，因此它只有编译期开关（`ENABLE_HIGH_REFRESH_VOTE` + `DEFAULT_EXPECTED_REFRESH`），没有面板。

@@ -116,6 +116,7 @@ struct CocosJSApp {
   @State engineFrameRate: string = '读取中…';   // GP-Next 的帧率设置值
   @State engineFpsMeasured: string = '—';        // 实测帧率（director 帧数采样）
   @State frameSchedulerOn: boolean = false;      // GP-Next「实验帧率调度」是否开启（平板上会明显卡顿）
+  @State schedulerFrameRate: string = '已关闭';   // 实验性页的帧率（仅在调度开启时有意义）
   private schedulerWarned: boolean = false;       // 启动警告只提示一次
   private refreshPollTimer?: number;
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
@@ -449,7 +450,10 @@ struct CocosJSApp {
   /** 读页面里 GP-Next 的「帧率」设置（只读展示；设置入口在 GP-Next 面板 → 实验性） */
   private async readEngineFrameRate(): Promise<void> {
     try {
-      // 字段归属（源码 + 真机核对）：实验性页签的「帧率」下拉写的是 settings.experimental.frameRate；
+      // GP-Next 有两个互不相干的帧率设置：
+      //   · 设置页「帧率」     → settings.frameRate            （30/60/120/144/不限，'0' = 不限）
+      //   · 实验性页「帧率」   → settings.experimental.frameRate（仅当「实验帧率调度」开启时生效）
+      // 因此"设置值"要看调度开关：开→实验性那个值；关→设置页那个值。两台设备值不同是正常的。
       // 顶层 settings.frameRate 是另一个遗留设置（默认 60，不随实验性变化）——之前读错的就是它。
       // 页面侧只返回**数字**（-1 表示读不到），避免字符串带引号需要额外处理。
       const raw = await this.webController.runJavaScript(`(function(){
@@ -470,14 +474,21 @@ struct CocosJSApp {
       }
       // 同一个存储里还带着"实验帧率调度"开关：它开着时上游会用纯 JS 节拍器接管帧循环，
       // 在 ArkWeb/平板上会造成明显卡顿（用户实测反馈），因此这里读出来用于警告。
+      // 同一次读里把「实验帧率调度」的状态与它的帧率一起取回：-2 = 调度关闭；>=0 = 实验性帧率
       const scRaw = await this.webController.runJavaScript(`(function(){
         try {
           var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
           var ex = s.experimental || {};
-          return ex.frameScheduler === true ? 1 : 0;
-        } catch (e) { return -1; }
+          if (ex.frameScheduler !== true) { return -2; }
+          var v = Number(ex.frameRate);
+          return isNaN(v) ? -2 : v;
+        } catch (e) { return -2; }
       })()`);
-      this.frameSchedulerOn = (Number(String(scRaw).trim()) === 1);
+      const sc = Number(String(scRaw).trim());
+      this.frameSchedulerOn = (Number.isFinite(sc) && sc >= 0);
+      this.schedulerFrameRate = this.frameSchedulerOn
+        ? ((sc === 0 || sc === 999) ? '不限' : sc + ' fps')
+        : '已关闭';
     } catch (err) {
       const error = err as BusinessError;
       console.error(`读取 GP-Next 帧率失败: code=${error.code}, message=${error.message}`);
@@ -690,7 +701,9 @@ struct CocosJSApp {
             .width('100%')
             .margin({ bottom: 6 })
           Row({ space: 8 }) {
-            Text('设置：' + this.engineFrameRate + '　实测：' + this.engineFpsMeasured)
+            // 标明来源，避免和「实验性」页的帧率混淆；同时给出实验调度状态与实测值
+            Text('设置页 ' + this.engineFrameRate + ' ｜ 实验调度 ' + this.schedulerFrameRate
+              + ((this.frameSchedulerOn ? ' ⚠' : '')) + ' ｜ 实测 ' + this.engineFpsMeasured)
               .fontSize(12)
               .fontColor('#E6E6EC')
               .layoutWeight(1)

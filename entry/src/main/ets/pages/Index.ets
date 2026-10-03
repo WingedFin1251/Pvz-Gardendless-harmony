@@ -117,6 +117,7 @@ struct CocosJSApp {
   @State engineFpsMeasured: string = '—';        // 实测帧率（director 帧数采样）
   @State frameSchedulerOn: boolean = false;      // GP-Next「实验帧率调度」是否开启（平板上会明显卡顿）
   @State schedulerFrameRate: string = '已关闭';   // 实验性页的帧率（仅在调度开启时有意义）
+
   private schedulerWarned: boolean = false;       // 启动警告只提示一次
   private refreshPollTimer?: number;
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
@@ -701,12 +702,19 @@ struct CocosJSApp {
             .width('100%')
             .margin({ bottom: 6 })
           Row({ space: 8 }) {
-            // 标明来源，避免和「实验性」页的帧率混淆；同时给出实验调度状态与实测值
-            Text('设置页 ' + this.engineFrameRate + ' ｜ 实验调度 ' + this.schedulerFrameRate
-              + ((this.frameSchedulerOn ? ' ⚠' : '')) + ' ｜ 实测 ' + this.engineFpsMeasured)
-              .fontSize(12)
-              .fontColor('#E6E6EC')
-              .layoutWeight(1)
+            // 两行：上行标明设置来源（避免和「实验性」页混淆），下行给引擎实时值与实测值
+            Column() {
+              Text('设置页 ' + this.engineFrameRate + ' ｜ 实验调度 ' + this.schedulerFrameRate
+                + ((this.frameSchedulerOn ? ' ⚠' : '')))
+                .fontSize(12)
+                .fontColor('#E6E6EC')
+                .width('100%')
+              Text('实测 ' + this.engineFpsMeasured + '（间隔 1 秒采样 cc.director 帧数）')
+                .fontSize(12)
+                .fontColor('#9A9AA0')
+                .width('100%')
+            }
+            .layoutWeight(1)
             Button('↻')
               .fontSize(13)
               .backgroundColor('#33FFFFFF')
@@ -723,6 +731,11 @@ struct CocosJSApp {
           .width('100%')
           .margin({ bottom: 4 })
           Text('两个开关相互独立：这里管系统刷新率，GP-Next 的「帧率」管引擎渲染上限（默认 60）。')
+          Text('注意：游戏内置的「无限制」与 GP-Next「设置」页的帧率都会写引擎上限，后写入者生效；若「实测」一直停在 60，说明无限制没生效——把 GP-Next 设置页的帧率也改成「不限」即可。')
+            .fontSize(11)
+            .fontColor('#9A9AA0')
+            .width('100%')
+            .margin({ top: 2 })
             .fontSize(11)
             .fontColor('#7E7E86')
             .width('100%')

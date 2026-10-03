@@ -554,14 +554,26 @@ struct CocosJSApp {
     try {
       const raw = await this.webController.runJavaScript(`(function(){
         try {
-          if (!window.gpNext || typeof window.gpNext.setFrameRate !== 'function') { return 0; }
-          window.gpNext.setFrameRate(999);
-          return 1;
+          var ok = 0;
+          // 1) 直接向引擎请求不限（GP-Next 暴露的 mod API，安全老路径）
+          if (window.gpNext && typeof window.gpNext.setFrameRate === 'function') {
+            window.gpNext.setFrameRate(999);
+            ok = 1;
+          }
+          // 2) 同时把存档值写成字符串 '0'：上游性能页对 '0' 有特判（显示"不限"），
+          //    否则它会拿存档里的旧数字（如 60）当"目标FPS"，看着像被限住。
+          try {
+            var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
+            s.frameRate = '0';
+            localStorage.setItem('gp-next-settings', JSON.stringify(s));
+            ok = 1;
+          } catch (e2) { }
+          return ok;
         } catch (e) { return -1; }
       })()`);
       const r = Number(String(raw).trim());
       if (r === 1) {
-        this.showStatusMessage('已请求把引擎帧率上限设为「不限」（看下面"实测"确认）', 4000);
+        this.showStatusMessage('已把引擎上限与存档都设为「不限」（看下面"实测"确认）', 4500);
       } else {
         this.showStatusMessage('此负载未暴露 setFrameRate，请用游戏内扳手页面设置', 4000);
       }

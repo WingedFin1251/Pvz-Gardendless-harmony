@@ -451,10 +451,11 @@ struct CocosJSApp {
   /** 读页面里 GP-Next 的「帧率」设置（只读展示；设置入口在 GP-Next 面板 → 实验性） */
   private async readEngineFrameRate(): Promise<void> {
     try {
-      // GP-Next 有两个互不相干的帧率设置：
-      //   · 设置页「帧率」     → settings.frameRate            （30/60/120/144/不限，'0' = 不限）
-      //   · 实验性页「帧率」   → settings.experimental.frameRate（仅当「实验帧率调度」开启时生效）
-      // 因此"设置值"要看调度开关：开→实验性那个值；关→设置页那个值。两台设备值不同是正常的。
+      // GP-Next 存档里有两个互不相干的帧率字段（注意：GP-Next 面板的「设置」页并没有帧率控件，
+      // 游戏内帧率由游戏自己的扳手页面设置，它最终也落到这个存档字段/引擎上）：
+      //   · settings.frameRate            （30/60/120/144/不限，'0' = 不限）
+      //   · settings.experimental.frameRate（仅当「实验帧率调度」开启时生效）
+      // 两台设备值不同是正常的；引擎是否真的跑得动，看下面的"实测"。
       // 顶层 settings.frameRate 是另一个遗留设置（默认 60，不随实验性变化）——之前读错的就是它。
       // 页面侧只返回**数字**（-1 表示读不到），避免字符串带引号需要额外处理。
       const raw = await this.webController.runJavaScript(`(function(){
@@ -544,6 +545,32 @@ struct CocosJSApp {
       }
     } catch (err) {
       // 读不到就静默：这只是提示，不影响功能
+    }
+  }  /**
+   * 把引擎帧率上限设为「不限」：直接调用 GP-Next 暴露的 mod API（window.gpNext.setFrameRate）。
+   * 这是安全的老路径（不涉及「实验帧率调度」那个纯 JS 节拍器），用于游戏内「无限制」不生效时兜底。
+   */
+  private async forceUnlimitedFrameRate(): Promise<void> {
+    try {
+      const raw = await this.webController.runJavaScript(`(function(){
+        try {
+          if (!window.gpNext || typeof window.gpNext.setFrameRate !== 'function') { return 0; }
+          window.gpNext.setFrameRate(999);
+          return 1;
+        } catch (e) { return -1; }
+      })()`);
+      const r = Number(String(raw).trim());
+      if (r === 1) {
+        this.showStatusMessage('已请求把引擎帧率上限设为「不限」（看下面"实测"确认）', 4000);
+      } else {
+        this.showStatusMessage('此负载未暴露 setFrameRate，请用游戏内扳手页面设置', 4000);
+      }
+      this.readEngineFrameRate();
+      this.measureEngineFps();
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`设置不限帧率失败: code=${error.code}, message=${error.message}`);
+      this.showStatusMessage('设置失败', 3000);
     }
   }  /** 实测引擎帧率：间隔约 1 秒采样两次 cc.director.getTotalFrames()（设置 ≠ 实际时能看出来） */
   private async measureEngineFps(): Promise<void> {
@@ -704,7 +731,7 @@ struct CocosJSApp {
           Row({ space: 8 }) {
             // 两行：上行标明设置来源（避免和「实验性」页混淆），下行给引擎实时值与实测值
             Column() {
-              Text('设置页 ' + this.engineFrameRate + ' ｜ 实验调度 ' + this.schedulerFrameRate
+              Text('帧率上限 ' + this.engineFrameRate + ' ｜ 实验调度 ' + this.schedulerFrameRate
                 + ((this.frameSchedulerOn ? ' ⚠' : '')))
                 .fontSize(12)
                 .fontColor('#E6E6EC')
@@ -723,6 +750,10 @@ struct CocosJSApp {
                 this.readEngineFrameRate();
                 this.measureEngineFps();
               })
+            Button('设为不限')   // 兜底：若「实测」确实被限在某个值，用它直接向引擎请求不限
+              .fontSize(12)
+              .backgroundColor('#33FFFFFF')
+              .onClick(() => { this.forceUnlimitedFrameRate(); })
             Button('打开 GP-Next 设置')
               .fontSize(12)
               .backgroundColor('#33FFFFFF')
@@ -731,7 +762,7 @@ struct CocosJSApp {
           .width('100%')
           .margin({ bottom: 4 })
           Text('两个开关相互独立：这里管系统刷新率，GP-Next 的「帧率」管引擎渲染上限（默认 60）。')
-          Text('注意：游戏内置的「无限制」与 GP-Next「设置」页的帧率都会写引擎上限，后写入者生效；若「实测」一直停在 60，说明无限制没生效——把 GP-Next 设置页的帧率也改成「不限」即可。')
+          Text('说明：游戏内选「无限制」后，GP-Next「性能」页的「目标FPS」会错误地显示上面的存档值——它把引擎的 0（不限）当成"取不到"而回退；此时以本行「实测」为准。')
             .fontSize(11)
             .fontColor('#9A9AA0')
             .width('100%')

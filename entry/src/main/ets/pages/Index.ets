@@ -307,6 +307,9 @@ struct CocosJSApp {
     const max = Math.max(expected, HIGH_REFRESH_MIN);
     try {
       const vote = displaySync.create();
+      // 范围保持 [60, expected]（不是单值）：把 min 收紧成 expected 的写法在手机上一样无效
+      //（BRA-AL00 实测：期望 120 与关闭两种设置下都稳在 60Hz），而平板的"有效"是在这个宽松范围下
+      // 验证过的，因此保持已验证写法，不引入未验证风险。
       vote.setExpectedFrameRateRange({
         expected: expected,
         min: HIGH_REFRESH_MIN,
@@ -445,7 +448,9 @@ struct CocosJSApp {
     if (top > 0 && top <= 60) {
       return '本机屏幕只有 60 Hz';
     }
-    return '未生效（可能受系统策略限制）';
+    // 实测（手机 BRA-AL00）：声明 120 与关闭，屏幕都稳在 60 —— 系统不接受该声明。
+    // 可操作建议：把「系统设置 → 显示和亮度 → 屏幕刷新率」从"智能"改为"高"。
+    return '系统未接受该声明（可把系统刷新率设为"高"再试）';
   }
 
   /** 读页面里 GP-Next 的「帧率」设置（只读展示；设置入口在 GP-Next 面板 → 实验性） */
@@ -729,7 +734,7 @@ struct CocosJSApp {
             .fontColor('#9A9AA0')
             .width('100%')
             .margin({ bottom: 6 })
-          Text('这是向系统声明期望帧率（不是锁帧）：系统在无触摸、画面静止时仍可能自行降档。若一直无效，请到「系统设置 → 显示 → 屏幕刷新率」把屏幕调到高刷。')
+          Text('这是向系统声明期望帧率（不是锁帧）。若只在触摸/操作时才到 120（松手几秒回落），先把「系统设置 → 显示和亮度 → 屏幕刷新率」改成"高"；若设为"高"后仍无效，则是本机系统策略不接受该声明（实测：平板有效，手机 BRA-AL00 无效）。')
             .fontSize(11)
             .fontColor('#7E7E86')
             .width('100%')
@@ -748,7 +753,7 @@ struct CocosJSApp {
                 .fontSize(12)
                 .fontColor('#E6E6EC')
                 .width('100%')
-              Text('实测 ' + this.engineFpsMeasured + '（间隔 1 秒采样 cc.director 帧数）')
+              Text('实测 ' + this.engineFpsMeasured + '（引擎循环帧数，可能高于屏幕实际刷新率）')
                 .fontSize(12)
                 .fontColor('#9A9AA0')
                 .width('100%')

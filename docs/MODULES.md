@@ -250,3 +250,23 @@ vote.start();
 - 与 GP-Next 面板的「帧率」设置**相互独立**：后者决定**引擎**渲染上限（30/60/120/144/不限，默认 60），
   前者只影响**系统刷新率决策**；两者都设对才可能长期 > 60fps。
 - 关闭方式：面板里选「关闭」（运行时、立即生效、持久化）；或把 `ENABLE_HIGH_REFRESH_VOTE` 改成 `false`（编译期；base 变体只有这条）。
+
+---
+
+## 帧率相关的三套设置、两个存档键（真机 + 源码核对）
+
+| 名称 | 在哪里设置 | 存到哪 | 语义 |
+| :--- | :--- | :--- | :--- |
+| **游戏内置帧率** | 游戏内右下角**扳手**页面 | `localStorage['PvZ2_Settings'].animationFrameRate` | `1`=24 / `2`=30 / `3`=60 / **其它值（0）= 无限制**（其 getter 返回 `Infinity`） |
+| **GP-Next 帧率上限** | GP-Next 存档（**现版本 GP-Next 设置页已无此控件**，是历史遗留值） | `localStorage['gp-next-settings'].frameRate` | `'0'` = 不限；数字 = 上限 |
+| **实验帧率调度** | GP-Next → 实验性 | `localStorage['gp-next-settings'].experimental.{frameScheduler,frameRate}` | 纯 JS 节拍器（MessageChannel + setTimeout），**平板上会造成明显卡顿，建议关闭** |
+
+- 游戏存档（玩家列表）另用独立键；**壳层从不触碰任何游戏存档**（`PvZ2_Settings` 在 Index.ets 中出现 0 次）。
+- **GP-Next 面板「性能」页的「目标FPS」不可信**：它先读引擎实时值，但只在
+  `Number.isFinite(v) && v > 0` 时才采信；游戏选「无限制」时该值为 `Infinity`（非有限数）→
+  被判为"取不到" → 回退到 `gp-next-settings.frameRate`，于是把**存档里的旧数字**当成目标帧率显示。
+  - 手机存档 `'0'`：它另有特判 `if (r === '0') return null` → 显示"不限"（看着对）
+  - 平板存档 `'60'`（旧值）→ 直接显示 60（看着像被限住，其实引擎不限：实测 119 fps）
+- **正确判据 = 壳层设置面板里的「实测」**（1 秒采样 `cc.director` 帧数）。
+- 壳层设置面板的「**设为不限**」按钮：调用 `window.gpNext.setFrameRate(999)`（安全老路径）+
+  把 `gp-next-settings.frameRate` 写成 `'0'`（与手机一致），**不修改游戏存档**。

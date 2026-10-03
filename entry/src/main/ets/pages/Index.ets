@@ -115,6 +115,8 @@ struct CocosJSApp {
   @State supportedRefresh: number[] = [];
   @State engineFrameRate: string = '读取中…';   // GP-Next 的帧率设置值
   @State engineFpsMeasured: string = '—';        // 实测帧率（director 帧数采样）
+  @State frameSchedulerOn: boolean = false;      // GP-Next「实验帧率调度」是否开启（平板上会明显卡顿）
+  private schedulerWarned: boolean = false;       // 启动警告只提示一次
   private refreshPollTimer?: number;
   // GP 按钮是否已贴边隐藏（无操作一段时间后自动隐藏，单击唤出）
   @State gpButtonHidden: boolean = false;
@@ -466,6 +468,16 @@ struct CocosJSApp {
       } else {
         this.engineFrameRate = (n === 0 || n === 999) ? '不限' : n + ' fps';
       }
+      // 同一个存储里还带着"实验帧率调度"开关：它开着时上游会用纯 JS 节拍器接管帧循环，
+      // 在 ArkWeb/平板上会造成明显卡顿（用户实测反馈），因此这里读出来用于警告。
+      const scRaw = await this.webController.runJavaScript(`(function(){
+        try {
+          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
+          var ex = s.experimental || {};
+          return ex.frameScheduler === true ? 1 : 0;
+        } catch (e) { return -1; }
+      })()`);
+      this.frameSchedulerOn = (Number(String(scRaw).trim()) === 1);
     } catch (err) {
       const error = err as BusinessError;
       console.error(`读取 GP-Next 帧率失败: code=${error.code}, message=${error.message}`);
@@ -473,7 +485,55 @@ struct CocosJSApp {
     }
   }
 
-  /** 实测引擎帧率：间隔约 1 秒采样两次 cc.director.getTotalFrames()（设置 ≠ 实际时能看出来） */
+  /**
+   * 关闭 GP-Next 的「实验帧率调度」：写回设置并重新加载页面（会让游戏重新进入）。
+   * 该调度器是纯 JS 节拍器（MessageChannel + setTimeout），在平板上会造成明显卡顿。
+   */
+  private async disableExperimentalScheduler(): Promise<void> {
+    try {
+      const raw = await this.webController.runJavaScript(`(function(){
+        try {
+          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
+          s.experimental = s.experimental || {};
+          s.experimental.frameScheduler = false;
+          localStorage.setItem('gp-next-settings', JSON.stringify(s));
+          return 1;
+        } catch (e) { return -1; }
+      })()`);
+      if (Number(String(raw).trim()) === 1) {
+        this.frameSchedulerOn = false;
+        this.showStatusMessage('已关闭「实验帧率调度」，正在重新加载页面…', 4000);
+        setTimeout(() => { this.webController.refresh(); }, 600);
+      } else {
+        this.showStatusMessage('关闭失败，请到 GP-Next 面板 → 实验性 里手动关闭', 4000);
+      }
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`关闭实验帧率调度失败: code=${error.code}, message=${error.message}`);
+      this.showStatusMessage('关闭失败，请到 GP-Next 面板 → 实验性 里手动关闭', 4000);
+    }
+  }
+
+  /** 页面加载完成后检查一次：开着实验帧率调度就提示一次 */
+  private async warnIfExperimentalSchedulerOn(): Promise<void> {
+    try {
+      const raw = await this.webController.runJavaScript(`(function(){
+        try {
+          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
+          var ex = s.experimental || {};
+          return ex.frameScheduler === true ? 1 : 0;
+        } catch (e) { return -1; }
+      })()`);
+      const on = (Number(String(raw).trim()) === 1);
+      this.frameSchedulerOn = on;
+      if (on && !this.schedulerWarned) {
+        this.schedulerWarned = true;
+        this.showStatusMessage('提示：GP-Next「实验帧率调度」已开启，平板上可能明显卡顿；长按 GP 按钮可在设置里一键关闭', 6000);
+      }
+    } catch (err) {
+      // 读不到就静默：这只是提示，不影响功能
+    }
+  }  /** 实测引擎帧率：间隔约 1 秒采样两次 cc.director.getTotalFrames()（设置 ≠ 实际时能看出来） */
   private async measureEngineFps(): Promise<void> {
     const sample = `(function(){
       try { if (!window.cc || !cc.director) { return -1; } return cc.director.getTotalFrames(); }
@@ -649,11 +709,24 @@ struct CocosJSApp {
           }
           .width('100%')
           .margin({ bottom: 4 })
-          Text('两个开关相互独立：这里管系统刷新率，GP-Next 的「帧率」管引擎渲染上限（默认 60，建议改成 120 或不限）。')
+          Text('两个开关相互独立：这里管系统刷新率，GP-Next 的「帧率」管引擎渲染上限（默认 60）。')
             .fontSize(11)
             .fontColor('#7E7E86')
             .width('100%')
             .margin({ bottom: 16 })
+          if (this.frameSchedulerOn) {
+            Text('⚠ 检测到「实验帧率调度」已开启：上游用纯 JS 节拍器接管帧循环，在平板上会造成明显卡顿，建议关闭。')
+              .fontSize(11)
+              .fontColor('#FFB4A0')
+              .width('100%')
+              .margin({ bottom: 6 })
+            Button('关闭「实验帧率调度」（会重新加载页面）')
+              .fontSize(12)
+              .backgroundColor('#7A2E2E')
+              .width('100%')
+              .margin({ bottom: 16 })
+              .onClick(() => { this.disableExperimentalScheduler(); })
+          }
 
           Button('完成')
             .fontSize(15)
@@ -1029,6 +1102,7 @@ struct CocosJSApp {
         .onProgressChange((event) => { this.progress = event.newProgress; })
         .onPageEnd(() => {
           this.isLoading = false;
+          this.warnIfExperimentalSchedulerOn();   // 实验帧率调度开着时提示一次（平板会卡）
           this.webReady = true;
           // 注册下载委托
           this.setupDownloadDelegate();

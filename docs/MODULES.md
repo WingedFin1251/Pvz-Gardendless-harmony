@@ -282,8 +282,12 @@ vote.start();
 - 它落在 **ArkWeb 自己的 Web Storage（DOM Storage）**：实测 `aa force-stop` 后重开仍在
   —— 这就是「**不限**」能跨重启保留的原因
 - 默认值 `frameRate: '60'`；读取实现是「读 → 合并默认值 → **立刻写回**」⇒ **一旦读不到，60 会被固化写回**
-- ⚠️ **清应用数据（或清网页存储）会同时清掉 DOM Storage 与 Preferences** → 帧率回落默认 **60**、存档复位
-  —— 这就是"**清完之后帧率变 60、但模组还在**"的完整解释（模组是 `files/` 下的**文件**，不受影响）
+- ⚠️ **实测：用户只清"缓存"，被清掉的就是 ArkWeb 的网页存储** ⇒ `gp-next-settings` 丢失 → 帧率回落默认 **60**
+  - 同一时刻 **Preferences 完好**（实测 `preferences/game_save` 仍是 178,609 字节的完整存档）、
+    **模组完好**（`files/gp-next/packs/`）⇒ 现象正是"**存档还在、模组还在，只有帧率变回 60**"
+  - 佐证：清缓存后 `cache/` 里只剩重建的 `image_file_cache`（时间戳=清除时刻之后），
+    而 `preferences/`、`files/` 的时间戳都是清除之前的
+- 反过来，**清"数据"**才会连 Preferences 一起清（那才会丢存档）
 
 ### 其它持久化通道（写应用私有文件，与 Preferences 无关）
 

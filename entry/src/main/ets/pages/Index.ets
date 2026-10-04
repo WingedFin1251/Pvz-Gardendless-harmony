@@ -8,9 +8,9 @@ import { ResourceManager } from '../utils/ResourceManager';
 import { GpNextBridge } from '../utils/GpNextBridge';
 import { GPNEXT_SHIM } from '../utils/GpNextShim';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { RefreshVote, readDisplayInfo } from '../utils/RefreshVote';
 import { util } from '@kit.ArkTS';
- import { displaySync } from '@kit.ArkGraphics2D';
-import display from '@ohos.display';
+
 
 // GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
 const GP_BUTTON_SIZE: number = 44;
@@ -110,7 +110,7 @@ struct CocosJSApp {
   @State isFillScreen: boolean = false;
 
   /** 期望帧率投票实例（仅在页面可见期间持有，避免后台空刷帧） */
-  private highRefreshVote: displaySync.DisplaySync | undefined = undefined;
+  private readonly refreshVote: RefreshVote = new RefreshVote();   // 期望刷新率声明（见 utils/RefreshVote.ets）
   @State expectedRefresh: string = DEFAULT_EXPECTED_REFRESH;
   @State shellSettingsOpen: boolean = false;
   @State currentRefresh: number = 0;
@@ -306,53 +306,22 @@ struct CocosJSApp {
         expected = HIGH_REFRESH_EXPECTED;
       }
     }
-    const max = Math.max(expected, HIGH_REFRESH_MIN);
-    try {
-      const vote = displaySync.create();
-      // 范围保持 [60, expected]（不是单值）：把 min 收紧成 expected 的写法在手机上一样无效
-      //（BRA-AL00 实测：期望 120 与关闭两种设置下都稳在 60Hz），而平板的"有效"是在这个宽松范围下
-      // 验证过的，因此保持已验证写法，不引入未验证风险。
-      vote.setExpectedFrameRateRange({
-        expected: expected,
-        min: HIGH_REFRESH_MIN,
-        max: max
-      });
-      vote.on('frame', () => {
-        // 刻意留空：只为投票，不做任何绘制 / 计算
-      });
-      vote.start();
-      this.highRefreshVote = vote;
-      console.info(`期望帧率投票已开启: expected=${expected} min=${HIGH_REFRESH_MIN} max=${max}`);
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`期望帧率投票失败: code=${error.code}, message=${error.message}`);
-    }
+    // 声明范围保持 [60, expected]（不是单值）：单值写法在手机上一样无效，而平板的有效性是在
+    // 这个宽松范围下验证过的 —— 具体实现与说明见 utils/RefreshVote.ets 与 docs/MODULES.md。
+    this.refreshVote.start(expected, HIGH_REFRESH_MIN);
   }
 
   /** 停止投票并释放实例（页面不可见 / 退出时调用） */
   private stopHighRefreshVote(): void {
-    const vote = this.highRefreshVote;
-    if (vote === undefined) {
-      return;
-    }
-    this.highRefreshVote = undefined;
-    try {
-      vote.stop();
-      vote.off('frame');
-      console.info('期望帧率投票已停止');
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`停止期望帧率投票失败: code=${error.code}, message=${error.message}`);
-    }
+    this.refreshVote.stop();
   }
 
   /** 读取当前/可用屏幕刷新率（只读，仅用于面板显示） */
   private refreshDisplayInfo(): void {
     try {
-      const d = display.getDefaultDisplaySync();
-      this.currentRefresh = d.refreshRate;
-      const sup = d.supportedRefreshRates;
-      const next: number[] = (sup !== undefined && sup.length > 0) ? sup : [d.refreshRate];
+      const info = readDisplayInfo();
+      this.currentRefresh = info.refreshRate;
+      const next: number[] = info.supported;
       // 仅在真正变化时写状态，避免每秒一次无谓重渲染
       let same = next.length === this.supportedRefresh.length;
       if (same) {

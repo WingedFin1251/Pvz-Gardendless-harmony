@@ -353,7 +353,8 @@ export class GpNextBridge {
       case 'plugin:fs|remove': {
         const options = this.effectiveOptions(request);
         const target = this.resolve(this.requirePath(args), options);
-        this.removePath(target);
+        // Tauri 的 remove 只有显式传 recursive:true 才删非空目录；这里保持一致（默认 false）
+        this.removePath(target, options !== undefined && options.recursive === true);
         return 'null';
       }
 
@@ -586,7 +587,15 @@ export class GpNextBridge {
     this.ensureDir(this.dirname(target));
     const file = fs.openSync(target, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
     try {
-      fs.writeSync(file.fd, bytes.buffer as ArrayBuffer);
+      // ⚠️ 不能写 bytes.buffer：那会忽略视图的 byteOffset/byteLength。
+      // 也不能用 WriteOptions.offset —— 官方语义是"**文件**写入位置"，不是缓冲区偏移。
+      // 视图覆盖整块（最常见）时直接写，零拷贝；否则先切出精确区间。
+      if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) {
+        fs.writeSync(file.fd, bytes.buffer as ArrayBuffer);
+      } else {
+        const exact = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        fs.writeSync(file.fd, exact as ArrayBuffer);
+      }
     } finally {
       fs.closeSync(file);
     }
@@ -626,22 +635,55 @@ export class GpNextBridge {
 
   /**
    * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
-   */  private removePath(path: string): void {
-    if (!fs.accessSync(path)) {
-      return;
-    }
+   */  private removePath(path: string, recursive: boolean): void {
+    // 先判根目录：原来这一步在"路径是否存在"之后，路径不存在时根本走不到
     if (path === this.root || path === this.baseDir) {
       throw new Error('拒绝删除 GP-Next 根目录');
+    }
+    if (!fs.accessSync(path)) {
+      // Tauri 的 remove 对不存在的路径报 NotFound；此处不再"静默成功"，让面板看到明确失败
+      throw new Error(`要删除的路径不存在: ${path}`);
     }
     const stat = fs.lstatSync(path);
     if (stat.isSymbolicLink()) {
       throw new Error(`拒绝操作符号链接: ${path}`);
     }
     if (stat.isDirectory()) {
-      fs.rmdirSync(path);
+      if (recursive) {
+        this.removeDirectoryRecursive(path);
+      } else {
+        // 非递归：只允许删空目录（fs.rmdirSync 对非空目录会报错）
+        try {
+          fs.rmdirSync(path);
+        } catch (err) {
+          console.warn(`[gp-next-bridge] 非递归删除失败（目录可能非空，需 recursive:true）: ${path}`);
+          throw err as Error;
+        }
+      }
     } else {
       fs.unlinkSync(path);
     }
+  }
+
+  /**
+   * 手动递归删除目录（先删子项、再删目录自身）。
+   * 注意：本版本 SDK **没有** fs.rmSync，rmdirSync 只能删空目录，所以只能自己递归。
+   */
+  private removeDirectoryRecursive(path: string): void {
+    const children: string[] = fs.listFileSync(path);
+    for (let index = 0; index < children.length; index++) {
+      const childPath = `${path}/${children[index]}`;
+      const childStat = fs.lstatSync(childPath);
+      if (childStat.isSymbolicLink()) {
+        throw new Error(`拒绝操作符号链接: ${childPath}`);
+      }
+      if (childStat.isDirectory()) {
+        this.removeDirectoryRecursive(childPath);
+      } else {
+        fs.unlinkSync(childPath);
+      }
+    }
+    fs.rmdirSync(path);
   }
 
   // ==================== 另存为 ====================
@@ -782,6 +824,20 @@ export class GpNextBridge {
     while (fs.accessSync(candidate) && index <= 99) {
       candidate = `${directory}/${baseName}-${index}`;
       index++;
+    }
+    // 99 次都没找到空位：绝不能把已存在的路径返回给 copyPath（那边是 TRUNCATE，会静默覆盖用户文件）
+    if (fs.accessSync(candidate)) {
+      const stamp = Date.now();
+      candidate = `${directory}/${baseName}-${stamp}`;
+      let tieBreaker = 1;
+      while (fs.accessSync(candidate) && tieBreaker <= 999) {
+        candidate = `${directory}/${baseName}-${stamp}-${tieBreaker}`;
+        tieBreaker++;
+      }
+      if (fs.accessSync(candidate)) {
+        throw new Error(`无法为 ${baseName} 找到可用的唯一文件名`);
+      }
+      console.warn(`[gp-next-bridge] 同名文件已达上限，改用时间戳命名: ${candidate}`);
     }
     return candidate;
   }

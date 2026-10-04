@@ -24,6 +24,8 @@ import { BusinessError } from '@kit.BasicServicesKit';
 const FLUSH_DEBOUNCE_MS: number = 400;
 /** 去抖上限：从"首次有待刷写数据"起算，最多推迟这么久必须刷一次（防持续写入永不落盘） */
 const FLUSH_MAX_DELAY_MS: number = 1500;
+/** 刷盘失败后延迟重试的间隔（仅安排一次，避免失败时疯狂重试） */
+const FLUSH_RETRY_DELAY_MS: number = 2000;
 
 export class PreferenceStore {
   private prefs: preferences.Preferences | undefined = undefined;
@@ -33,6 +35,8 @@ export class PreferenceStore {
   private firstPendingAt: number = 0;
   /** 去抖定时器 */
   private flushTimer: number = -1;
+  /** 是否已经安排了一次"刷盘失败后的重试"（避免失败时疯狂重试） */
+  private retryScheduled: boolean = false;
 
   /** 绑定 Preferences 实例（页面初始化完 prefs 之后调用一次） */
   attach(prefs: preferences.Preferences): void {
@@ -93,11 +97,31 @@ export class PreferenceStore {
     try {
       store.flush()
         .then(() => { /* 成功：无需日志 */ })
-        .catch((err: BusinessError) => { console.error(`刷写 Preferences 失败: ${err.message}`); });
+        .catch((err: BusinessError) => {
+          // 失败：恢复待刷标志并安排一次重试，否则这一段写入（可能是玩家的存档）会永远丢
+          this.onFlushFailed(store, err.message);
+        });
     } catch (err) {
       const error = err as BusinessError;
-      console.error(`刷写 Preferences 失败: ${error.message}`);
+      this.onFlushFailed(store, error.message);
     }
+  }
+
+  /** 刷盘失败后的收尾：恢复待刷标志 + 安排一次（仅一次）延迟重试 */
+  private onFlushFailed(store: preferences.Preferences, message: string): void {
+    this.flushPending = true;
+    if (this.firstPendingAt === 0) {
+      this.firstPendingAt = Date.now();
+    }
+    console.error(`刷写 Preferences 失败（已保留待刷标志，稍后重试）: ${message}`);
+    if (this.retryScheduled) {
+      return;   // 已经安排过重试，不重复安排
+    }
+    this.retryScheduled = true;
+    setTimeout(() => {
+      this.retryScheduled = false;
+      this.flushNow();
+    }, FLUSH_RETRY_DELAY_MS);
   }
 
   /** 安排一次去抖刷盘；若已超过去抖上限则立即刷 */

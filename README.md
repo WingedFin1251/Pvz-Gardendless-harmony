@@ -142,10 +142,10 @@ Pvz-Gardendless-harmony/
 | [docs/MODULES.md](docs/MODULES.md) | 各模块详细说明 |
 | [docs/BUILD.md](docs/BUILD.md) | 构建配置、签名、部署、常见问题 |
 | [docs/ASPECT_RATIO.md](docs/ASPECT_RATIO.md) | 画面比例约束方案与取舍 |
-| [docs/WEBVIEW_PERF.md](docs/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、问题清单与优化优先级 |
-| [docs/RELEASE_v0.15.0.md](docs/RELEASE_v0.15.0.md) | v0.15.0 更新说明 |
-| [docs/RELEASE_v0.14.0.md](docs/RELEASE_v0.14.0.md) | v0.14.0 更新说明 |
-| [docs/PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md) 等 | 性能优化与对比报告 |
+| [docs/perf/WEBVIEW_PERF.md](docs/perf/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、问题清单与优化优先级 |
+| [docs/releases/v0.15.0.md](docs/releases/v0.15.0.md) | v0.15.0 更新说明 |
+| [docs/releases/v0.14.0.md](docs/releases/v0.14.0.md) | v0.14.0 更新说明 |
+| [docs/archive/PERFORMANCE_OPTIMIZATION.md](docs/archive/PERFORMANCE_OPTIMIZATION.md) 等 | 性能优化与对比报告 |
 
 ---
 

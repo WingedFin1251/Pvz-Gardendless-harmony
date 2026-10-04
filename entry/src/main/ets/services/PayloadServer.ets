@@ -6,8 +6,11 @@ import { ResourceManager } from './ResourceManager';
  * 处理顺序（与原页面内实现完全一致，勿改）：
  *   1. 按规则补负载前缀（壳层自带文件不补）
  *   2. 先查 ResourceManager 的 LRU 缓存（同步、无异步开销）
- *   3. 未命中再从 rawfile 原始读取
- *   4. 都失败返回 null，交给系统处理
+ *   3. 未命中则用**同步字节读**拿到内容（同时回填缓存，让第 2 步下次能命中）
+ *   4. 同步字节读不可用时退回 $rawfile；都失败返回 null，交给系统处理
+ *
+ * 为什么必须同步：onInterceptRequest 要求当场返回响应，异步读取来不及；
+ * 所以填缓存只能用 getRawFileContentSync 这类同步接口。
  *
  * 说明：读取 rawfile 的函数由页面传入（`$rawfile` 是 UI 全局），
  * 这样数据来源与改动前完全一致，不引入行为变化。
@@ -65,7 +68,9 @@ export class PayloadServer {
    * @param url 请求 URL（非 cocos.local 的一律返回 null）
    * @param readRawfile 读取 rawfile 的函数（页面传 `$rawfile`，保持数据来源不变）
    */
-  static serve(url: string, readRawfile: (path: string) => Resource): WebResourceResponse | null {
+  static serve(url: string,
+    readRawfile: (path: string) => Resource,
+    readRawfileBytes?: (path: string) => Uint8Array): WebResourceResponse | null {
     if (!url.startsWith('https://cocos.local/')) {
       return null;
     }
@@ -81,29 +86,65 @@ export class PayloadServer {
     // 1. 同步检查 ResourceManager LRU 缓存（快速路径，无异步开销）
     const cachedData = ResourceManager.getInstance().getCachedSync(rawFilePath);
     if (cachedData) {
-      const response = new WebResourceResponse();
-      response.setResponseData(cachedData);
-      response.setResponseEncoding('utf-8');
-      response.setResponseMimeType(mimeOf(rawFilePath));
-      response.setResponseCode(200);
-      response.setReasonMessage('OK');
-      response.setResponseIsReady(true);
-      return response;
+      return PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(cachedData), mimeOf(rawFilePath));
     }
 
-    // 2. 缓存未命中，从 rawfile 加载并返回
+    // 2. 缓存未命中：优先用同步字节读（拿到字节才能回填缓存）
+    if (readRawfileBytes) {
+      try {
+        const bytes = readRawfileBytes(rawFilePath);
+        if (bytes && bytes.byteLength > 0) {
+          ResourceManager.getInstance().cacheResource(rawFilePath, bytes);
+          return PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(bytes), mimeOf(rawFilePath));
+        }
+      } catch (error) {
+        console.warn(`同步读取失败，退回 $rawfile: ${rawFilePath}`, error);
+      }
+    }
+
+    // 3. 退回 $rawfile（数据来源与改动前一致）
     try {
-      const response = new WebResourceResponse();
-      response.setResponseData(readRawfile(rawFilePath));
-      response.setResponseEncoding('utf-8');
-      response.setResponseMimeType(mimeOf(rawFilePath));
-      response.setResponseCode(200);
-      response.setReasonMessage('OK');
-      response.setResponseIsReady(true);
-      return response;
+      return PayloadServer.buildResponse(readRawfile(rawFilePath), mimeOf(rawFilePath));
     } catch (error) {
       console.error(`拦截器读取文件失败: ${rawFilePath}`, error);
       return null;
     }
+  }
+
+  /** 统一构造 200 响应 */
+  private static buildResponse(data: ArrayBuffer | Resource, mime: string): WebResourceResponse {
+    const response = new WebResourceResponse();
+    response.setResponseData(data);
+    // ⚠️ 只有文本类才设 utf-8。
+    // 首次实测教训：给二进制（wasm/avif/png…）设了 utf-8 后，内核按文本解码字节，
+    // 资源全部被解坏 —— 表现是整包卡在 Cocos 引擎启动页（引擎 JS 是文本所以能过）。
+    if (PayloadServer.isTextMime(mime)) {
+      response.setResponseEncoding('utf-8');
+    }
+    response.setResponseMimeType(mime);
+    response.setResponseCode(200);
+    response.setReasonMessage('OK');
+    response.setResponseIsReady(true);
+    return response;
+  }
+
+  /** 文本类 MIME：这类才需要显式 utf-8；二进制一律不设编码，交由内核按 MIME 处理 */
+  private static isTextMime(mime: string): boolean {
+    return mime.startsWith('text/') ||
+      mime === 'application/javascript' ||
+      mime === 'application/json' ||
+      mime === 'application/xml';
+  }
+
+  /**
+   * Uint8Array → 精确区间的 ArrayBuffer。
+   * 不能直接写 `bytes.buffer`：视图可能只覆盖底层缓冲的一部分（与 DownloadSaver 里同一个坑）。
+   * setResponseData 的官方参数类型是 string | number | ArrayBuffer | Resource。
+   */
+  private static toExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+    if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) {
+      return bytes.buffer as ArrayBuffer;
+    }
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   }
 }

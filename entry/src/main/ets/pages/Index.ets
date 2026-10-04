@@ -322,6 +322,19 @@ struct CocosJSApp {
     }
   }
 
+  /**
+   * 同步读取 rawfile 字节（H1：给 LRU 缓存回填用）。
+   * 用 context.resourceManager.getRawFileContentSync —— 与 $rawfile 读的是同一份 hap 资源；
+   * 读不到时抛错，由 PayloadServer 退回 $rawfile。
+   */
+  private readRawfileBytes(path: string): Uint8Array {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (!context) {
+      throw new Error('Context 不可用，无法同步读取 rawfile');
+    }
+    return context.resourceManager.getRawFileContentSync(path);
+  }
+
   /** 面板里切换期望刷新率：立即生效 + 持久化 */
   private setExpectedRefresh(value: string): void {
     this.expectedRefresh = value;
@@ -677,6 +690,11 @@ struct CocosJSApp {
 
   /** 页面不可见（切后台 / 跳转）：停止投票，避免空刷帧与额外功耗 */
   onPageHide() {
+    // H1：切后台时也打一次缓存统计 —— aboutToDisappear 只在优雅退出时触发，
+    // 而实测常用 force-stop / 直接杀进程，读不到命中率。onPageHide 稳定得多。
+    const hideStats = ResourceManager.getInstance().getCacheStats();
+    console.info(`[payload-cache] 切后台统计: ${hideStats.totalItems} 项, ` +
+      `${(hideStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${hideStats.hitRate}%`);
     this.stopHighRefreshVote();
     this.closeShellSettings();   // 顺带关掉设置面板并清理轮询定时器
     this.preferenceStore.flushNow();   // 页面不可见：把去抖中的存档立刻落盘
@@ -831,6 +849,10 @@ struct CocosJSApp {
         })
         .onProgressChange((event) => { this.progress = event.newProgress; })
         .onPageEnd(() => {
+          // H1：加载完成后打一次缓存统计（可用 hilog 直接验证缓存是否真的被填起来）
+          const payloadCacheStats = ResourceManager.getInstance().getCacheStats();
+          console.info(`[payload-cache] ${payloadCacheStats.totalItems} 项, ` +
+            `${(payloadCacheStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${payloadCacheStats.hitRate}%`);
           this.isLoading = false;
           this.warnIfExperimentalSchedulerOn();   // 实验帧率调度开着时提示一次（平板会卡）
           this.webReady = true;
@@ -849,9 +871,13 @@ struct CocosJSApp {
         })
         .onInterceptRequest((event) => {
           if (!event) return null;
-          // 负载请求一律交给 PayloadServer：前缀规则、LRU 缓存、MIME 都在那里；
-          // rawfile 的读取函数由这里传入（$rawfile 是 UI 全局），数据来源与改动前一致。
-          return PayloadServer.serve(event.request.getRequestUrl(), (path: string) => $rawfile(path));
+          // 负载请求一律交给 PayloadServer：前缀规则、LRU 缓存、MIME 都在那里。
+          // 传两个读取函数：$rawfile（Resource，兼容路径）与同步字节读（用于回填 LRU 缓存）。
+          // 必须同步：onInterceptRequest 要当场返回响应，异步读取来不及。
+          return PayloadServer.serve(
+            event.request.getRequestUrl(),
+            (path: string) => $rawfile(path),
+            (path: string) => this.readRawfileBytes(path));
         })
         .onLoadIntercept((event) => {
           if (!event) return false;

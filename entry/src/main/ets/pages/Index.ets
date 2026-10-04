@@ -193,7 +193,9 @@ struct CocosJSApp {
 
     // 初始化 Preferences
     try {
-      this.prefs = await preferences.getPreferences(context, { name: 'game_save' });   // M3：用官方推荐的新重载（旧的字符串重载已废弃）
+      // M3：两种重载都有效 —— 官方文档把 Options 形式标为「10+」（API 10 新增能力），
+      // 并没有废弃 getPreferences(context, name: string)。这里用 Options 形式只是因为键名显式、不易写错。
+      this.prefs = await preferences.getPreferences(context, { name: 'game_save' });
       this.preferenceStore.attach(this.prefs);   // 交给落盘层（Web 侧白名单键的持久化）
       this.shellPrefs.attach(this.prefs);        // 交给壳层偏好（铺满 / 期望刷新率 / 提示标记）
       // 恢复"铺满画面"偏好

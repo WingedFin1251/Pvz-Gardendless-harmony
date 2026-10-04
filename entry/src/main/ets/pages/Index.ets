@@ -1,6 +1,5 @@
 import { webview } from '@kit.ArkWeb';
 import { common, Want } from '@kit.AbilityKit';
-import fs from '@ohos.file.fs';
 import { FilePickerHelper } from '../common/FilePickerHelper';  // 复用 FilePickerHelper
 import preferences from '@ohos.data.preferences';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
@@ -601,6 +600,10 @@ struct CocosJSApp {
   }
 
   /** 网页发起"另存为"：弹系统保存对话框，返回用户选定的 uri（取消返回 null） */
+  /**
+   * 选保存位置（宽容版，供导出流程用）：失败时把**真实原因**提示给用户，再返回 null。
+   * 注意：selectSavePath 只在"用户取消"时返回 null，失败会抛错 —— 这里必须提示，不能再让它看起来像取消。
+   */
   private async pickSaveTarget(fileName: string): Promise<string | null> {
     if (!this.filePickerHelper) {
       return null;
@@ -608,9 +611,19 @@ struct CocosJSApp {
     try {
       return await this.filePickerHelper.selectSavePath(fileName);
     } catch (err) {
-      console.error('选择保存位置失败', err);
+      const error = err as BusinessError;
+      console.error(`选择保存位置失败: ${error.message}`);
+      this.showStatusMessage(error.message, 4000);
       return null;
     }
+  }
+
+  /** 选保存位置（严格版，供下载流程用）：失败时抛出，让下载侧能区分"用户取消"和"选择失败" */
+  private async pickSaveTargetStrict(fileName: string): Promise<string | null> {
+    if (!this.filePickerHelper) {
+      throw new Error('文件选择器尚未初始化');
+    }
+    return await this.filePickerHelper.selectSavePath(fileName);
   }
 
   /** 网页点"打开数据包目录"：移动端没有能让用户丢文件的目录，改成从系统选择器导入 */
@@ -994,7 +1007,8 @@ struct CocosJSApp {
         this.showStatusMessage(message, duration);
       },
       pickSavePath: (fileName: string) => {
-        return this.pickSaveTarget(fileName);
+        // 用严格版：失败会抛错，DownloadSaver 就不会把"权限被拒"误报成"已取消下载"
+        return this.pickSaveTargetStrict(fileName);
       },
       getContext: () => {
         return this.getUIContext()?.getHostContext() as common.UIAbilityContext;

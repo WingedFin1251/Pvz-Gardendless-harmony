@@ -1,6 +1,6 @@
 # 归档：2026-09-19 游戏侧（负载侧）归因实测
 
-配套文档：**[../../GAME_SIDE_OPTIMIZATION.md](../../GAME_SIDE_OPTIMIZATION.md)**
+配套文档：**[../../GAME_SIDE_OPTIMIZATION.md](../GAME_SIDE_OPTIMIZATION.md)**
 壳层侧原始数据：[`../shell-ab-2026-09-19/`](../shell-ab-2026-09-19/)
 
 设备：HUAWEI MatePad 11.5"S 灵动款（`DMG-W00`），OpenHarmony 6.1.1.120，

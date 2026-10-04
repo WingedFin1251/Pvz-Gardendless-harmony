@@ -57,6 +57,26 @@ const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
 const PREF_EXPECTED_REFRESH: string = 'expected_refresh';   // 'off' | '60' | '120' | 'max'
 const PREF_SETTINGS_HINT_SEEN: string = 'settings_hint_seen'; // 首次启动提示过长按 GP 按钮
 
+// ============ 壳层设置面板的排版规格（统一字号/颜色/间距，改这里即全局一致）============
+// 字号阶梯：18 标题 / 14 分组标题与按钮 / 13 数值与状态 / 12 说明
+const PANEL_FS_TITLE: number = 18;
+const PANEL_FS_SECTION: number = 14;
+const PANEL_FS_BUTTON: number = 14;
+const PANEL_FS_VALUE: number = 13;
+const PANEL_FS_HINT: number = 12;
+// 颜色：主文字 / 次文字 / 分组标题 / 警示 / 选中与主按钮 / 未选中按钮底 / 危险按钮
+const PANEL_C_PRIMARY: string = '#E6E6EC';
+const PANEL_C_SECONDARY: string = '#8E8E96';
+const PANEL_C_SECTION: string = '#9A9AA0';
+const PANEL_C_WARN: string = '#FFB4A0';
+const PANEL_C_ACCENT: string = '#2E6BD6';
+const PANEL_C_BTN: string = '#33FFFFFF';
+const PANEL_C_DANGER: string = '#7A2E2E';
+// 间距节奏：分组之间 16 / 分组标题到内容 8 / 内容到说明 6
+const PANEL_GAP_SECTION: number = 16;
+const PANEL_GAP_TITLE: number = 8;
+const PANEL_GAP_HINT: number = 6;
+
 // ==================== 负载目录（单一真相点） ====================
 // 游戏负载（Cocos 构建产物，含它**自带的** index.html）统一放在 rawfile/<PAYLOAD_DIR> 下：
 //   - 更新负载 = 整目录替换，壳层文件、.gitignore、构建脚本都不用动；
@@ -641,33 +661,35 @@ struct CocosJSApp {
     Column() {
       Scroll() {
         Column() {
+          // ── 标题行 ──
           Row() {
             Text('设置')
-              .fontSize(18)
+              .fontSize(PANEL_FS_TITLE)
               .fontColor(Color.White)
               .fontWeight(FontWeight.Bold)
               .layoutWeight(1)
             Button('✕')
-              .fontSize(15)
+              .fontSize(PANEL_FS_BUTTON)
               .fontColor('#CFCFD6')
-              .backgroundColor('#33FFFFFF')
+              .backgroundColor(PANEL_C_BTN)
               .width(34)
               .height(34)
               .accessibilityText('关闭设置')
               .onClick(() => { this.closeShellSettings(); })
           }
           .width('100%')
-          .margin({ bottom: 14 })
+          .margin({ bottom: PANEL_GAP_SECTION })
 
+          // ── 画面 ──
           Text('画面')
-            .fontSize(13)
-            .fontColor('#9A9AA0')
+            .fontSize(PANEL_FS_SECTION)
+            .fontColor(PANEL_C_SECTION)
             .width('100%')
-            .margin({ bottom: 6 })
+            .margin({ bottom: PANEL_GAP_TITLE })
           Row({ space: 8 }) {
             Button(this.isFillScreen ? '铺满 ✓' : '铺满')
-              .fontSize(14)
-              .backgroundColor(this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(this.isFillScreen ? PANEL_C_ACCENT : PANEL_C_BTN)
               .layoutWeight(1)
               .accessibilityText('画面铺满')
               .onClick(() => {
@@ -676,8 +698,8 @@ struct CocosJSApp {
                 }
               })
             Button(!this.isFillScreen ? '留边 ✓' : '留边')
-              .fontSize(14)
-              .backgroundColor(!this.isFillScreen ? '#2E6BD6' : '#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(!this.isFillScreen ? PANEL_C_ACCENT : PANEL_C_BTN)
               .layoutWeight(1)
               .accessibilityText('画面按比例留边')
               .onClick(() => {
@@ -687,124 +709,120 @@ struct CocosJSApp {
               })
           }
           .width('100%')
-          .margin({ bottom: 4 })
+          .margin({ bottom: PANEL_GAP_HINT })
           Text('留边：按 3:2 ~ 17:9 比例显示，四周留黑边（不拉伸画面）')
-            .fontSize(11)
-            .fontColor('#7E7E86')
+            .fontSize(PANEL_FS_HINT)
+            .fontColor(PANEL_C_SECONDARY)
             .width('100%')
-            .margin({ bottom: 16 })
+            .margin({ bottom: PANEL_GAP_SECTION })
 
+          // ── 期望刷新率 ──
           Text('期望刷新率')
-            .fontSize(13)
-            .fontColor('#9A9AA0')
+            .fontSize(PANEL_FS_SECTION)
+            .fontColor(PANEL_C_SECTION)
             .width('100%')
-            .margin({ bottom: 6 })
+            .margin({ bottom: PANEL_GAP_TITLE })
           Row({ space: 6 }) {
             Button('关闭')
-              .fontSize(13)
-              .backgroundColor(this.expectedRefresh === 'off' ? '#2E6BD6' : '#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(this.expectedRefresh === 'off' ? PANEL_C_ACCENT : PANEL_C_BTN)
               .layoutWeight(1)
               .onClick(() => { this.setExpectedRefresh('off'); })
             Button('60')
-              .fontSize(13)
-              .backgroundColor(this.expectedRefresh === '60' ? '#2E6BD6' : '#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(this.expectedRefresh === '60' ? PANEL_C_ACCENT : PANEL_C_BTN)
               .layoutWeight(1)
               .onClick(() => { this.setExpectedRefresh('60'); })
             Button('120')
-              .fontSize(13)
-              .backgroundColor(this.expectedRefresh === '120' ? '#2E6BD6' : '#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(this.expectedRefresh === '120' ? PANEL_C_ACCENT : PANEL_C_BTN)
               .layoutWeight(1)
               .onClick(() => { this.setExpectedRefresh('120'); })
             Button('最高')
-              .fontSize(13)
-              .backgroundColor(this.expectedRefresh === 'max' ? '#2E6BD6' : '#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(this.expectedRefresh === 'max' ? PANEL_C_ACCENT : PANEL_C_BTN)
               .layoutWeight(1)
               .onClick(() => { this.setExpectedRefresh('max'); })
           }
           .width('100%')
-          .margin({ bottom: 8 })
-
+          .margin({ bottom: PANEL_GAP_TITLE })
           Text(`当前 ${this.currentRefresh} Hz ｜ 期望 ${this.expectedRefreshLabel()} ｜ ${this.voteStatusText()}`)
-            .fontSize(12)
-            .fontColor('#E6E6EC')
+            .fontSize(PANEL_FS_VALUE)
+            .fontColor(PANEL_C_PRIMARY)
             .width('100%')
-            .margin({ bottom: 2 })
           Text('屏幕档位：' + (this.supportedRefresh.length > 0 ? this.supportedRefresh.join(' / ') + ' Hz' : '读取中…'))
-            .fontSize(11)
-            .fontColor('#9A9AA0')
+            .fontSize(PANEL_FS_HINT)
+            .fontColor(PANEL_C_SECTION)
             .width('100%')
-            .margin({ bottom: 6 })
+            .margin({ top: 2 })
           Text('这是向系统声明期望帧率（不是锁帧）。若只在触摸/操作时才到 120（松手几秒回落），先把「系统设置 → 显示和亮度 → 屏幕刷新率」改成"高"；若设为"高"后仍无效，则是本机系统策略不接受该声明（实测：平板有效，手机 BRA-AL00 无效）。')
-            .fontSize(11)
-            .fontColor('#7E7E86')
+            .fontSize(PANEL_FS_HINT)
+            .fontColor(PANEL_C_SECONDARY)
             .width('100%')
-            .margin({ bottom: 16 })
+            .margin({ top: PANEL_GAP_HINT, bottom: PANEL_GAP_SECTION })
 
+          // ── 引擎帧率 ──
           Text('引擎帧率（GP-Next）')
-            .fontSize(13)
-            .fontColor('#9A9AA0')
+            .fontSize(PANEL_FS_SECTION)
+            .fontColor(PANEL_C_SECTION)
             .width('100%')
-            .margin({ bottom: 6 })
+            .margin({ bottom: PANEL_GAP_TITLE })
           Row({ space: 8 }) {
-            // 两行：上行标明设置来源（避免和「实验性」页混淆），下行给引擎实时值与实测值
             Column() {
               Text('帧率上限 ' + this.engineFrameRate + ' ｜ 实验调度 ' + this.schedulerFrameRate
                 + ((this.frameSchedulerOn ? ' ⚠' : '')))
-                .fontSize(12)
-                .fontColor('#E6E6EC')
+                .fontSize(PANEL_FS_VALUE)
+                .fontColor(PANEL_C_PRIMARY)
                 .width('100%')
               Text('实测 ' + this.engineFpsMeasured + '（引擎循环帧数，可能高于屏幕实际刷新率）')
-                .fontSize(12)
-                .fontColor('#9A9AA0')
+                .fontSize(PANEL_FS_HINT)
+                .fontColor(PANEL_C_SECTION)
                 .width('100%')
+                .margin({ top: 2 })
             }
             .layoutWeight(1)
             Button('↻')
-              .fontSize(13)
-              .backgroundColor('#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(PANEL_C_BTN)
               .width(38)
               .onClick(() => {
                 this.readEngineFrameRate();
                 this.measureEngineFps();
               })
             Button('设为不限')   // 兜底：若「实测」确实被限在某个值，用它直接向引擎请求不限
-              .fontSize(12)
-              .backgroundColor('#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(PANEL_C_BTN)
               .onClick(() => { this.forceUnlimitedFrameRate(); })
             Button('打开 GP-Next 设置')
-              .fontSize(12)
-              .backgroundColor('#33FFFFFF')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(PANEL_C_BTN)
               .onClick(() => { this.openGpNextPanel(); })
           }
           .width('100%')
-          .margin({ bottom: 4 })
-          Text('两个开关相互独立：这里管系统刷新率，GP-Next 的「帧率」管引擎渲染上限（默认 60）。')
-          Text('说明：游戏内选「无限制」后，GP-Next「性能」页的「目标FPS」会错误地显示上面的存档值——它把引擎的 0（不限）当成"取不到"而回退；此时以本行「实测」为准。')
-            .fontSize(11)
-            .fontColor('#9A9AA0')
+          .margin({ bottom: PANEL_GAP_HINT })
+          Text('游戏内「无限制」生效与否看「实测」；GP-Next「性能」页的「目标FPS」在无限制时会显示存档旧值，不可信。')
+            .fontSize(PANEL_FS_HINT)
+            .fontColor(PANEL_C_SECONDARY)
             .width('100%')
-            .margin({ top: 2 })
-            .fontSize(11)
-            .fontColor('#7E7E86')
-            .width('100%')
-            .margin({ bottom: 16 })
+            .margin({ bottom: PANEL_GAP_SECTION })
           if (this.frameSchedulerOn) {
             Text('⚠ 检测到「实验帧率调度」已开启：上游用纯 JS 节拍器接管帧循环，在平板上会造成明显卡顿，建议关闭。')
-              .fontSize(11)
-              .fontColor('#FFB4A0')
+              .fontSize(PANEL_FS_HINT)
+              .fontColor(PANEL_C_WARN)
               .width('100%')
-              .margin({ bottom: 6 })
+              .margin({ bottom: PANEL_GAP_HINT })
             Button('关闭「实验帧率调度」（会重新加载页面）')
-              .fontSize(12)
-              .backgroundColor('#7A2E2E')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(PANEL_C_DANGER)
               .width('100%')
-              .margin({ bottom: 16 })
+              .margin({ bottom: PANEL_GAP_SECTION })
               .onClick(() => { this.disableExperimentalScheduler(); })
           }
 
+          // ── 完成 ──
           Button('完成')
-            .fontSize(15)
-            .backgroundColor('#2E6BD6')
+            .fontSize(PANEL_FS_BUTTON)
+            .backgroundColor(PANEL_C_ACCENT)
             .width('100%')
             .onClick(() => { this.closeShellSettings(); })
         }

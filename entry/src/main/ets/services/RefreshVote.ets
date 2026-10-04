@@ -1,5 +1,5 @@
 import { displaySync } from '@kit.ArkGraphics2D';
-import display from '@ohos.display';
+import { display } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 
 /** 一次屏幕刷新率读取的结果 */

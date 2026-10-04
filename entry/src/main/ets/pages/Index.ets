@@ -1,7 +1,7 @@
 import { webview } from '@kit.ArkWeb';
 import { common, Want } from '@kit.AbilityKit';
 import { FilePickerHelper } from '../common/FilePickerHelper';  // 复用 FilePickerHelper
-import preferences from '@ohos.data.preferences';
+import { preferences } from '@kit.ArkData';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 import { ResourceManager } from '../services/ResourceManager';
 import { GpNextBridge } from '../services/GpNextBridge';
@@ -74,6 +74,8 @@ struct CocosJSApp {
   private readonly downloadSaver: DownloadSaver = new DownloadSaver();   // 下载回调 + 落盘（见 services/DownloadSaver.ets）
   private readonly shellPrefs: ShellPrefs = new ShellPrefs();            // 壳层自己的偏好（见 services/ShellPrefs.ets）
   private timeoutId?: number;
+  /** 状态提示淡出后清空文案的定时器（M1：原来没跟踪，导致新提示被旧定时器立刻清空） */
+  private fadeOutTimer?: number;
   private hideButtonTimer?: number;
   private prefs?: preferences.Preferences;
   // GP-Next 原生桥：把网页侧的 Tauri 命令（fs / 另存为 / 打开目录）落到 filesDir/gp-next
@@ -191,7 +193,7 @@ struct CocosJSApp {
 
     // 初始化 Preferences
     try {
-      this.prefs = await preferences.getPreferences(context, 'game_save');
+      this.prefs = await preferences.getPreferences(context, { name: 'game_save' });   // M3：用官方推荐的新重载（旧的字符串重载已废弃）
       this.preferenceStore.attach(this.prefs);   // 交给落盘层（Web 侧白名单键的持久化）
       this.shellPrefs.attach(this.prefs);        // 交给壳层偏好（铺满 / 期望刷新率 / 提示标记）
       // 恢复"铺满画面"偏好
@@ -724,13 +726,19 @@ struct CocosJSApp {
 
   private showStatusMessage(message: string, duration: number = 3000) {
     if (this.timeoutId) clearTimeout(this.timeoutId);
+    // 关键：上一条提示的"淡出后清空"定时器也要取消，否则它会在新提示刚出现时把文案清掉
+    if (this.fadeOutTimer !== undefined) {
+      clearTimeout(this.fadeOutTimer);
+      this.fadeOutTimer = undefined;
+    }
     this.statusOpacity = 1;
     this.downloadStatus = message;
     this.timeoutId = setTimeout(() => {
       this.getUIContext()?.animateTo({ duration: 300 }, () => { this.statusOpacity = 0; });
-      setTimeout(() => {
+      this.fadeOutTimer = setTimeout(() => {
         this.downloadStatus = '';
         this.statusOpacity = 1;
+        this.fadeOutTimer = undefined;
       }, 300);
       this.timeoutId = undefined;
     }, duration);

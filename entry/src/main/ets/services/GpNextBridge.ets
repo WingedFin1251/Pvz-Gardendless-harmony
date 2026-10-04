@@ -1,5 +1,5 @@
-import fs from '@ohos.file.fs';
-import zlib from '@ohos.zlib';
+import { fileIo as fs } from '@kit.CoreFileKit';
+import { zlib } from '@kit.BasicServicesKit';
 import { util, process } from '@kit.ArkTS';
 import { common, bundleManager } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';

@@ -1,5 +1,5 @@
 import { common } from '@kit.AbilityKit';
-
+import { resourceManager } from '@kit.LocalizationKit';
 /**
  * 资源管理器
  * 提供资源预加载、缓存管理和内存优化功能
@@ -61,8 +61,12 @@ export class ResourceManager {
   private preloadConfig: PreloadConfig;
   private loadingQueue: Set<string> = new Set();
   private failedResources: Map<string, number> = new Map(); // 失败计数
-  private readonly MAX_FAILURE_COUNT: number = 3;
-  private context?: common.UIAbilityContext;
+  private readonly maxFailureCount: number = 3;   // M6a：实例字段不用全大写常量风格
+  // M5：真实命中/未命中计数（原来用"总访问次数 - 条目数"当命中数，是错的）
+  private cacheHitCount: number = 0;
+  private cacheMissCount: number = 0;
+  // M6b：单例生命周期很长，只留 resourceManager 对象，不长期持有 UIAbilityContext（那是泄漏面）
+  private resMgr?: resourceManager.ResourceManager;
 
   private constructor(
     cacheConfig?: Partial<CacheConfig>,
@@ -117,7 +121,8 @@ export class ResourceManager {
    * 设置上下文
    */
   public setContext(context: common.UIAbilityContext): void {
-    this.context = context;
+    // 只取需要的 resourceManager；不把 context 本身存下来
+    this.resMgr = context.resourceManager;
   }
 
   /**
@@ -151,10 +156,12 @@ export class ResourceManager {
   public getCachedSync(path: string): Uint8Array | null {
     const item = this.cache.get(path);
     if (item && item.data) {
+      this.cacheHitCount++;
       item.accessCount++;
       item.lastAccessTime = Date.now();
       return item.data;
     }
+    this.cacheMissCount++;
     return null;
   }
 
@@ -266,9 +273,9 @@ export class ResourceManager {
    * 获取缓存统计信息
    */
   public getCacheStats(): CacheStats {
-    const totalRequests = this.getTotalAccessCount();
-    const hitCount = this.cache.size > 0 ? totalRequests - this.cache.size : 0; // 简化计算
-    const hitRate = totalRequests > 0 ? (hitCount / totalRequests) * 100 : 0;
+    // M5：真实的查找命中率（命中次数 / 总查找次数），不再用"总访问次数 - 条目数"那种估算
+    const totalLookups = this.cacheHitCount + this.cacheMissCount;
+    const hitRate = totalLookups > 0 ? (this.cacheHitCount / totalLookups) * 100 : 0;
 
     return {
       totalItems: this.cache.size,
@@ -300,7 +307,7 @@ export class ResourceManager {
   private async loadAndCacheResource(path: string): Promise<Uint8Array | null> {
     // 检查失败次数
     const failureCount = this.failedResources.get(path) || 0;
-    if (failureCount >= this.MAX_FAILURE_COUNT) {
+    if (failureCount >= this.maxFailureCount) {
       console.warn(`资源加载失败次数过多，跳过: ${path}`);
       return null;
     }
@@ -327,9 +334,9 @@ export class ResourceManager {
       const newFailureCount = failureCount + 1;
       this.failedResources.set(path, newFailureCount);
       
-      console.error(`资源加载失败: ${path} (尝试 ${newFailureCount}/${this.MAX_FAILURE_COUNT}, ${duration}ms)`, error);
+      console.error(`资源加载失败: ${path} (尝试 ${newFailureCount}/${this.maxFailureCount}, ${duration}ms)`, error);
       
-      if (newFailureCount >= this.MAX_FAILURE_COUNT) {
+      if (newFailureCount >= this.maxFailureCount) {
         console.error(`资源加载永久失败，已跳过: ${path}`);
       }
       
@@ -339,25 +346,31 @@ export class ResourceManager {
     }
   }
 
+  /**
+   * 带超时地读取一个 rawfile。
+   * M8：原来写成 `new Promise(async (resolve, reject) => ...)` —— async executor 里抛出的错
+   * 不会自动变成 reject，只能靠外层 try/catch 兜住。改成普通 async 函数 + Promise.race。
+   */
   private async loadResourceWithTimeout(path: string): Promise<Uint8Array> {
-    return new Promise(async (resolve, reject) => {
-      const timeoutId = setTimeout(() => {
+    const resMgr = this.resMgr;
+    if (!resMgr) {
+      throw new Error('Context not set. Please call setContext() before loading resources.');
+    }
+    let timeoutId: number = -1;
+    const timeoutPromise = new Promise<Uint8Array>((_resolve, reject) => {
+      timeoutId = setTimeout(() => {
         reject(new Error(`资源加载超时: ${path}`));
       }, this.preloadConfig.timeout);
-
-      try {
-        if (!this.context) {
-          throw new Error('Context not set. Please call setContext() before loading resources.');
-        }
-        // getRawFile 自 API 9 起废弃，官方建议使用 getRawFileContent 替代（返回类型同为 Uint8Array）
-        const data = await this.context.resourceManager.getRawFileContent(path);
-        clearTimeout(timeoutId);
-        resolve(data);
-      } catch (error) {
-        clearTimeout(timeoutId);
-        reject(error);
-      }
     });
+    // getRawFile 自 API 9 起废弃，官方建议使用 getRawFileContent 替代（返回类型同为 Uint8Array）
+    const loadPromise: Promise<Uint8Array> = resMgr.getRawFileContent(path);
+    try {
+      return await Promise.race([loadPromise, timeoutPromise]);
+    } finally {
+      if (timeoutId !== -1) {
+        clearTimeout(timeoutId);
+      }
+    }
   }
 
   private addToCache(path: string, data: Uint8Array): void {
@@ -515,15 +528,6 @@ export class ResourceManager {
         return 5; // 其他资源
     }
   }
-
-  private getTotalAccessCount(): number {
-    let total = 0;
-    for (const item of this.cache.values()) {
-      total += item.accessCount;
-    }
-    return total;
-  }
-
   private chunkArray<T>(array: T[], size: number): T[][] {
     const chunks: T[][] = [];
     for (let i = 0; i < array.length; i += size) {

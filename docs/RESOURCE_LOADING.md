@@ -145,6 +145,84 @@ setResponseIsReady(IsReady: boolean): void
   - 运行中**反复重取**同一批（`resources/import/c9/…json` 三分钟后又来；`cloudSavePatcher-*.js`、`drpc-*.js`）
   - 占用从 0.17MB 一路长到 **59.59MB**
 
+### 启动读取时序（刚启动时到底读了什么）
+
+启动阶段读的**几乎全是「代码 + 配置」**，美术资源是启动**之后**才按需来的。证据来自负载自己的入口文件。
+
+**阶段 0 —— 壳层先读（页面还未加载）**
+
+| 读什么 | 怎么读 | 日志证据 |
+| :--- | :--- | :--- |
+| `touchPatch.js`（注入脚本） | `getRawFileContentSync('touchPatch.js')` | `注入脚本就绪: shim 6588 B + touchPatch 11563 B` |
+| `game/index.html`、`game/src/settings.json` | 同上（**只做存在性自检**） | `负载自检通过: game/` |
+| Preferences（面板设置 + 存档） | `shellPrefs` / `PreferenceStore` | `ResourceManager 已初始化` 前后 |
+
+**阶段 1 —— `index.html` 解析：按 HTML 书写顺序逐个请求**
+
+```
+style.css                              1.3 KB
+/assets/index-pjb0ePXN.js              启动入口（Vite 产物 type=module）
+/assets/preload-helper-*.js            ┐
+/assets/startup-recovery-session-*.js  │ modulepreload
+/assets/cocos-startup-*.js             │（引擎启动前的准备模块）
+/assets/startup-platform-*.js          ┘
+src/polyfills.bundle.js                14.4 KB
+src/system.bundle.js                   12.0 KB   SystemJS 加载器
+src/import-map.json                    ~0 KB     告诉 SystemJS "cc 在哪"
+```
+
+**阶段 2 —— 引擎装配（配置 + 引擎本体 + 游戏逻辑）**
+
+```
+src/settings.json      2.8 KB   引擎总配置
+cc 引擎                        经 import-map 加载 cocos-js/*（Cocos Creator 3.8.4 / web-mobile）
+src/chunks/bundle.js           游戏逻辑（settings.json 的 scriptPackages 指定）
+src/effect.bin         4 KB    渲染效果配置
+```
+
+`src/settings.json` 里几条关键值：
+
+| 字段 | 值 | 含义 |
+| :--- | :--- | :--- |
+| `launch.launchScene` | `preSplashScene` | **第一个场景就是闪屏**（就是先看到的那张 Cocos 启动页） |
+| `assets.preloadBundles` | `[resources, main]` | **启动只预加载这两个 bundle**，不是全部 |
+| `projectBundles` | `internal, resources, main` | 全部 bundle 仅三个 |
+| `downloadMaxConcurrency` | `15` | 并发 15 路（所以请求是一阵一阵爆发的） |
+| `splashScreen.totalTime` | `2000` | 闪屏 2 秒 |
+| `scripting.scriptPackages` | `../src/chunks/bundle.js` | 游戏逻辑包 |
+| `designResolution` | `1024 × 640` | 设计分辨率（比例 1.6，落在留边区间内，不会被拉伸） |
+
+**阶段 3 —— 进入启动场景，此时才开始读美术资源**
+
+```
+preSplashScene（闪屏）
+   ↓
+resources / main 两个 bundle 的资源
+   ↓
+game/assets/resources/import/*.json     资源【元数据】
+game/assets/resources/native/*.png      资源【本体】
+```
+
+实测：`onPageEnd`（页面加载完成）时缓存里**只有 18 项 / 0.14MB** —— 因为此刻只读完阶段 1~2 的代码与配置；
+之后 +4 秒才取 8.24MB 纹理，再往后 10.31MB / 17.38MB。
+
+**阶段 4 —— 运行期（边读边跑）**
+
+- 切场景 / 进关卡 → 取该场景图集与骨骼（`No armature data: backFire_blue` 即运行中拉骨骼数据）
+- 界面与存档相关的 JS 被**反复重取**（`cloudSavePatcher-*.js`、`drpc-*.js`、`resources/import/*.json`）
+
+> **一句话结论**：刚启动读的是「入口代码 + 引擎配置 + 引擎本体 + 游戏逻辑」这一小撮（外加浏览器自动请求的 `favicon.ico`），
+> 美术资源是启动之后按场景/按需拉的 —— 最硬的证据就是页面加载完成时缓存只有 **18 项 / 0.14MB**，而运行一段时间后长到 **59.59MB**。
+
+**同一时刻还有一套读取在跑（别混淆）**：负载里的 `startup-recovery-session` 模块会在启动时扫描 GP-Next 的 mod 目录，
+但那条**不走资源拦截器**，而是走 **JS 桥**：
+
+```
+[gp-next-bridge] plugin:fs|read_dir 未命中: …/files/gp-next/packs/<mod>/assets
+[gp-next-bridge] plugin:fs|read_file 未命中: …/files/gp-next/packs/<mod>/thumbnail.png
+```
+
+即：**同一次启动里两套体系同时在读** —— 包内只读资源（URL 拦截）与沙箱目录（JS 桥）。
 ---
 
 ## 8. 为什么**不可能**"启动时把所有内容读进内存"

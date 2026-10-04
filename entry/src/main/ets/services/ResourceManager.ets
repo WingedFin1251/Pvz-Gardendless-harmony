@@ -12,6 +12,7 @@ interface CacheStats {
   maxSize: number;
   usagePercentage: number;
   hitRate: number;
+  evictedCount: number;
 }
 
 // 资源类型枚举
@@ -65,6 +66,7 @@ export class ResourceManager {
   // M5：真实命中/未命中计数（原来用"总访问次数 - 条目数"当命中数，是错的）
   private cacheHitCount: number = 0;
   private cacheMissCount: number = 0;
+  private evictedCount: number = 0;   // 因容量不足被淘汰（LRU）的条目数，供统计日志验证
   // M6b：单例生命周期很长，只留 resourceManager 对象，不长期持有 UIAbilityContext（那是泄漏面）
   private resMgr?: resourceManager.ResourceManager;
 
@@ -282,7 +284,8 @@ export class ResourceManager {
       totalSize: this.cacheSize,
       maxSize: this.config.maxSize,
       usagePercentage: Math.round((this.cacheSize / this.config.maxSize) * 100),
-      hitRate: Math.round(hitRate)
+      hitRate: Math.round(hitRate),
+    evictedCount: this.evictedCount
     };
   }
 
@@ -389,25 +392,31 @@ export class ResourceManager {
       return;
     }
 
-    // 检查缓存空间
+    // 先按字节预算做一次"智能清理"（它会看总量/优先级；未达字节阈值时它自己会空转，属正常）
     if (this.cacheSize + itemSize > this.config.maxSize) {
       this.smartCleanup();
-      
-      // 清理后再次检查
-      if (this.cacheSize + itemSize > this.config.maxSize) {
-        console.warn(`缓存空间不足，无法缓存: ${path}`);
-        return;
+    }
+
+    // 容量不够时**淘汰最久未用的条目**，而不是拒绝新条目。
+    // 原实现是"满了就 return"，而它依赖的 smartCleanup 只看**字节**占用率（0.8），
+    // 300 个小资源的字节占用远低于该阈值 ⇒ smartCleanup 每次空转 ⇒ 条数上限一旦触到就永久拒收，
+    // 于是"后来才被重复请求、最该进缓存"的 JS/JSON 反而永远进不来（实测日志刷屏即此）。
+    // 现在按真正的 LRU 语义处理：淘汰 lastAccessTime 最早的那些，腾出位置再插入。
+    while (this.cacheSize + itemSize > this.config.maxSize && this.cache.size > 0) {
+      if (!this.evictLeastRecentlyUsed()) {
+        break;
+      }
+    }
+    while (this.cache.size >= this.config.maxItems && this.cache.size > 0) {
+      if (!this.evictLeastRecentlyUsed()) {
+        break;
       }
     }
 
-    // 检查缓存项数量限制
-    if (this.cache.size >= this.config.maxItems) {
-      this.smartCleanup();
-      
-      if (this.cache.size >= this.config.maxItems) {
-        console.warn(`缓存项数已达上限，无法缓存: ${path}`);
-        return;
-      }
+    // 极端情况（单条就超过总量预算）才会走到这里；正常不会发生，保留告警以便发现异常
+    if (this.cacheSize + itemSize > this.config.maxSize && this.cache.size === 0) {
+      console.warn(`缓存空间不足，无法缓存: ${path} (${this.formatBytes(itemSize)})`);
+      return;
     }
 
     const resourceItem: ResourceItem = {
@@ -459,7 +468,33 @@ export class ResourceManager {
     });
   }
 
-  private calculateCacheScore(item: ResourceItem): number {
+  /**
+   * 淘汰一个"最久未被访问"的条目（LRU）。
+   * 返回是否真的淘汰了东西，供调用方判断能否继续。
+   * 只按 lastAccessTime 这一个明确、无歧义的维度排序 —— 不掺优先级，
+   * 避免与 smartCleanup 里那套评分口径相互影响。
+   */
+  private evictLeastRecentlyUsed(): boolean {
+    if (this.cache.size === 0) {
+      return false;
+    }
+    let oldest: ResourceItem | null = null;
+    for (const item of this.cache.values()) {
+      if (oldest === null || item.lastAccessTime < oldest.lastAccessTime) {
+        oldest = item;
+      }
+    }
+    if (oldest === null) {
+      return false;
+    }
+    this.cache.delete(oldest.id);
+    this.cacheSize -= oldest.size;
+    if (this.cacheSize < 0) {
+      this.cacheSize = 0;
+    }
+    this.evictedCount++;
+    return true;
+  }  private calculateCacheScore(item: ResourceItem): number {
     const now = Date.now();
     const timeSinceLastAccess = now - item.lastAccessTime;
     const hoursSinceLastAccess = timeSinceLastAccess / (1000 * 60 * 60);

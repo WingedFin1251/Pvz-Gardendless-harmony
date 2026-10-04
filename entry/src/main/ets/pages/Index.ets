@@ -15,6 +15,8 @@ import { PayloadServer, PAYLOAD_DIR } from '../services/PayloadServer';
 import { PanelActions } from '../services/PanelActions';
 import { PreferenceStore } from '../services/PreferenceStore';
 import { DownloadSaver } from '../services/DownloadSaver';
+import { ShellPrefs, DEFAULT_EXPECTED_REFRESH } from '../services/ShellPrefs';
+import { parseVp, computeAspectLayout } from '../common/AspectRatio';
 import { util } from '@kit.ArkTS';
 
 
@@ -31,12 +33,7 @@ const ENABLE_WEB_DEBUG: boolean = false;
 // 网页的 alert/confirm/prompt 是同步阻塞的，只要有一次没回调，render 进程就会一直卡住。
 const JS_DIALOG_TIMEOUT: number = 120000;
 
-// 画面比例约束区间 3:2 ~ 17:9。
-// 用交叉相乘避免浮点比较：w/h > MAX 视为太宽，w/h < MIN 视为太方。
-const MIN_ASPECT_W: number = 3;    // 最窄 3:2  ≈ 1.500
-const MIN_ASPECT_H: number = 2;
-const MAX_ASPECT_W: number = 171;  // 最宽 17:9 ≈ 1.889
-const MAX_ASPECT_H: number = 90;
+// 画面比例约束区间（3:2 ~ 17:9）与换算逻辑都在 common/AspectRatio.ets
 
 // ==================== 期望帧率投票（可变帧率 / LTPO） ====================
 // 背景：鸿蒙的"控帧系统"收集应用的**期望绘制帧率**参与整机刷新率决策；没有高帧率投票时，
@@ -52,12 +49,9 @@ const MAX_ASPECT_H: number = 90;
 const ENABLE_HIGH_REFRESH_VOTE: boolean = true;
 const HIGH_REFRESH_EXPECTED: number = 120;
 const HIGH_REFRESH_MIN: number = 60;
-const DEFAULT_EXPECTED_REFRESH: string = '120';            // 首次启动默认值（面板可改，已持久化）
 
-// "铺满画面"偏好在 preferences 中的键名
-const PREF_WEB_FULLSCREEN: string = 'webview_fullscreen';
-const PREF_EXPECTED_REFRESH: string = 'expected_refresh';   // 'off' | '60' | '120' | 'max'
-const PREF_SETTINGS_HINT_SEEN: string = 'settings_hint_seen'; // 首次启动提示过长按 GP 按钮
+
+// 壳层自己的偏好键名与默认值都在 services/ShellPrefs.ets（与 PreferenceStore 分工不同）
 
 
 // ==================== 负载目录 ====================
@@ -79,6 +73,7 @@ struct CocosJSApp {
   private injectedScript: string = GPNEXT_SHIM;
   private filePickerHelper?: FilePickerHelper;
   private readonly downloadSaver: DownloadSaver = new DownloadSaver();   // 下载回调 + 落盘（见 services/DownloadSaver.ets）
+  private readonly shellPrefs: ShellPrefs = new ShellPrefs();            // 壳层自己的偏好（见 services/ShellPrefs.ets）
   private timeoutId?: number;
   private hideButtonTimer?: number;
   private prefs?: preferences.Preferences;
@@ -199,16 +194,16 @@ struct CocosJSApp {
     try {
       this.prefs = await preferences.getPreferences(context, 'game_save');
       this.preferenceStore.attach(this.prefs);   // 交给落盘层（Web 侧白名单键的持久化）
+      this.shellPrefs.attach(this.prefs);        // 交给壳层偏好（铺满 / 期望刷新率 / 提示标记）
       // 恢复"铺满画面"偏好
-      this.isFillScreen = await this.prefs.get(PREF_WEB_FULLSCREEN, false) as boolean;
+      this.isFillScreen = await this.shellPrefs.loadFillScreen();
       // 恢复"期望刷新率"偏好（面板里可改）
-      this.expectedRefresh = await this.prefs.get(PREF_EXPECTED_REFRESH, DEFAULT_EXPECTED_REFRESH) as string;
+      this.expectedRefresh = await this.shellPrefs.loadExpectedRefresh();
       // 首次启动提示一次：设置面板在长按 GP 按钮里（发现性）
-      const hintSeen = await this.prefs.get(PREF_SETTINGS_HINT_SEEN, false) as boolean;
+      const hintSeen = await this.shellPrefs.loadHintSeen();
       if (!hintSeen) {
         this.showStatusMessage('提示：长按右下角 GP 按钮可打开设置', 5000);
-        await this.prefs.put(PREF_SETTINGS_HINT_SEEN, true);
-        await this.prefs.flush();
+        await this.shellPrefs.markHintSeen();
       }
       // aboutToAppear 是异步的，首次布局触发的 onAreaChange 很可能先于这里完成，
       // 故读完偏好必须重算一次，否则保存过的"铺满"在启动时会被静默忽略。
@@ -225,48 +220,21 @@ struct CocosJSApp {
     this.startHighRefreshVote();
   }
 
-  /**
-   * 把 Area 的 Length 值安全转成 vp 数值。
-   * 运行时该值可能是 '720.00vp' 这类带单位字符串，`Number()` 会得到 NaN 并污染布局，
-   * 故用 parseFloat 兜底；解析失败返回 0，随后退化为 100% 铺满。
-   */
-  private parseVp(value: Length): number {
-    const n = Number.parseFloat(value.toString());
-    return Number.isNaN(n) ? 0 : n;
-  }
-
-  /**
-   * 按 3:2 ~ 17:9 区间计算 Web 的目标尺寸与居中偏移。
-   *  - 太宽（> 17:9，如 20:9 / 21:9）：以高度为基准，宽度卡在 17:9，左右留黑边
-   *  - 太方（< 3:2，如 4:3 / 7:5）：以宽度为基准，高度卡在 3:2，上下留黑边
-   *  - 落在区间内：直接铺满
-   */
+  /** 把算好的比例结果写进布局状态（纯计算见 common/AspectRatio.ets 的 computeAspectLayout） */
   private applyAspectRatio(): void {
-    const w = this.containerW;
-    const h = this.containerH;
     // 尚未测量到容器尺寸，或处于铺满模式：交给 100% 尺寸
-    if (w <= 0 || h <= 0 || this.isFillScreen) {
+    if (this.containerW <= 0 || this.containerH <= 0 || this.isFillScreen) {
       this.webW = '100%';
       this.webH = '100%';
       this.webX = 0;
       this.webY = 0;
       return;
     }
-
-    let targetW = w;
-    let targetH = h;
-    if (w * MAX_ASPECT_H > h * MAX_ASPECT_W) {
-      // 太宽：> 17:9
-      targetW = h * MAX_ASPECT_W / MAX_ASPECT_H;
-    } else if (w * MIN_ASPECT_H < h * MIN_ASPECT_W) {
-      // 太方：< 3:2
-      targetH = w * MIN_ASPECT_H / MIN_ASPECT_W;
-    }
-
-    this.webW = targetW;
-    this.webH = targetH;
-    this.webX = (w - targetW) / 2;
-    this.webY = (h - targetH) / 2;
+    const layout = computeAspectLayout(this.containerW, this.containerH);
+    this.webW = layout.width;
+    this.webH = layout.height;
+    this.webX = layout.x;
+    this.webY = layout.y;
   }
 
   /**
@@ -367,16 +335,7 @@ struct CocosJSApp {
   }
 
   private async persistExpectedRefresh(): Promise<void> {
-    if (!this.prefs) {
-      return;
-    }
-    try {
-      await this.prefs.put(PREF_EXPECTED_REFRESH, this.expectedRefresh);
-      await this.prefs.flush();
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`保存期望刷新率失败: code=${error.code}, message=${error.message}`);
-    }
+    await this.shellPrefs.saveExpectedRefresh(this.expectedRefresh);
   }
 
   /** 面板用：期望刷新率的可读文案 */
@@ -530,16 +489,7 @@ struct CocosJSApp {
     this.applyAspectRatio();
     this.showStatusMessage(this.isFillScreen ? '画面：铺满' : '画面：3:2 ~ 17:9 留边', 2000);
 
-    if (!this.prefs) {
-      return;
-    }
-    try {
-      await this.prefs.put(PREF_WEB_FULLSCREEN, this.isFillScreen);
-      await this.prefs.flush();
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`保存铺满偏好失败: code=${error.code}, message=${error.message}`);
-    }
+    await this.shellPrefs.saveFillScreen(this.isFillScreen);
   }
 
   /** 让 GP 按钮在无操作一段时间后自动贴边隐藏；任何与它的交互都会重新计时 */
@@ -1017,8 +967,8 @@ struct CocosJSApp {
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       // 用实际容器尺寸而非 display 尺寸：小窗 / 分屏 / 2in1 窗口模式下同样正确。
       // width/height 静态类型是 Length，可能是带单位字符串，故统一走 parseVp 兜底。
-      const w = this.parseVp(newArea.width);
-      const h = this.parseVp(newArea.height);
+      const w = parseVp(newArea.width);
+      const h = parseVp(newArea.height);
       if (w !== this.containerW || h !== this.containerH) {
         this.containerW = w;
         this.containerH = h;

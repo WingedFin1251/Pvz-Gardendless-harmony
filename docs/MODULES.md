@@ -255,6 +255,9 @@ vote.start();
 
 ## 帧率相关的三套设置、两个存档键（真机 + 源码核对）
 
+> 本节描述的是**带 GP-Next 的变体**（`lite` / `gpnext`）。**base 变体的负载里没有 gpNext 挂载点**
+> （全目录 grep 0 命中），因此下表后两行在 base 上不存在 —— base 只有"游戏内置帧率"这一套。
+
 | 名称 | 在哪里设置 | 存到哪 | 语义 |
 | :--- | :--- | :--- | :--- |
 | **游戏内置帧率** | 游戏内右下角**扳手**页面 | `localStorage['PvZ2_Settings'].animationFrameRate` | `1`=24 / `2`=30 / `3`=60 / **其它值（0）= 无限制**（其 getter 返回 `Infinity`） |
@@ -270,3 +273,56 @@ vote.start();
 - **正确判据 = 壳层设置面板里的「实测」**（1 秒采样 `cc.director` 帧数）。
 - 壳层设置面板的「**设为不限**」按钮：调用 `window.gpNext.setFrameRate(999)`（安全老路径）+
   把 `gp-next-settings.frameRate` 写成 `'0'`（与手机一致），**不修改游戏存档**。
+
+---
+
+## 存储：什么存在哪里（真机实测）
+
+### 三层位置
+
+| 位置 | 里面有什么 | 系统「清除缓存」 | 系统「清除数据」 |
+| :--- | :--- | :--- | :--- |
+| **Preferences**（store `game_save`）| 玩家存档、游戏设置、壳层自身设置 | 理论上不该丢\* | **丢** |
+| `filesDir` | 下载流程的 fallback 文件、应用自己写的文件 | 不丢 | 丢 |
+| `cacheDir` | 下载中转的临时文件 | **丢** | 丢 |
+
+\* 有些 ROM 的「清除缓存」会连 Preferences 一起清（实机遇到过）—— 所以看到"设置 / 帧率回到默认"时，
+先确认用户清的是**缓存**还是**数据**，不要一上来就怀疑代码。
+
+### 存档键：全部在 Preferences 里
+
+页面 `localStorage` 里的存档键由壳层的 JS 代理 `NativeStorage`（`saveToNative` / `loadFromNative`）
+落到应用的 Preferences（store 名 `game_save`）。**base 变体自己只注册这个代理、不写任何壳层偏好**
+（铺满 / 留边是按画面比例实时算出来的，不持久化），因此这个 store 里只有游戏写的键：
+
+| 键 | 是什么 |
+| :--- | :--- |
+| `PvZ2_PlayerProperties` | **玩家存档**（关卡进度、植物 / 僵尸图鉴、花园、危险室、升级、每日关……），百 KB 量级 |
+| `PvZ2_Settings` | **游戏设置**（`AnimationFrameRate`、音量、键位、语言等），单值明文 JSON |
+
+> `lite` / `gpnext` 变体还会在此 store 里多几个**壳层自己**的键：`expected_refresh`（期望刷新率）、
+> `settings_hint_seen`、`webview_fullscreen`（铺满 / 留边）。
+
+> ⚠️ 壳层**从不修改**任何游戏存档键（`PvZ2_Settings` 在 `Index.ets` 中出现 0 次）。
+
+### 排查方法（开发者模式下可直接读，不必加日志）
+
+```powershell
+# 应用私有目录可读（设备需处于开发者模式）
+hdc -t <设备> file recv `
+  /data/app/el2/100/base/com.gardendless.<变体>/haps/entry/preferences/game_save `
+  <本地路径>
+# 内容是 <preferences> 结构的 XML，键名/值都是明文
+```
+
+> 🔒 该文件里**包含玩家的完整存档**，属于个人数据：只在本地查看，**不要提交进仓库、不要贴进 release 正文**。
+
+### 一个容易踩的坑：「帧率上限 60 fps」不等于读失败
+
+带 GP-Next 的变体里，`gp-next-settings.frameRate` 的**默认值就是 `'60'`**，而且它的读取实现是
+「读 → 合并默认值 → **立刻写回**」——**一旦读不到，60 会被马上固化写回**。
+因此在那个变体上判断"持久化到底行不行"，唯一可靠做法是：
+
+1. 面板点「**设为不限**」（写入一个非默认值）
+2. `hdc shell "aa force-stop <bundle>"` 杀掉应用
+3. 重开 → 打开面板：仍是「**不限**」= 读写往返正常；回到「60」= 持久化有问题

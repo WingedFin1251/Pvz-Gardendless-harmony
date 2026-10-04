@@ -33,6 +33,16 @@ export struct SettingsPanel {
   onOpenGpNext: () => void = () => { };
   onDisableScheduler: () => void = () => { };
 
+  /** 单个刷新率按钮（M11：复用；只接收常量参数，选中态通过 this 读取状态） */
+  @Builder
+  rateButton(label: string, value: string) {
+    Button(label)
+      .fontSize(PANEL_FS_BUTTON)
+      .backgroundColor(this.expectedRefresh === value ? PANEL_C_ACCENT : PANEL_C_BTN)
+      .layoutWeight(1)
+      .onClick(() => { this.onPickRefresh(value); })
+  }
+
   build() {
     Column() {
       Scroll() {
@@ -99,26 +109,13 @@ export struct SettingsPanel {
             .width('100%')
             .margin({ bottom: PANEL_GAP_TITLE })
           Row({ space: 6 }) {
-            Button('关闭')
-              .fontSize(PANEL_FS_BUTTON)
-              .backgroundColor(this.expectedRefresh === 'off' ? PANEL_C_ACCENT : PANEL_C_BTN)
-              .layoutWeight(1)
-              .onClick(() => { this.onPickRefresh('off'); })
-            Button('60')
-              .fontSize(PANEL_FS_BUTTON)
-              .backgroundColor(this.expectedRefresh === '60' ? PANEL_C_ACCENT : PANEL_C_BTN)
-              .layoutWeight(1)
-              .onClick(() => { this.onPickRefresh('60'); })
-            Button('120')
-              .fontSize(PANEL_FS_BUTTON)
-              .backgroundColor(this.expectedRefresh === '120' ? PANEL_C_ACCENT : PANEL_C_BTN)
-              .layoutWeight(1)
-              .onClick(() => { this.onPickRefresh('120'); })
-            Button('最高')
-              .fontSize(PANEL_FS_BUTTON)
-              .backgroundColor(this.expectedRefresh === 'max' ? PANEL_C_ACCENT : PANEL_C_BTN)
-              .layoutWeight(1)
-              .onClick(() => { this.onPickRefresh('max'); })
+            // M11：四个按钮形状完全相同，抽成 @Builder 复用。
+            // 注意（官方文档）：@Builder 按值传参时，状态变量变化**不会**刷新其内部 UI，
+            // 所以这里只传常量（label/value），选中态用 this.expectedRefresh 读取。
+            this.rateButton('关闭', 'off')
+            this.rateButton('60', '60')
+            this.rateButton('120', '120')
+            this.rateButton('最高', 'max')
           }
           .width('100%')
           .margin({ bottom: PANEL_GAP_TITLE })

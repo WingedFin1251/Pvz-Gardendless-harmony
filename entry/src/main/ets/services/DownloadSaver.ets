@@ -132,7 +132,8 @@ export class DownloadSaver {
           if (fs.statSync(uri).isDirectory()) {
             return true;
           }
-        } catch (e) {
+        } catch (statErr) {
+          // 目录还不存在时 statSync 会抛错，这是预期路径：继续往下走 mkdir
         }
         fs.mkdirSync(uri, true);
         console.info(`目录创建成功: ${uri}`);
@@ -152,11 +153,9 @@ export class DownloadSaver {
       return createDirectoryIfNotExists(parentDir);
     };
 
-    const cleanPath = (path: string): string =>
-      path.replace(/\/com\.example\.doubao\/com\.example\.doubao\//g, '/com.example.doubao/')
-        .replace(/\/com\.example\.doubao\/\//g, '/com.example.doubao/');
 
-    let destUri = cleanPath(this.finalSaveUri);
+
+    let destUri = this.finalSaveUri;   // M9：去掉从豆包示例带过来的包名清洗（对本应用恒不匹配）
     let retry = false;
     let success = false;
 
@@ -176,11 +175,15 @@ export class DownloadSaver {
             try {
               fs.closeSync(srcFile);
             } catch (closeErr) {
+              // 关闭失败不再抛：这里在 finally 里，抛出去会盖掉真正的错误原因
+              console.warn(`关闭源文件失败: ${(closeErr as BusinessError).message}`);
             }
           }
           try {
             fs.closeSync(destFile);
           } catch (closeErr) {
+            // 关闭失败不再抛：这里在 finally 里，抛出去会盖掉真正的错误原因
+            console.warn(`关闭目标文件失败: ${(closeErr as BusinessError).message}`);
           }
         }
         fs.unlinkSync(this.tempDownloadPath);
@@ -189,10 +192,11 @@ export class DownloadSaver {
         success = true;
         break;
       } catch (err) {
-        if (!retry && err.message.includes('Is a directory')) {
+        const copyError = err as BusinessError;   // M10：不要直接访问 unknown 的 err.message
+        if (!retry && copyError.message.includes('Is a directory')) {
           const retryFileName = getFileNameFromPath(this.tempDownloadPath);
           destUri = `${this.finalSaveUri}/${retryFileName}`;
-          destUri = cleanPath(destUri);
+
           retry = true;
           continue;
         }
@@ -226,7 +230,9 @@ export class DownloadSaver {
     if (this.tempDownloadPath) {
       try {
         fs.unlinkSync(this.tempDownloadPath);
-      } catch (e) {
+      } catch (cleanupErr) {
+        // 删临时文件失败不影响用户看到的结果（目标文件已另存），只记一条日志
+        console.warn(`清理下载临时文件失败: ${(cleanupErr as BusinessError).message}`);
       }
     }
   }

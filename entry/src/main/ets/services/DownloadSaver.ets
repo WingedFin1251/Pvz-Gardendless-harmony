@@ -71,6 +71,8 @@ export class DownloadSaver {
 
         const context = callbacks.getContext();
         if (!context) {
+          console.error('下载失败：拿不到 UIAbilityContext');
+          this.resetState();
           return;
         }
         const tempPath = `${context.cacheDir}/${fileName}`;
@@ -93,21 +95,28 @@ export class DownloadSaver {
 
     this.webDelegate.onDownloadFailed(() => {
       callbacks.notify('下载失败', 3000);
-      this.isDownloading = false;
       this.removeTempFile();
+      this.resetState();
     });
 
     this.webDelegate.onDownloadFinish(async () => {
       console.log('下载完成，开始复制到公共目录');
       if (!this.tempDownloadPath || !this.finalSaveUri) {
         callbacks.notify('下载失败，保存路径无效', 3000);
-        this.isDownloading = false;
+        this.resetState();
         return;
       }
       this.saveFinishedFile(callbacks);
     });
 
     return this.webDelegate;
+  }
+
+  /** 统一收尾：复位"是否在下载"与两个路径 —— 任何早退路径都必须走这里，否则下载功能会被永久卡死 */
+  private resetState(): void {
+    this.isDownloading = false;
+    this.tempDownloadPath = '';
+    this.finalSaveUri = '';
   }
 
   /** 下载完成后的落盘：复制到用户选的位置；目录异常时重试；再失败兜底到应用目录 */
@@ -154,10 +163,23 @@ export class DownloadSaver {
           break;
         }
         const destFile = fs.openSync(destUri, fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC | fs.OpenMode.CREATE);
-        const srcFile = fs.openSync(this.tempDownloadPath, fs.OpenMode.READ_ONLY);
-        fs.copyFileSync(srcFile.fd, destFile.fd);
-        fs.closeSync(srcFile);
-        fs.closeSync(destFile);
+        let srcFile: fs.File | undefined = undefined;
+        try {
+          srcFile = fs.openSync(this.tempDownloadPath, fs.OpenMode.READ_ONLY);
+          fs.copyFileSync(srcFile.fd, destFile.fd);
+        } finally {
+          // 任一步抛错也必须关掉已打开的 fd（否则反复失败会耗尽 fd 配额）
+          if (srcFile !== undefined) {
+            try {
+              fs.closeSync(srcFile);
+            } catch (closeErr) {
+            }
+          }
+          try {
+            fs.closeSync(destFile);
+          } catch (closeErr) {
+          }
+        }
         fs.unlinkSync(this.tempDownloadPath);
         const stat = fs.statSync(destUri);
         callbacks.notify(`下载完成，大小: ${(stat.size / 1024).toFixed(1)} KB`, 2000);
@@ -194,9 +216,7 @@ export class DownloadSaver {
     if (!success) {
       this.removeTempFile();
     }
-    this.isDownloading = false;
-    this.tempDownloadPath = '';
-    this.finalSaveUri = '';
+    this.resetState();
   }
 
   private removeTempFile(): void {

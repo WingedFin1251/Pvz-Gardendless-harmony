@@ -42,7 +42,13 @@ export class ShellPrefs {
     if (!store) {
       return false;
     }
-    return await store.get(PREF_WEB_FULLSCREEN, false) as boolean;
+    try {
+      return await store.get(PREF_WEB_FULLSCREEN, false) as boolean;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取铺满偏好失败: code=${error.code}, message=${error.message}`);
+      return false;
+    }
   }
 
   /** 写"铺满 / 留边" */
@@ -56,7 +62,13 @@ export class ShellPrefs {
     if (!store) {
       return DEFAULT_EXPECTED_REFRESH;
     }
-    return await store.get(PREF_EXPECTED_REFRESH, DEFAULT_EXPECTED_REFRESH) as string;
+    try {
+      return await store.get(PREF_EXPECTED_REFRESH, DEFAULT_EXPECTED_REFRESH) as string;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取期望刷新率失败: code=${error.code}, message=${error.message}`);
+      return DEFAULT_EXPECTED_REFRESH;
+    }
   }
 
   /** 写期望刷新率 */
@@ -70,7 +82,13 @@ export class ShellPrefs {
     if (!store) {
       return true;   // 未就绪时当作"已弹过"，避免重复打扰
     }
-    return await store.get(PREF_SETTINGS_HINT_SEEN, false) as boolean;
+    try {
+      return await store.get(PREF_SETTINGS_HINT_SEEN, false) as boolean;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取提示标记失败: code=${error.code}, message=${error.message}`);
+      return true;   // 读不到也当作"已弹过"，避免每次启动都弹
+    }
   }
 
   /** 记下"首次提示已弹过" */

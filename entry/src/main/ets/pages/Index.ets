@@ -944,8 +944,9 @@ struct CocosJSApp {
           }
           return true;
         })
-        // 在页面自身脚本之前注入 Tauri 兼容层：payload 自带的 localStorage polyfill 只在
-        // window.__TAURI_INTERNALS__ 缺失时才安装，于是会自动让位给原生桥。
+        // 在页面自身脚本之前注入：GPNEXT_SHIM（Tauri 兼容层）+ touchPatch.js（触摸/性能补丁 + localStorage 白名单桥）。
+        // 注：0.14.0 负载的 index.html 自带一个残缺 polyfill（只在 __TAURI_INTERNALS__ 缺失时才装），
+        // 0.15.0 负载已无该 polyfill；存档落盘这条链路完全由 touchPatch.js 的白名单负责（见 docs/MODULES.md）。
         .javaScriptOnDocumentStart([{ script: this.injectedScript, scriptRules: ['*'] }])
         .onControllerAttached(() => {
           this.registerNativeStorage();  // 注册 localStorage 持久化代理

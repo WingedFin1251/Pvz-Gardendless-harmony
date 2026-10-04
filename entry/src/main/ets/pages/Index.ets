@@ -10,6 +10,7 @@ import { GPNEXT_SHIM } from '../common/GpNextShim';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { RefreshVote, readDisplayInfo } from '../services/RefreshVote';
 import { PayloadServer, PAYLOAD_DIR } from '../services/PayloadServer';
+import { PanelActions } from '../services/PanelActions';
 import { util } from '@kit.ArkTS';
 
 
@@ -425,48 +426,18 @@ struct CocosJSApp {
   }
 
   /** 读页面里 GP-Next 的「帧率」设置（只读展示；设置入口在 GP-Next 面板 → 实验性） */
+  // ==================== 设置面板的动作（实现见 services/PanelActions.ets）====================
+  // 本页只负责：把结果写进 @State、以及决定要不要弹提示。
+  // 与页面 / 引擎打交道的内嵌 JS 全部在服务里（那里也写清了“壳层面板”与“GP-Next 设置”的区别）。
+
+  /** 读取「帧率上限」与「实验帧率调度」状态（打开面板时、点「↻」时调用） */
   private async readEngineFrameRate(): Promise<void> {
     try {
-      // GP-Next 存档里有两个互不相干的帧率字段（注意：GP-Next 面板的「设置」页并没有帧率控件，
-      // 游戏内帧率由游戏自己的扳手页面设置，它最终也落到这个存档字段/引擎上）：
-      //   · settings.frameRate            （30/60/120/144/不限，'0' = 不限）
-      //   · settings.experimental.frameRate（仅当「实验帧率调度」开启时生效）
-      // 两台设备值不同是正常的；引擎是否真的跑得动，看下面的"实测"。
-      // 顶层 settings.frameRate 是另一个遗留设置（默认 60，不随实验性变化）——之前读错的就是它。
-      // 页面侧只返回**数字**（-1 表示读不到），避免字符串带引号需要额外处理。
-      const raw = await this.webController.runJavaScript(`(function(){
-        try {
-          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
-          var ex = s.experimental || {};
-          var v = (ex.frameScheduler === true) ? ex.frameRate : s.frameRate;
-          if (v === undefined || v === null || v === '') { return -1; }
-          var n = Number(v);
-          return isNaN(n) ? -1 : n;
-        } catch (e) { return -1; }
-      })()`);
-      const n = Number(String(raw).trim());
-      if (!Number.isFinite(n) || n < 0) {
-        this.engineFrameRate = '未知';
-      } else {
-        this.engineFrameRate = (n === 0 || n === 999) ? '不限' : n + ' fps';
-      }
-      // 同一个存储里还带着"实验帧率调度"开关：它开着时上游会用纯 JS 节拍器接管帧循环，
-      // 在 ArkWeb/平板上会造成明显卡顿（用户实测反馈），因此这里读出来用于警告。
-      // 同一次读里把「实验帧率调度」的状态与它的帧率一起取回：-2 = 调度关闭；>=0 = 实验性帧率
-      const scRaw = await this.webController.runJavaScript(`(function(){
-        try {
-          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
-          var ex = s.experimental || {};
-          if (ex.frameScheduler !== true) { return -2; }
-          var v = Number(ex.frameRate);
-          return isNaN(v) ? -2 : v;
-        } catch (e) { return -2; }
-      })()`);
-      const sc = Number(String(scRaw).trim());
-      this.frameSchedulerOn = (Number.isFinite(sc) && sc >= 0);
-      this.schedulerFrameRate = this.frameSchedulerOn
-        ? ((sc === 0 || sc === 999) ? '不限' : sc + ' fps')
-        : '已关闭';
+      const readout = await PanelActions.readEngineReadout(
+        (script: string) => this.webController.runJavaScript(script));
+      this.engineFrameRate = readout.frameRateLabel;
+      this.frameSchedulerOn = readout.schedulerOn;
+      this.schedulerFrameRate = readout.schedulerFrameRateLabel;
     } catch (err) {
       const error = err as BusinessError;
       console.error(`读取 GP-Next 帧率失败: code=${error.code}, message=${error.message}`);
@@ -480,16 +451,9 @@ struct CocosJSApp {
    */
   private async disableExperimentalScheduler(): Promise<void> {
     try {
-      const raw = await this.webController.runJavaScript(`(function(){
-        try {
-          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
-          s.experimental = s.experimental || {};
-          s.experimental.frameScheduler = false;
-          localStorage.setItem('gp-next-settings', JSON.stringify(s));
-          return 1;
-        } catch (e) { return -1; }
-      })()`);
-      if (Number(String(raw).trim()) === 1) {
+      const ok = await PanelActions.disableScheduler(
+        (script: string) => this.webController.runJavaScript(script));
+      if (ok) {
         this.frameSchedulerOn = false;
         this.showStatusMessage('已关闭「实验帧率调度」，正在重新加载页面…', 4000);
         setTimeout(() => { this.webController.refresh(); }, 600);
@@ -506,14 +470,8 @@ struct CocosJSApp {
   /** 页面加载完成后检查一次：开着实验帧率调度就提示一次 */
   private async warnIfExperimentalSchedulerOn(): Promise<void> {
     try {
-      const raw = await this.webController.runJavaScript(`(function(){
-        try {
-          var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
-          var ex = s.experimental || {};
-          return ex.frameScheduler === true ? 1 : 0;
-        } catch (e) { return -1; }
-      })()`);
-      const on = (Number(String(raw).trim()) === 1);
+      const on = await PanelActions.isSchedulerOn(
+        (script: string) => this.webController.runJavaScript(script));
       this.frameSchedulerOn = on;
       if (on && !this.schedulerWarned) {
         this.schedulerWarned = true;
@@ -522,33 +480,17 @@ struct CocosJSApp {
     } catch (err) {
       // 读不到就静默：这只是提示，不影响功能
     }
-  }  /**
+  }
+
+  /**
    * 把引擎帧率上限设为「不限」：直接调用 GP-Next 暴露的 mod API（window.gpNext.setFrameRate）。
    * 这是安全的老路径（不涉及「实验帧率调度」那个纯 JS 节拍器），用于游戏内「无限制」不生效时兜底。
    */
   private async forceUnlimitedFrameRate(): Promise<void> {
     try {
-      const raw = await this.webController.runJavaScript(`(function(){
-        try {
-          var ok = 0;
-          // 1) 直接向引擎请求不限（GP-Next 暴露的 mod API，安全老路径）
-          if (window.gpNext && typeof window.gpNext.setFrameRate === 'function') {
-            window.gpNext.setFrameRate(999);
-            ok = 1;
-          }
-          // 2) 同时把存档值写成字符串 '0'：上游性能页对 '0' 有特判（显示"不限"），
-          //    否则它会拿存档里的旧数字（如 60）当"目标FPS"，看着像被限住。
-          try {
-            var s = JSON.parse(localStorage.getItem('gp-next-settings') || '{}') || {};
-            s.frameRate = '0';
-            localStorage.setItem('gp-next-settings', JSON.stringify(s));
-            ok = 1;
-          } catch (e2) { }
-          return ok;
-        } catch (e) { return -1; }
-      })()`);
-      const r = Number(String(raw).trim());
-      if (r === 1) {
+      const ok = await PanelActions.forceUnlimited(
+        (script: string) => this.webController.runJavaScript(script));
+      if (ok) {
         this.showStatusMessage('已把引擎上限与存档都设为「不限」（看下面"实测"确认）', 4500);
       } else {
         this.showStatusMessage('此负载未暴露 setFrameRate，请用游戏内扳手页面设置', 4000);
@@ -560,25 +502,13 @@ struct CocosJSApp {
       console.error(`设置不限帧率失败: code=${error.code}, message=${error.message}`);
       this.showStatusMessage('设置失败', 3000);
     }
-  }  /** 实测引擎帧率：间隔约 1 秒采样两次 cc.director.getTotalFrames()（设置 ≠ 实际时能看出来） */
+  }
+
+  /** 实测引擎帧率：间隔约 1 秒采样两次 cc.director.getTotalFrames()（设置 ≠ 实际时能看出来） */
   private async measureEngineFps(): Promise<void> {
-    const sample = `(function(){
-      try { if (!window.cc || !cc.director) { return -1; } return cc.director.getTotalFrames(); }
-      catch (e) { return -1; }
-    })()`;
     try {
-      const f0 = Number(String(await this.webController.runJavaScript(sample)).trim());
-      if (!Number.isFinite(f0) || f0 < 0) {
-        this.engineFpsMeasured = '不可用';
-        return;
-      }
-      await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 1000); });
-      const f1 = Number(String(await this.webController.runJavaScript(sample)).trim());
-      if (!Number.isFinite(f1) || f1 < f0) {
-        this.engineFpsMeasured = '不可用';
-        return;
-      }
-      this.engineFpsMeasured = (f1 - f0) + ' fps';
+      this.engineFpsMeasured = await PanelActions.measureFps(
+        (script: string) => this.webController.runJavaScript(script));
     } catch (err) {
       this.engineFpsMeasured = '不可用';
     }
@@ -587,25 +517,13 @@ struct CocosJSApp {
   /** 打开 GP-Next 面板（与 GP 按钮单击走同一条路径：window.gpNext.toggle → F9 兜底） */
   private async openGpNextPanel(): Promise<void> {
     try {
-      await this.webController.runJavaScript(`
-        (function() {
-          var g = window.gpNext;
-          if (g) {
-            if (typeof g.toggle === 'function') { g.toggle(); return; }
-            if (typeof g.open === 'function') { g.open(); return; }
-          }
-          if (typeof window.Zt === 'function') { window.Zt(); return; }
-          document.dispatchEvent(new KeyboardEvent('keydown', {
-            key: 'F9', code: 'F9', keyCode: 120, bubbles: true
-          }));
-        })();
-      `);
+      await PanelActions.openGpNextPanel(
+        (script: string) => this.webController.runJavaScript(script));
     } catch (err) {
       const error = err as BusinessError;
       console.error(`打开 GP-Next 面板失败: code=${error.code}, message=${error.message}`);
     }
   }
-
   /** 壳层设置面板（长按 GP 按钮打开） */
   /** 切换 铺满 / 按比例留边，并持久化（面板里触发） */
   /** 切换 铺满 / 按比例留边，并持久化（长按 GP-Next 按钮触发） */

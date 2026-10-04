@@ -31,8 +31,10 @@ export class FilePickerHelper {
     } catch (err) {
       const error = err as BusinessError;
       console.error(`选择保存位置失败: code=${error.code}, message=${error.message}`);
-      if (error.code === 13900001) {   // 权限被拒绝
-        throw new Error('请授予文件访问权限');
+      if (error.code === 13900001) {
+        // 官方文案是 "Operation not permitted"（操作不允许）—— 不是专指"权限被拒绝"，
+        // 所以提示不要断言用户没授权，只说明这次操作不被允许并给出可行动建议。
+        throw new Error('无法访问所选位置（操作不允许），可换个目录再试');
       }
       // 其余错误原样抛出：调用方必须能区分"用户取消"和"选择失败"，否则会误报"已取消下载"
       throw new Error(`无法选择保存位置：${error.message}`);

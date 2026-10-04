@@ -90,10 +90,7 @@ struct CocosJSApp {
   // 画面比例约束：容器实测尺寸（vp）与 Web 的目标尺寸 / 居中偏移
   @State containerW: number = 0;
   @State containerH: number = 0;
-  @State webW: Length = '100%';
-  @State webH: Length = '100%';
-  @State webX: number = 0;
-  @State webY: number = 0;
+
   // true：Web 铺满整屏；false：约束在 3:2 ~ 17:9，超出部分留黑边
   @State isFillScreen: boolean = false;
 
@@ -208,9 +205,6 @@ struct CocosJSApp {
         this.showStatusMessage('提示：长按右下角 GP 按钮可打开设置', 5000);
         await this.shellPrefs.markHintSeen();
       }
-      // aboutToAppear 是异步的，首次布局触发的 onAreaChange 很可能先于这里完成，
-      // 故读完偏好必须重算一次，否则保存过的"铺满"在启动时会被静默忽略。
-      this.applyAspectRatio();
     } catch (err) {
       const error = err as BusinessError;
       console.error(`初始化 Preferences 失败: code=${error.code}, message=${error.message}`);
@@ -223,21 +217,19 @@ struct CocosJSApp {
     this.startHighRefreshVote();
   }
 
-  /** 把算好的比例结果写进布局状态（纯计算见 common/AspectRatio.ets 的 computeAspectLayout） */
-  private applyAspectRatio(): void {
+  /**
+   * 当前比例布局（M2）。
+   * 由 containerW / containerH / isFillScreen 三个状态**直接推导**，不再用 4 个 @State 手工同步：
+   * 任一状态变化都会让 build() 重跑，这里自然重算 —— 少了"忘了在某个入口补算一次"的隐患。
+   * 纯计算仍在 common/AspectRatio.ets 的 computeAspectLayout。
+   */
+  private webLayout(): WebLayout {
     // 尚未测量到容器尺寸，或处于铺满模式：交给 100% 尺寸
     if (this.containerW <= 0 || this.containerH <= 0 || this.isFillScreen) {
-      this.webW = '100%';
-      this.webH = '100%';
-      this.webX = 0;
-      this.webY = 0;
-      return;
+      return { width: '100%', height: '100%', x: 0, y: 0 };
     }
     const layout = computeAspectLayout(this.containerW, this.containerH);
-    this.webW = layout.width;
-    this.webH = layout.height;
-    this.webX = layout.x;
-    this.webY = layout.y;
+    return { width: layout.width, height: layout.height, x: layout.x, y: layout.y };
   }
 
   /**
@@ -491,8 +483,7 @@ struct CocosJSApp {
   /** 切换 铺满 / 按比例留边，并持久化（长按 GP-Next 按钮触发） */
   private async toggleFillScreen(): Promise<void> {
     this.isFillScreen = !this.isFillScreen;
-    this.applyAspectRatio();
-    this.showStatusMessage(this.isFillScreen ? '画面：铺满' : '画面：3:2 ~ 17:9 留边', 2000);
+    this.showStatusMessage(this.isFillScreen ? '画面：铺满' : '画面：3:2 ~ 19:10 留边', 2000);
 
     await this.shellPrefs.saveFillScreen(this.isFillScreen);
   }
@@ -756,9 +747,9 @@ struct CocosJSApp {
         controller: this.webController,
         renderMode: RenderMode.ASYNC_RENDER // 不阻塞ArkUI主线程
       })
-        .width(this.webW)
-        .height(this.webH)
-        .position({ x: this.webX, y: this.webY })   // 比例留边时居中，四周黑边由根 Stack 提供
+        .width(this.webLayout().width)
+        .height(this.webLayout().height)
+        .position({ x: this.webLayout().x, y: this.webLayout().y })   // 比例留边时居中，四周黑边由根 Stack 提供
         .backgroundColor(Color.Black)
         .javaScriptAccess(true)
         .domStorageAccess(true)
@@ -904,13 +895,11 @@ struct CocosJSApp {
               .maxLines(6)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
             if (this.jsDialogKind === 'prompt') {
-              TextInput({ text: this.jsDialogInput })
+              TextInput({ text: $$this.jsDialogInput })
                 .fontSize(14)
                 .width('100%')
                 .defaultFocus(true)
-                .onChange((value: string) => {
-                  this.jsDialogInput = value;
-                })
+                
             }
             Row({ space: 10 }) {
               if (this.jsDialogKind !== 'alert') {
@@ -1008,7 +997,6 @@ struct CocosJSApp {
       if (w !== this.containerW || h !== this.containerH) {
         this.containerW = w;
         this.containerH = h;
-        this.applyAspectRatio();
       }
     })
   }
@@ -1038,4 +1026,12 @@ struct CocosJSApp {
       }
     });
   }
+}
+
+/** M2：比例布局的推导结果（单位 vp / 百分比） */
+interface WebLayout {
+  width: Length;
+  height: Length;
+  x: number;
+  y: number;
 }

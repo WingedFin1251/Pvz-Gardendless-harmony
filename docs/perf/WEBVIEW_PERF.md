@@ -80,7 +80,7 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 - 系统 / 内核：OpenHarmony **7.0** ／ ArkWeb **7.0.0.107**（Chromium **144.0.0.0**）
 - UA：`Mozilla/5.0 (Phone; OpenHarmony 7.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36  ArkWeb/7.0.0.107 Mobile`
 - 采样：每组 **10 次**；`delta` 为 95% 置信区间，`percentDelta` 为相对 CI（原始 metrics 见
-  [`perf/speedometer-arkweb144-bra-al00.json`](perf/speedometer-arkweb144-bra-al00.json)）
+  [`perf/speedometer-arkweb144-bra-al00.json`](speedometer-arkweb144-bra-al00.json)）
 - 单位 ms，**越小越好**
 
 | 套件 | 总 mean | 相对 CI | Adding100Items | CompletingAllItems | DeletingAllItems |
@@ -115,11 +115,11 @@ Speedometer 压的是 JS/DOM/现代框架的吞吐，而 Cocos 游戏几乎不�
 
 | 标签 | 环境 | 原始文件 |
 |:---|:---|:---|
-| `arkweb132` | ArkWeb 内核 M132（按 §1.1，鸿蒙 6 的默认内核就是 M132） | [`perf/speedometer3-arkweb132.json`](perf/speedometer3-arkweb132.json) |
-| `zhuoyitong-edge149` | 卓易通（Android 兼容容器）内的 Edge，Chromium 149 | [`perf/speedometer3-zhuoyitong-edge149.json`](perf/speedometer3-zhuoyitong-edge149.json) |
-| `mi10-webview149`（第 1 轮） | 小米 10 + 系统 WebView 149 | [`perf/speedometer3-mi10-webview149.json`](perf/speedometer3-mi10-webview149.json) |
-| `mi10-webview149`（第 2 轮） | 同上，作者另一次粘贴并原样给出总分 **9.51 ± 0.14** | [`perf/speedometer3-mi10-webview149-r2.json`](perf/speedometer3-mi10-webview149-r2.json) |
-| `mi10-edge149` | 小米 10 + Edge（内核 149）——即作者所说「那个五点几跑分」的那次 | [`perf/speedometer3-mi10-edge149.json`](perf/speedometer3-mi10-edge149.json) |
+| `arkweb132` | ArkWeb 内核 M132（按 §1.1，鸿蒙 6 的默认内核就是 M132） | [`perf/speedometer3-arkweb132.json`](speedometer3-arkweb132.json) |
+| `zhuoyitong-edge149` | 卓易通（Android 兼容容器）内的 Edge，Chromium 149 | [`perf/speedometer3-zhuoyitong-edge149.json`](speedometer3-zhuoyitong-edge149.json) |
+| `mi10-webview149`（第 1 轮） | 小米 10 + 系统 WebView 149 | [`perf/speedometer3-mi10-webview149.json`](speedometer3-mi10-webview149.json) |
+| `mi10-webview149`（第 2 轮） | 同上，作者另一次粘贴并原样给出总分 **9.51 ± 0.14** | [`perf/speedometer3-mi10-webview149-r2.json`](speedometer3-mi10-webview149-r2.json) |
+| `mi10-edge149` | 小米 10 + Edge（内核 149）——即作者所说「那个五点几跑分」的那次 | [`perf/speedometer3-mi10-edge149.json`](speedometer3-mi10-edge149.json) |
 
 单位 ms、**越小越快**；下表为各顶层套件的 10 次均值：
 

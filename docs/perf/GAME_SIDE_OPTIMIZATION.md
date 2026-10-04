@@ -262,7 +262,7 @@ node .tools/cdp-trace.mjs 127.0.0.1:9421 45 trace.json reload
    `gp-next://<uuid>/js/main.js` 等），再对回调计时 / 限频；
 3. 识别不出归属时**行为完全不变**（直接走原始 `setInterval`），因此失效是安全的。
 
-原始数据归档在 [`docs/perf/game-side-2026-09-19/`](perf/game-side-2026-09-19/)。
+原始数据归档在 [`docs/perf/game-side-2026-09-19/`](game-side-2026-09-19/)。
 
 ---
 

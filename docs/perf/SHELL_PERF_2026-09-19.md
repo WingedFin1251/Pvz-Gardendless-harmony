@@ -3,7 +3,7 @@
 > **适用**：三仓库共用（基础版 / Lite / GP-Next）。本文只记录**可复核的事实**，
 > 每条结论都标注证据等级：
 >
-> - 🅐 **已归档原始数据**：原始输出就在 [`docs/perf/shell-ab-2026-09-19/`](perf/shell-ab-2026-09-19/) 里，可逐项复核；
+> - 🅐 **已归档原始数据**：原始输出就在 [`docs/perf/shell-ab-2026-09-19/`](shell-ab-2026-09-19/) 里，可逐项复核；
 > - 🅑 **会话内测得**：脚本已记录在 §6，但当时的原始输出未归档，只能按 §6 复现。
 >
 > 与 [WEBVIEW_PERF.md](WEBVIEW_PERF.md) 的关系：那份是**长期维护**的性能现状与优化清单；
@@ -57,10 +57,10 @@
 
 | 手段 | 覆盖内容 | 归档形式 |
 |:---|:---|:---|
-| **华为「性能分析」导出**（196 s，约 1 Hz） | fps / 卡顿 / 逐核 CPU / GPU / 内存分类 / 温度 / 功耗 | 官方汇总转录 + 逐秒内存序列 → [`official-fps-summary.md`](perf/shell-ab-2026-09-19/official-fps-summary.md)、[`official-memory-detail.tsv`](perf/shell-ab-2026-09-19/official-memory-detail.tsv)；源文件校验值见 [`SOURCE-PROVENANCE.md`](perf/shell-ab-2026-09-19/SOURCE-PROVENANCE.md) |
-| **页内探针**（ArkWeb DevTools 协议注入） | 逐帧 `requestAnimationFrame` 间隔、长任务、draw call 数、heapUsed；`cc.director.getTotalFrames()` 真实引擎帧数 | [`degrade-*.json`](perf/shell-ab-2026-09-19/)、[`raf-*.json`](perf/shell-ab-2026-09-19/)、[`reload-ab-*.json`](perf/shell-ab-2026-09-19/)、[`rate-ab-engine.json`](perf/shell-ab-2026-09-19/rate-ab-engine.json) |
-| **JS 归因**（CDP `Profiler` + `Performance.getMetrics` + 引擎阶段/组件钩子） | V8 采样调用树（self/inclusive）、JS 执行时间、任务时间、组件级逐帧耗时、引擎阶段拆分 | [`attrib-999-heavy.json`](perf/shell-ab-2026-09-19/attrib-999-heavy.json)、[`analyze-attrib.txt`](perf/shell-ab-2026-09-19/analyze-attrib.txt) |
-| **`hidumper`**（设备侧） | 每进程 PSS 分类（GL/Graph/native heap/…）、每进程 CPU 占用 | [`hidumper-*.txt`](perf/shell-ab-2026-09-19/)、[`hidumper2-*.txt`](perf/shell-ab-2026-09-19/) |
+| **华为「性能分析」导出**（196 s，约 1 Hz） | fps / 卡顿 / 逐核 CPU / GPU / 内存分类 / 温度 / 功耗 | 官方汇总转录 + 逐秒内存序列 → [`official-fps-summary.md`](shell-ab-2026-09-19/official-fps-summary.md)、[`official-memory-detail.tsv`](shell-ab-2026-09-19/official-memory-detail.tsv)；源文件校验值见 [`SOURCE-PROVENANCE.md`](shell-ab-2026-09-19/SOURCE-PROVENANCE.md) |
+| **页内探针**（ArkWeb DevTools 协议注入） | 逐帧 `requestAnimationFrame` 间隔、长任务、draw call 数、heapUsed；`cc.director.getTotalFrames()` 真实引擎帧数 | [`degrade-*.json`](shell-ab-2026-09-19/)、[`raf-*.json`](shell-ab-2026-09-19/)、[`reload-ab-*.json`](shell-ab-2026-09-19/)、[`rate-ab-engine.json`](shell-ab-2026-09-19/rate-ab-engine.json) |
+| **JS 归因**（CDP `Profiler` + `Performance.getMetrics` + 引擎阶段/组件钩子） | V8 采样调用树（self/inclusive）、JS 执行时间、任务时间、组件级逐帧耗时、引擎阶段拆分 | [`attrib-999-heavy.json`](shell-ab-2026-09-19/attrib-999-heavy.json)、[`analyze-attrib.txt`](shell-ab-2026-09-19/analyze-attrib.txt) |
+| **`hidumper`**（设备侧） | 每进程 PSS 分类（GL/Graph/native heap/…）、每进程 CPU 占用 | [`hidumper-*.txt`](shell-ab-2026-09-19/)、[`hidumper2-*.txt`](shell-ab-2026-09-19/) |
 
 ### 1.3 口径陷阱（引用本文数字前必读）
 
@@ -95,7 +95,7 @@
 ### 2.1 内存（同刻取样，主进程 + 全部子进程）
 
 取样条件：各自 `aa force-stop` 后冷启动，`aa start` 后 **28 s** 取样，同一台设备、同一时段。
-原始输出：[`hidumper2-gpnext.txt`](perf/shell-ab-2026-09-19/hidumper2-gpnext.txt)、[`hidumper2-lite.txt`](perf/shell-ab-2026-09-19/hidumper2-lite.txt)。
+原始输出：[`hidumper2-gpnext.txt`](shell-ab-2026-09-19/hidumper2-gpnext.txt)、[`hidumper2-lite.txt`](shell-ab-2026-09-19/hidumper2-lite.txt)。
 
 | 进程 | `gpnext` | `lite` | 差值 |
 |:---|---:|---:|---:|
@@ -135,7 +135,7 @@
 ### 2.3 逐帧成本
 
 折算方法：`每 draw 成本 = tickMean ÷ drawCalls`（页内探针，`inGameScene`）。
-原始数据：[`degrade-lite-clean.json`](perf/shell-ab-2026-09-19/degrade-lite-clean.json) 等。
+原始数据：[`degrade-lite-clean.json`](shell-ab-2026-09-19/degrade-lite-clean.json) 等。
 
 | 运行 | 轮数 | tick 均值 | draw 均值 | **每 draw** | stalls |
 |:---|---:|---:|---:|---:|---:|
@@ -148,7 +148,7 @@
 **`lite` 与 `gpnext` 的每 draw 成本是同一个值（0.0895 vs 0.0894 ms）**——
 `lite` 省内存，但**不更快**。
 
-> 污染样本单独保留（[`degrade-lite-contaminated.json`](perf/shell-ab-2026-09-19/degrade-lite-contaminated.json)）：
+> 污染样本单独保留（[`degrade-lite-contaminated.json`](shell-ab-2026-09-19/degrade-lite-contaminated.json)）：
 > 它比干净样本差 18%，说明**测量时必须先 `aa force-stop` 另一个应用**，否则后台应用会污染结论。
 
 ### 2.4 B 节结论
@@ -162,7 +162,7 @@
 
 ### 3.1 GPU 不是瓶颈
 
-官方 196 s 采集（[`official-fps-summary.md`](perf/shell-ab-2026-09-19/official-fps-summary.md)）：
+官方 196 s 采集（[`official-fps-summary.md`](shell-ab-2026-09-19/official-fps-summary.md)）：
 
 | 指标 | 值 | 含义 |
 |:---|:---|:---|
@@ -188,8 +188,8 @@ GPU 从未触顶、且下面 §3.2 的"降分辨率无效"实验独立地支持�
 即：**每帧约 28 ms 是与 GL 提交无关的页内计算**，GL 提交只占约 10 ms（≈25%）。
 
 证据 D（🅐 分辨率/抗锯齿 A/B）：
-[`reload-ab-control.json`](perf/shell-ab-2026-09-19/reload-ab-control.json)（canvas 2240×1472、antialias **true**、dpr 2.5）
-vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)（canvas **1400×920**、antialias **false**、dpr 1.25）：
+[`reload-ab-control.json`](shell-ab-2026-09-19/reload-ab-control.json)（canvas 2240×1472、antialias **true**、dpr 2.5）
+vs [`reload-ab-injected.json`](shell-ab-2026-09-19/reload-ab-injected.json)（canvas **1400×920**、antialias **false**、dpr 1.25）：
 
 | | canvas | antialias | draw≈203/259 时的 tick | 每 draw |
 |:---|:---|:---|---:|---:|
@@ -212,8 +212,8 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
    归属真实类名（否则拿到的是压缩后的 `o`/`t`/`n`）；
 3. **CDP**：`Profiler`（200 µs 采样，保存完整调用树）+ `Performance.getMetrics`（JS 执行/任务时间）。
 
-窗口 12 s。原始数据：[`attrib-999-heavy.json`](perf/shell-ab-2026-09-19/attrib-999-heavy.json)（裁剪掉 2.4 MB 原始调用树）、
-完整分析文本 [`analyze-attrib.txt`](perf/shell-ab-2026-09-19/analyze-attrib.txt)。
+窗口 12 s。原始数据：[`attrib-999-heavy.json`](shell-ab-2026-09-19/attrib-999-heavy.json)（裁剪掉 2.4 MB 原始调用树）、
+完整分析文本 [`analyze-attrib.txt`](shell-ab-2026-09-19/analyze-attrib.txt)。
 
 > 方法学提醒：探针自己的包装函数在 profile 里显示为 `target.<computed> @ (inline):40`
 > （CDP `Runtime.evaluate` 注入的代码没有 URL）。因此**本文只采用 self time 与调用祖链**，
@@ -311,7 +311,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 
 ### 3.4 抖动来源：长任务阻塞，而非"均匀地慢"
 
-[`raf-baseline.json`](perf/shell-ab-2026-09-19/raf-baseline.json)（30 s，1408 帧）：
+[`raf-baseline.json`](shell-ab-2026-09-19/raf-baseline.json)（30 s，1408 帧）：
 
 | 指标 | 值 |
 |:---|---:|
@@ -388,7 +388,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 #### 早先的结论错在哪
 
 早先版本曾把 `cc.game.frameRate` 从 payload 默认的 999 限到 60，依据是一次 30 s 顺序采样
-（[`raf-framerate-ab.json`](perf/shell-ab-2026-09-19/raf-framerate-ab.json)：29.46 → 35.65 fps）声称「+21%」。
+（[`raf-framerate-ab.json`](shell-ab-2026-09-19/raf-framerate-ab.json)：29.46 → 35.65 fps）声称「+21%」。
 本次复测推翻它，并查明了**探针本身的方法学缺陷**：
 
 1. **探针把空帧计成了帧**。早先的探针用 `requestAnimationFrame` **回调间隔**当"帧"。
@@ -402,7 +402,7 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 
 #### 交替 A/B 结果（重载场景，逐轮交替，每档 n=3）
 
-原始数据：[`rate-ab-engine.json`](perf/shell-ab-2026-09-19/rate-ab-engine.json)。
+原始数据：[`rate-ab-engine.json`](shell-ab-2026-09-19/rate-ab-engine.json)。
 
 | `cc.game.frameRate` | 三轮实测（引擎 fps） | 均值 | 每帧 JS |
 |:---|:---|---:|---:|
@@ -421,8 +421,8 @@ vs [`reload-ab-injected.json`](perf/shell-ab-2026-09-19/reload-ab-injected.json)
 
 ### 4.4 对帧率的影响：中性
 
-改动前构建 [`degrade-old-build.json`](perf/shell-ab-2026-09-19/degrade-old-build.json)
-vs 改动后 [`degrade-new-build.json`](perf/shell-ab-2026-09-19/degrade-new-build.json)：
+改动前构建 [`degrade-old-build.json`](shell-ab-2026-09-19/degrade-old-build.json)
+vs 改动后 [`degrade-new-build.json`](shell-ab-2026-09-19/degrade-new-build.json)：
 第 2–5 轮每 draw 0.1074 → 0.0989 ms、stalls 92 → 45，看似改善 8%；
 但**改动后的构建先跑、改动前的构建后跑**，后者在设备更热的状态下测量，
 这个偏差方向对旧版本不利，**无法与热漂移分离**。
@@ -503,7 +503,7 @@ hdc shell "cat /proc/meminfo"                           # MemFree / MemAvailable
 
 1. DevEco Studio → **性能分析**（或设备上的「性能测试」）→ 选择 `com.gardendless.gpnext` → 录制 ≥180 s；
 2. 导出目录含 `*.xlsx`（`数据` + `内存明细` 两个 sheet）、`data.csv`、`PowerSensor.csv`、`PowerApplication.csv`、`dubai.db`；
-3. 解析方式见本文归档的 `official-*.md` / `*.tsv`，源文件校验值见 [`SOURCE-PROVENANCE.md`](perf/shell-ab-2026-09-19/SOURCE-PROVENANCE.md)。
+3. 解析方式见本文归档的 `official-*.md` / `*.tsv`，源文件校验值见 [`SOURCE-PROVENANCE.md`](shell-ab-2026-09-19/SOURCE-PROVENANCE.md)。
 
 > ⚠️ 官方导出目录体积可达数百 MB，且 `dubai.db` 含整机遥测（其它应用包名等），
 > 已在 `.gitignore` 中以 `/testing data/` 排除，**不要入库**。

@@ -54,11 +54,16 @@ export default class EntryAbility extends UIAbility {
 
   // ========== 新增内存压力响应（来自第一个片段） ==========
   onMemoryLevel(level: AbilityConstant.MemoryLevel): void {
+    // AbilityConstant.MemoryLevel：MODERATE=0 / LOW=1 / CRITICAL=2
+    // webview.PressureLevel 只有两档：MODERATE=1 / CRITICAL=2
+    // 原实现用 `level >= MEMORY_LEVEL_MODERATE(=0)` ⇒ 恒真，且无论多严重都只申请 MODERATE 裁剪。
+    let pressure: webview.PressureLevel = webview.PressureLevel.MEMORY_PRESSURE_LEVEL_MODERATE;
+    if (level >= AbilityConstant.MemoryLevel.MEMORY_LEVEL_CRITICAL) {
+      pressure = webview.PressureLevel.MEMORY_PRESSURE_LEVEL_CRITICAL;
+    }
     try {
-      // 当内存压力为中等或严重时，释放 Webview 部分内存
-      if (level >= AbilityConstant.MemoryLevel.MEMORY_LEVEL_MODERATE) {
-        webview.WebviewController.trimMemoryByPressureLevel(webview.PressureLevel.MEMORY_PRESSURE_LEVEL_MODERATE);
-      }
+      webview.WebviewController.trimMemoryByPressureLevel(pressure);
+      hilog.info(DOMAIN, 'testTag', '按内存压力修剪 Web 内存: level=%{public}d pressure=%{public}d', level, pressure);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', '修剪内存失败: %{public}s', (err as BusinessError).message);
     }

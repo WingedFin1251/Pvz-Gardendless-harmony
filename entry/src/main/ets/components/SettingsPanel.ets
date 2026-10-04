@@ -86,7 +86,7 @@ export struct SettingsPanel {
           }
           .width('100%')
           .margin({ bottom: PANEL_GAP_HINT })
-          Text('留边：按 3:2 ~ 17:9 比例显示，四周留黑边（不拉伸画面）')
+          Text('留边：按 3:2 ~ 19:10 比例显示，四周留黑边（不拉伸画面）')
             .fontSize(PANEL_FS_HINT)
             .fontColor(PANEL_C_SECONDARY)
             .width('100%')

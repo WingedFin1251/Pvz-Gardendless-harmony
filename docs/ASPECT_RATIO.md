@@ -1,6 +1,6 @@
 # 游戏画面比例（宽高比）约束方案
 
-> 本文档记录 Gardendless 鸿蒙版如何把游戏画面约束在 **3:2 ~ 17:9** 区间内、区间外留黑边，
+> 本文档记录 Gardendless 鸿蒙版如何把游戏画面约束在 **3:2 ~ 19:10** 区间内、区间外留黑边，
 > 以及如何调整区间。实现位置：`entry/src/main/ets/pages/Index.ets`。
 
 ---
@@ -19,7 +19,7 @@
 
 ---
 
-## 2. 约束规则（3:2 ~ 17:9）
+## 2. 约束规则（3:2 ~ 19:10）
 
 设容器实测尺寸为 `w × h`（vp），目标尺寸 `targetW × targetH`：
 
@@ -32,7 +32,7 @@
 判定用**交叉相乘**而非除法，避免浮点误差：
 
 ```ts
-if (w * MAX_ASPECT_H > h * MAX_ASPECT_W) {        // 太宽：> 17:9
+if (w * MAX_ASPECT_H > h * MAX_ASPECT_W) {        // 太宽：> 19:10
   targetW = h * MAX_ASPECT_W / MAX_ASPECT_H;
 } else if (w * MIN_ASPECT_H < h * MIN_ASPECT_W) { // 太方：< 3:2
   targetH = w * MIN_ASPECT_H / MIN_ASPECT_W;
@@ -41,7 +41,7 @@ if (w * MAX_ASPECT_H > h * MAX_ASPECT_W) {        // 太宽：> 17:9
 
 Web 用 `.position()` 居中：`x = (w - targetW) / 2`、`y = (h - targetH) / 2`。
 
-> 区间取 **3:2 ~ 17:9**：上限 17:9 覆盖超宽屏（20:9 / 21:9），下限放宽到 3:2 以适配更高的视口。
+> 区间取 **3:2 ~ 19:10**：上限 19:10 覆盖超宽屏（20:9 / 21:9），下限放宽到 3:2 以适配更高的视口。
 
 ### 与 16:10 设计分辨率的关系（重要取舍）
 
@@ -49,7 +49,7 @@ Web 用 `.position()` 居中：`x = (w - targetW) / 2`、`y = (h - targetH) / 2`
 
 - 容器比 16:10 **更窄**（放到 3:2 = 1.5）→ 游戏在 Canvas 内部加**上下**黑边，
   画面实际占用降为 `1.5 / 1.6 = 93.75%`；
-- 容器比 16:10 **更宽**（17:9）→ 游戏在内部加**左右**黑边。
+- 容器比 16:10 **更宽**（19:10）→ 游戏在内部加**左右**黑边。
 
 即：下限放宽到 3:2 能让 **Web 视口更高**（可用于显示更多 HTML 内容），
 但**游戏画面本身会变小**。若目标是"画面尽可能大"，下限应设 **16:10**。
@@ -61,7 +61,7 @@ Web 用 `.position()` 居中：`x = (w - targetW) / 2`、`y = (h - targetH) / 2`
 ```ts
 const MIN_ASPECT_W: number = 3;    // 最窄 3:2  ≈ 1.500
 const MIN_ASPECT_H: number = 2;
-const MAX_ASPECT_W: number = 171;  // 最宽 17:9 ≈ 1.889
+const MAX_ASPECT_W: number = 171;  // 最宽 19:10 ≈ 1.889
 const MAX_ASPECT_H: number = 90;
 ```
 

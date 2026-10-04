@@ -1,11 +1,11 @@
 /**
- * 画面比例约束（3:2 ~ 17:9）的纯计算。
+ * 画面比例约束（3:2 ~ 19:10）的纯计算。
  *
  * 从 `Index.ets` 的 `parseVp` / `applyAspectRatio` 里搬出来 —— 它们只做算术，不碰任何组件状态，
  * 所以放在 `common/`：页面只负责把结果写进 `@State`。
  *
  * 规则：
- *   · 太宽（> 17:9，如 20:9 / 21:9）：以高度为基准，宽度卡在 17:9，左右留黑边
+ *   · 太宽（> 19:10，如 20:9 / 21:9）：以高度为基准，宽度卡在 19:10，左右留黑边
  *   · 太方（< 3:2，如 4:3 / 7:5）：以宽度为基准，高度卡在 3:2，上下留黑边
  *   · 落在区间内：原样返回（相当于铺满）
  */
@@ -13,9 +13,9 @@
 /** 最窄 3:2 ≈ 1.500 */
 const MIN_ASPECT_W: number = 3;
 const MIN_ASPECT_H: number = 2;
-/** 最宽 17:9 ≈ 1.889 */
-const MAX_ASPECT_W: number = 171;
-const MAX_ASPECT_H: number = 90;
+/** 最宽 19:10 = 1.9（等价于原来的 171/90，数值完全相同）*/
+const MAX_ASPECT_W: number = 19;
+const MAX_ASPECT_H: number = 10;
 
 /** 比例计算的结果（单位 vp） */
 export interface AspectLayout {
@@ -37,14 +37,14 @@ export function parseVp(value: Length): number {
 }
 
 /**
- * 按 3:2 ~ 17:9 区间计算 Web 的目标尺寸与居中偏移。
+ * 按 3:2 ~ 19:10 区间计算 Web 的目标尺寸与居中偏移。
  * 调用方需自行处理"铺满模式"与"尚未测量到容器尺寸"两种情况（那属于页面状态，不属于算术）。
  */
 export function computeAspectLayout(containerW: number, containerH: number): AspectLayout {
   let targetW = containerW;
   let targetH = containerH;
   if (containerW * MAX_ASPECT_H > containerH * MAX_ASPECT_W) {
-    // 太宽：> 17:9
+    // 太宽：> 19:10
     targetW = containerH * MAX_ASPECT_W / MAX_ASPECT_H;
   } else if (containerW * MIN_ASPECT_H < containerH * MIN_ASPECT_W) {
     // 太方：< 3:2

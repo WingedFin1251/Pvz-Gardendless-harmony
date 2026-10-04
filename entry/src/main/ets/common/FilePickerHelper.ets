@@ -27,15 +27,16 @@ export class FilePickerHelper {
       if (uris && uris.length > 0) {
         return uris[0];
       }
+      return null;   // 用户取消：唯一的"返回 null"来源
     } catch (err) {
-      console.error('FilePicker error:', err);
-
-      // ✅ 友好提示用户权限问题
-      if (err.code === 13900001) { // 权限被拒绝的错误码
+      const error = err as BusinessError;
+      console.error(`选择保存位置失败: code=${error.code}, message=${error.message}`);
+      if (error.code === 13900001) {   // 权限被拒绝
         throw new Error('请授予文件访问权限');
       }
+      // 其余错误原样抛出：调用方必须能区分"用户取消"和"选择失败"，否则会误报"已取消下载"
+      throw new Error(`无法选择保存位置：${error.message}`);
     }
-    return null;
   }
 
   /**

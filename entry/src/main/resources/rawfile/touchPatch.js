@@ -139,7 +139,12 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
 
 // ==================== localStorage 持久化桥接 ====================
 (function() {
-    var PERSIST_KEYS = ['PvZ2_PlayerProperties', 'PvZ2_Settings'];
+    // 需要持久化到 Preferences 的 localStorage 键。
+    //   · PvZ2_PlayerProperties / PvZ2_Settings：游戏存档与游戏设置（payload 自己读写）
+    //   · gp-next-settings：GP-Next 面板自己的设置（帧率上限 / 实验开关 / overlayHotkey），
+    //     由壳层的 GpNextShim 在 document-start 写入 jsModding 开关，PanelActions 也会改写它。
+    // 原生侧不设第二个白名单（PreferenceStore.save/load 直接存取），所以只要这里加上即可。
+    var PERSIST_KEYS = ['PvZ2_PlayerProperties', 'PvZ2_Settings', 'gp-next-settings'];
 
     function waitForNativeStorage(callback, maxAttempts) {
         maxAttempts = maxAttempts || 50;
@@ -172,7 +177,11 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
         console.log('[localStorage] 开始恢复存档');
         Promise.all(PERSIST_KEYS.map(function(key) {
             return window.NativeStorage.loadFromNative(key).then(function(nativeValue) {
-                if (nativeValue && !originalGetItem.call(localStorage, key)) {
+                // 只要原生侧有值就覆盖：原生副本是「最后一次写入」的权威版本。
+                // 原来这里还要求 !originalGetItem(key)（页面侧没有值才恢复）—— 但 gp-next-settings
+                // 会被 GpNextShim 在 document-start 写入 jsModding 开关，于是它永远恢复不了；
+                // 去掉该条件后，jsModding 也会随之进入持久化副本（shim 的写入同样走 setItem 覆写）。
+                if (nativeValue) {
                     originalSetItem.call(localStorage, key, nativeValue);
                     console.log('[localStorage] 恢复 ' + key + ' 成功');
                 }

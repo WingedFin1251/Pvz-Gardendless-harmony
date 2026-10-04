@@ -1,4 +1,3 @@
-import resourceManager from '@ohos.resourceManager';
 import { common } from '@kit.AbilityKit';
 
 /**

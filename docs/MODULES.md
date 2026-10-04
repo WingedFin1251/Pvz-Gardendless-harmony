@@ -49,7 +49,7 @@ await mainWindow.maximize(window.MaximizePresentation.EXIT_IMMERSIVE); // 最大
 | `enableWebAVSession` | `false` | 关闭音视频会话 |
 | `javaScriptOnDocumentStart` | `[{ script: injectedScript }]` | document-start 注入触摸补丁（`touchPatch.js` 内容在 `aboutToAppear` 里从 rawfile 读入；lite/gpnext 的注入内容为 `GPNEXT_SHIM + touchPatch.js`）。**不再依赖 `index.html` 里的 `<script src>`**，所以负载更新不会冲掉它 |
 
-### 画面比例约束（3:2 ~ 17:9）
+### 画面比例约束（3:2 ~ 19:10）
 
 | 项 | 说明 |
 |------|------|

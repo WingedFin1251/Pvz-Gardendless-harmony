@@ -290,6 +290,13 @@ base 变体自己**不写任何壳层偏好**（铺满 / 留边是按画面比�
 
 > `lite` / `gpnext` 变体还会多几个**壳层自己**的键：`expected_refresh`、`settings_hint_seen`、`webview_fullscreen`。
 
+### 缓存 / 数据清除的影响
+
+- base 的帧率设置就落在白名单内的 `PvZ2_Settings.AnimationFrameRate` ⇒ **清缓存不影响它**
+  （清"数据"才会把存档与设置一起复位）
+- 但 **ArkWeb 自己的网页存储是在"清缓存"时被清掉的**：任何**没进白名单**的网页端设置都活不过一次清缓存
+  （`lite` / `gpnext` 变体的 `gp-next-settings` 就是这种情况 —— 表现为"帧率回落 60，但存档与模组都还在"）
+
 ### 游戏侧：谁在什么时候写存档（负载源码核对）
 
 | 键 | 写者 | 读者 |

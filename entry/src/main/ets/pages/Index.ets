@@ -8,6 +8,8 @@ import { ResourceManager } from '../services/ResourceManager';
 import { GpNextBridge } from '../services/GpNextBridge';
 import { GPNEXT_SHIM } from '../common/GpNextShim';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { StatusToast } from '../components/StatusToast';
+import { GpFloatingButton } from '../components/GpFloatingButton';
 import { RefreshVote, readDisplayInfo } from '../services/RefreshVote';
 import { PayloadServer, PAYLOAD_DIR } from '../services/PayloadServer';
 import { PanelActions } from '../services/PanelActions';
@@ -15,14 +17,9 @@ import { PreferenceStore } from '../services/PreferenceStore';
 import { util } from '@kit.ArkTS';
 
 
-// GP-Next 入口按钮（单位 vp）：改这两个值即可调整按钮大小与距右下角的留白
-const GP_BUTTON_SIZE: number = 44;
-const GP_BUTTON_MARGIN: number = 12;
-// 无操作后自动贴边隐藏：延迟（ms）；隐藏后仍留在屏幕内、可见且可点的宽度（vp）
+// GP 入口按钮的无操作自动贴边隐藏延迟（ms）。
+// 按钮的外观与几何常量（大小 / 留白 / 贴边宽度 / 触摸容差）在 components/GpFloatingButton.ets
 const GP_BUTTON_HIDE_DELAY: number = 4000;
-const GP_BUTTON_SLIVER: number = 26;
-// 隐藏态额外的触摸容差（vp）：把命中区域向屏幕内扩展，缓解贴边后不好点（可见态不扩展）
-const GP_BUTTON_TOUCH_PAD: number = 10;
 
 // Web 调试开关（DevTools）：置 true 后可用 hdc fport + chrome://inspect 排查 GP-Next 的失败点。
 // ArkWeb 默认关闭；正式发布保持 false（DevTools 常驻会带来额外开销与调试面暴露）。
@@ -571,14 +568,6 @@ struct CocosJSApp {
     }
   }
 
-  /**
-   * GP 按钮的命中区域：隐藏态向屏幕内扩 GP_BUTTON_TOUCH_PAD，补偿贴边后可见面积小、
-   * 容易点不中的问题；可见态保持与按钮等大，避免在画面上留下不可见的死区。
-   */
-  private gpButtonResponseRegion(): Rectangle {
-    const pad = this.gpButtonHidden ? GP_BUTTON_TOUCH_PAD : 0;
-    return { x: -pad, y: -pad, width: GP_BUTTON_SIZE + pad * 2, height: GP_BUTTON_SIZE + pad * 2 };
-  }
 
   /** 弹出网页对话框；同一时刻只允许一个，避免未决的 JsResult 卡住 render 进程 */
   private showJsDialog(kind: string, message: string, defaultValue: string,
@@ -917,29 +906,13 @@ struct CocosJSApp {
           this.openExternal(url);
           return true;
         })
-      // 下载/加载状态提示（叠加在画面顶部；放行触摸，避免盖住游戏操作区）
-      Column() {
-        if (this.downloadStatus) {
-          Text(this.downloadStatus)
-            .fontSize(14)
-            // 固定深色半透明 + 白字：不随主题变化，深/浅色模式下都清晰
-            .fontColor('#FFFFFF')
-            .padding(8)
-            .backgroundColor('#E6000000')
-            .width('100%')
-            .textAlign(TextAlign.Center)
-            .opacity(this.statusOpacity)
-            .animation({ duration: 300, curve: Curve.Linear })
-        }
-
-        if (this.isLoading && this.progress < 100) {
-          Progress({ value: this.progress, total: 100, type: ProgressType.Linear })
-            .width('100%').height(4).color('#0A59F7')
-        }
-      }
-      .width('100%')
-      .position({ x: 0, y: 0 })
-      .hitTestBehavior(HitTestMode.Transparent)
+      // 状态提示 + 加载进度条（叠加在画面顶部，放行触摸；组件见 components/StatusToast.ets）
+      StatusToast({
+        message: this.downloadStatus,
+        statusOpacity: this.statusOpacity,
+        loading: this.isLoading,
+        progress: this.progress
+      })
 
       // 网页弹框层（alert / confirm / prompt）：ArkWeb 无默认弹框，这里自绘一个模态卡片
       if (this.jsDialogVisible) {
@@ -1000,61 +973,26 @@ struct CocosJSApp {
         .zIndex(10)
       }
 
-      // GP-Next 面板入口（可见按钮，贴在右下角）
-      Button('GP', { type: ButtonType.Circle, stateEffect: true })
-        .width(GP_BUTTON_SIZE)
-        .height(GP_BUTTON_SIZE)
-        .backgroundColor('#99000000')
-        .fontColor(Color.White)
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .borderWidth(1)
-        .borderColor('#40FFFFFF')
-        .margin({ right: GP_BUTTON_MARGIN, bottom: GP_BUTTON_MARGIN })
-        // 贴边隐藏：向右移出屏幕，只留 GP_BUTTON_SLIVER 宽度可点；同时降低不透明度
-        .translate({ x: this.gpButtonHidden ? (GP_BUTTON_MARGIN + GP_BUTTON_SIZE - GP_BUTTON_SLIVER) : 0 })
-        .opacity(this.gpButtonHidden ? 0.45 : 1)
-        // 隐藏态扩大命中区域，缓解"贴边后点不到"；可见态不扩展
-        .responseRegion(this.gpButtonResponseRegion())
-        .accessibilityText('打开 GP-Next 面板（长按打开设置）')
-        .gesture(LongPressGesture().onAction(() => {
-          if (this.gpButtonHidden) {   // 已隐藏时长按先唤出，避免误触切换
-            this.setGpButtonHidden(false);
-            return;
-          }
-          this.scheduleGpHide();
-          this.openShellSettings();   // 长按 = 壳层设置面板（画面模式 / 期望刷新率）
-        }))
-        .onClick(async () => {
+      // GP-Next 面板入口（组件只管外观与手势；唤醒 / 重新计时 / 打开哪个面板由本页决定）
+      GpFloatingButton({
+        hidden: this.gpButtonHidden,
+        onShortPress: () => {
           if (this.gpButtonHidden) {   // 已隐藏时单击先唤出
             this.setGpButtonHidden(false);
             return;
           }
           this.scheduleGpHide();       // 可见态：执行动作并重新计时
-          // 打开 GP-Next 面板
-          try {
-            // 切换 GP-Next 面板显隐。
-            // payload（index-lw1dPoCM.js）真实挂载的是 window.gpNext = { toggle, show, hide, ... }，
-            // 并没有 open 方法；兜底热键为 GP-Next 默认的 F9（gp-next-settings 的 overlayHotkey 默认值）。
-            await this.webController.runJavaScript(`
-            (function() {
-              var g = window.gpNext;
-              if (g) {
-                if (typeof g.toggle === 'function') { g.toggle(); return; }
-                if (typeof g.open === 'function') { g.open(); return; }
-              }
-              if (typeof window.Zt === 'function') { window.Zt(); return; }
-              document.dispatchEvent(new KeyboardEvent('keydown', {
-                key: 'F9', code: 'F9', keyCode: 120, bubbles: true
-              }));
-            })();
-          `);
-          } catch (error) {
-            console.error('执行打开面板脚本失败:', error);
+          this.openGpNextPanel();      // 打开 GP-Next 面板（实现见 services/PanelActions.ets）
+        },
+        onLongPress: () => {
+          if (this.gpButtonHidden) {   // 已隐藏时长按先唤出，避免误触切换
+            this.setGpButtonHidden(false);
+            return;
           }
-        })
-
-      // 壳层设置面板（长按 GP 按钮打开）；放最后 = 图层最上，可拦截触摸
+          this.scheduleGpHide();
+          this.openShellSettings();    // 长按 = 壳层设置面板（画面模式 / 期望刷新率）
+        }
+      })      // 壳层设置面板（长按 GP 按钮打开）；放最后 = 图层最上，可拦截触摸
       if (this.shellSettingsOpen) {
         SettingsPanel({
           isFillScreen: this.isFillScreen,

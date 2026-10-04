@@ -1,14 +1,14 @@
 import { webview } from '@kit.ArkWeb';
 import { common, Want } from '@kit.AbilityKit';
 import fs from '@ohos.file.fs';
-import { FilePickerHelper } from './FilePickerHelper';  // 复用 FilePickerHelper
+import { FilePickerHelper } from '../common/FilePickerHelper';  // 复用 FilePickerHelper
 import preferences from '@ohos.data.preferences';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
-import { ResourceManager } from '../utils/ResourceManager';
-import { GpNextBridge } from '../utils/GpNextBridge';
-import { GPNEXT_SHIM } from '../utils/GpNextShim';
+import { ResourceManager } from '../services/ResourceManager';
+import { GpNextBridge } from '../services/GpNextBridge';
+import { GPNEXT_SHIM } from '../common/GpNextShim';
 import { SettingsPanel } from '../components/SettingsPanel';
-import { RefreshVote, readDisplayInfo } from '../utils/RefreshVote';
+import { RefreshVote, readDisplayInfo } from '../services/RefreshVote';
 import { util } from '@kit.ArkTS';
 
 
@@ -110,7 +110,7 @@ struct CocosJSApp {
   @State isFillScreen: boolean = false;
 
   /** 期望帧率投票实例（仅在页面可见期间持有，避免后台空刷帧） */
-  private readonly refreshVote: RefreshVote = new RefreshVote();   // 期望刷新率声明（见 utils/RefreshVote.ets）
+  private readonly refreshVote: RefreshVote = new RefreshVote();   // 期望刷新率声明（见 services/RefreshVote.ets）
   @State expectedRefresh: string = DEFAULT_EXPECTED_REFRESH;
   @State shellSettingsOpen: boolean = false;
   @State currentRefresh: number = 0;
@@ -307,7 +307,7 @@ struct CocosJSApp {
       }
     }
     // 声明范围保持 [60, expected]（不是单值）：单值写法在手机上一样无效，而平板的有效性是在
-    // 这个宽松范围下验证过的 —— 具体实现与说明见 utils/RefreshVote.ets 与 docs/MODULES.md。
+    // 这个宽松范围下验证过的 —— 具体实现与说明见 services/RefreshVote.ets 与 docs/MODULES.md。
     this.refreshVote.start(expected, HIGH_REFRESH_MIN);
   }
 

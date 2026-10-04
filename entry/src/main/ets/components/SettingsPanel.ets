@@ -3,7 +3,7 @@ import {
   PANEL_C_PRIMARY, PANEL_C_SECONDARY, PANEL_C_SECTION, PANEL_C_WARN,
   PANEL_C_ACCENT, PANEL_C_BTN, PANEL_C_DANGER, PANEL_C_CARD, PANEL_C_MASK,
   PANEL_GAP_SECTION, PANEL_GAP_TITLE, PANEL_GAP_HINT
-} from '../utils/PanelStyle';
+} from '../common/PanelStyle';
 
 /**
  * 壳层设置面板（长按 GP 按钮打开）。

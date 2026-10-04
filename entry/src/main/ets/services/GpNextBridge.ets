@@ -577,7 +577,22 @@ export class GpNextBridge {
     if (!path && args) {
       path = args.path;
     }
+    // 兼容：还有调用者把路径**直接当第二参**传成字符串（而不是 { path }）。
+    // 这类调用此前会落到下面的"路径缺失"分支；字符串参数含义无歧义，直接当路径用。
+    if (!path && args) {
+      const argsAsObject: Object = args as Object;
+      if (typeof argsAsObject === 'string') {
+        path = argsAsObject as string;
+      }
+    }
     if (!path) {
+      // 诊断：把这次调用的"形状"打出来（只打键名与类型，不打内容，避免日志里出现大块数据）
+      const argsKeys: string = args ? Object.keys(args as Object).join(',') : 'none';
+      const optionsKeys: string = request.options ? Object.keys(request.options as Object).join(',') : 'none';
+      const headersKeys: string = headers ? Object.keys(headers as Object).join(',') : 'none';
+      const argsType: string = args === undefined ? 'undefined' : typeof (args as Object);
+      console.error(`[gp-next-bridge] write_text_file shape: argsType=${argsType} argsKeys=[${argsKeys}] ` +
+        `optionsKeys=[${optionsKeys}] headersKeys=[${headersKeys}]`);
       throw new Error('GP-Next 写入路径缺失（headers.path）');
     }
     const target = this.resolve(path, this.effectiveOptions(request));

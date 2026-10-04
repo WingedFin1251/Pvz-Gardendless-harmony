@@ -694,7 +694,7 @@ struct CocosJSApp {
     // 而实测常用 force-stop / 直接杀进程，读不到命中率。onPageHide 稳定得多。
     const hideStats = ResourceManager.getInstance().getCacheStats();
     console.info(`[payload-cache] 切后台统计: ${hideStats.totalItems} 项, ` +
-      `${(hideStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${hideStats.hitRate}%`);
+      `${(hideStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${hideStats.hitRate}%，淘汰 ${hideStats.evictedCount} 次`);
     this.stopHighRefreshVote();
     this.closeShellSettings();   // 顺带关掉设置面板并清理轮询定时器
     this.preferenceStore.flushNow();   // 页面不可见：把去抖中的存档立刻落盘
@@ -715,7 +715,7 @@ struct CocosJSApp {
     const cacheStats = ResourceManager.getInstance().getCacheStats();
     console.info(`ResourceManager: ${cacheStats.totalItems}项, ` +
       `${(cacheStats.totalSize / 1024 / 1024).toFixed(2)}MB / ${(cacheStats.maxSize / 1024 / 1024).toFixed(0)}MB, ` +
-      `命中率: ${cacheStats.hitRate}%`);
+      `命中率: ${cacheStats.hitRate}%，淘汰 ${cacheStats.evictedCount} 次`);
 
   }
 
@@ -852,7 +852,7 @@ struct CocosJSApp {
           // H1：加载完成后打一次缓存统计（可用 hilog 直接验证缓存是否真的被填起来）
           const payloadCacheStats = ResourceManager.getInstance().getCacheStats();
           console.info(`[payload-cache] ${payloadCacheStats.totalItems} 项, ` +
-            `${(payloadCacheStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${payloadCacheStats.hitRate}%`);
+            `${(payloadCacheStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${payloadCacheStats.hitRate}%，淘汰 ${payloadCacheStats.evictedCount} 次`);
           this.isLoading = false;
           this.warnIfExperimentalSchedulerOn();   // 实验帧率调度开着时提示一次（平板会卡）
           this.webReady = true;

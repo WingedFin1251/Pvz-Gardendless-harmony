@@ -1,6 +1,6 @@
 # 归档：2026-09-19 壳层性能真机复测的原始输出
 
-配套报告：**[../../SHELL_PERF_2026-09-19.md](../../SHELL_PERF_2026-09-19.md)**
+配套报告：**[../../SHELL_PERF_2026-09-19.md](../SHELL_PERF_2026-09-19.md)**
 
 设备：HUAWEI MatePad 11.5"S 灵动款（`DMG-W00`），OpenHarmony 6.1.1.120，
 ArkWeb 6.1.0.120 / Chromium 132，8 GB RAM + 6 GB swap，屏幕 1840×2800（测试期间 120 Hz）。

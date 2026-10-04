@@ -35,7 +35,7 @@
 > 8 GB 及以下内存的设备在后台驻留较多时有被系统 `LowMemoryKill` / `SwapFull` 回收的记录，
 > **这类设备以及以长时挂机为目标的场景，建议直接使用 `lite`**；`gpnext` 面向需要 GP-Next 面板
 > 与原生桥（数据包导入、另存为、原生指标）的场景。
-> 完整数据、口径与复核方式见 **[docs/SHELL_PERF_2026-09-19.md](docs/SHELL_PERF_2026-09-19.md)**。
+> 完整数据、口径与复核方式见 **[docs/perf/SHELL_PERF_2026-09-19.md](docs/perf/SHELL_PERF_2026-09-19.md)**。
 
 ---
 
@@ -279,11 +279,11 @@ export DEVECO_SDK_HOME="<DevEco 安装目录>/sdk"
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构说明 |
 | [docs/MODULES.md](docs/MODULES.md) | 模块划分与职责 |
 | [docs/ASPECT_RATIO.md](docs/ASPECT_RATIO.md) | 画面比例方案记录 |
-| [docs/WEBVIEW_PERF.md](docs/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、壳层问题清单与优化优先级 |
-| [docs/RELEASE_v0.15.0.md](docs/RELEASE_v0.15.0.md) | v0.15.0 更新说明 |
-| [docs/RELEASE_v0.14.0.md](docs/RELEASE_v0.14.0.md) | v0.14.0 更新说明 |
-| [docs/PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md) | 性能优化方案 |
-| [docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md](docs/PERFORMANCE_OPTIMIZATION_SUMMARY.md) | 性能优化总结 |
+| [docs/perf/WEBVIEW_PERF.md](docs/perf/WEBVIEW_PERF.md) | **ArkWeb 性能**：内核版本对应、负载实测、壳层问题清单与优化优先级 |
+| [docs/releases/v0.15.0.md](docs/releases/v0.15.0.md) | v0.15.0 更新说明 |
+| [docs/releases/v0.14.0.md](docs/releases/v0.14.0.md) | v0.14.0 更新说明 |
+| [docs/archive/PERFORMANCE_OPTIMIZATION.md](docs/archive/PERFORMANCE_OPTIMIZATION.md) | 性能优化方案 |
+| [docs/archive/PERFORMANCE_OPTIMIZATION_SUMMARY.md](docs/archive/PERFORMANCE_OPTIMIZATION_SUMMARY.md) | 性能优化总结 |
 
 ---
 

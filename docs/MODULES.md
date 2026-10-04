@@ -187,6 +187,23 @@ Index.ets
 
 > **注意**: `ResourceManager` **已经集成** —— `Index.ets` 启动时 `setContext()`，拦截器优先查它的同步 LRU 缓存（见 `services/PayloadServer.ets`）。`PerformanceMonitor` 仍未挂接。
 
+### 拆分后新增/归位的模块
+
+目录已按**角色**划分（不再使用 `utils/`）：
+
+| 文件 | 角色 |
+| :--- | :--- |
+| `components/SettingsPanel.ets` | 设置面板 UI（只负责画 + 转发点击）|
+| `common/PanelStyle.ets` | 面板排版常量（字号 / 颜色 / 间距）|
+| `services/PanelActions.ets` | **面板的动作**：读写页面 `localStorage['gp-next-settings']` + 调引擎 / 页面 |
+| `services/PreferenceStore.ets` | 落盘层：白名单键 `put()` 立即 + `flush()` 去抖 + 退出前强制刷 |
+| `services/RefreshVote.ets` | 期望刷新率声明（`displaySync` 投票）+ 屏幕刷新率读取 |
+| `services/PayloadServer.ets` | 负载请求处理（补前缀规则 + LRU 缓存 + MIME）|
+| `services/GpNextBridge.ets` | `__gpNextNative` 原生桥（命令分流）|
+| `common/GpNextShim.ets` | 注入的 Tauri 兼容层（document-start 定义 `__TAURI_INTERNALS__`）|
+| `common/FilePickerHelper.ets` | 文件选择（原在 `pages/`）|
+| `services/{ResourceManager,PerformanceMonitor}.ets` | 原 `utils/` 下，按角色归位 |
+
 ---
 
 ## 期望帧率投票（可变帧率 / LTPO）
@@ -340,6 +357,64 @@ localStorage.setItem = function (key, value) {
 > 过期注释提醒：早期注释说"负载自带的 localStorage polyfill 只在 `__TAURI_INTERNALS__` 缺失时才安装"——
 > 那只对 **0.14.0 负载**成立。**当前 0.15.0 负载没有该 polyfill**（`saveToNative` / `loadFromNative` /
 > `plugin:store` 在负载里全部 0 命中），唯一的桥就是上面的 `touchPatch.js`。
+
+### 上报（写）与回填（读）：两个方向、三个坑
+
+`touchPatch.js` 双向工作的全部细节（这是**唯一**的持久化通路）：
+
+**上报（页面写 → Preferences）**：覆写 `localStorage.setItem`
+
+```js
+var PERSIST_KEYS = ['PvZ2_PlayerProperties', 'PvZ2_Settings'];   // 硬编码白名单
+var originalSetItem = localStorage.setItem;
+
+localStorage.setItem = function (key, value) {
+  originalSetItem.call(localStorage, key, value);        // ① 同步写进 WebView 自己的存储
+  if (PERSIST_KEYS.indexOf(key) !== -1 && window.NativeStorage) {
+    window.NativeStorage.saveToNative(key, value)        // ② 异步上报（不 await，失败只打日志）
+      .catch(function (e) { console.error('[localStorage] 保存 ' + key + ' 失败', e); });
+  }
+};
+```
+
+> 落地策略（A2 之后）：② 这一步最终走到 `services/PreferenceStore.ets` —— `put()` **立即**执行
+> （先落到 Preferences 的内存缓存，不丢数据），`flush()`（真正写磁盘）**去抖合并**
+> （`400ms`，上限 `1500ms` 兜底），并在 `onPageHide` / `aboutToDisappear` 时强制刷一次。
+> 之所以要去抖：花园格子与骆驼关的 `update()` 会**逐帧**写存档，逐帧落盘的压力很大。
+
+**回填（Preferences → 页面）**：轮询等原生代理就绪后反向写回
+
+```js
+waitForNativeStorage(function () {                        // 每 100ms 一次，最多 50 次（≈5 秒）
+  Promise.all(PERSIST_KEYS.map(function (key) {
+    return window.NativeStorage.loadFromNative(key).then(function (nativeValue) {
+      if (nativeValue && !originalGetItem.call(localStorage, key)) {  // 只在“页面里还没有值”时
+        originalSetItem.call(localStorage, key, nativeValue);         // 用 original* ⇒ 不触发上报
+      }
+    });
+  }));
+});
+```
+
+**一次启动的时序**
+
+```
+① document-start 注入 GPNEXT_SHIM + touchPatch.js（早于页面任何脚本）
+② 页面脚本开跑（引擎 → 游戏 → 读 PvZ2_Settings / PvZ2_PlayerProperties）
+③ onControllerAttached → registerNativeStorage() 注册代理（+ refresh）
+④ touchPatch 轮询到代理就绪 → loadFromNative ×2 → originalSetItem 回填
+```
+
+⚠️ **三个必须知道的坑**
+
+| # | 现象 | 原因 |
+| :---: | :--- | :--- |
+| 1 | 回填可能**晚于**游戏首次读取 ⇒ 这次启动读到默认值 | 回填是轮询触发的异步动作，可能几秒后才发生 |
+| 2 | 页面里**已经有值**时不回填 ⇒ 恢复被挡住 | 回填条件是 `!originalGetItem(...)` |
+| 3 | **早于**代理注册的写入会被静默丢弃 | 上报条件里带 `&& window.NativeStorage`，不排队、不补发，失败也不重试 |
+
+> 坑 2 直接影响"把 `gp-next-settings` 加进白名单"这件事：shim 会在 document-start 就写这个键，
+> 于是回填会被判为"页面已有值"而**跳过** ⇒ 那一步必须把回填改成**合并 / 覆盖**，不能只加白名单。
 
 ### `AnimationFrameRate` 的语义（源码核对）
 

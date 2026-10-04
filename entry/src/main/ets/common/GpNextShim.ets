@@ -6,6 +6,8 @@
  * 用 localStorage 伪造文件系统的 polyfill，但实现残缺（写入必抛异常且被静默吞掉、zip 读不出二进制、
  * read_dir 把带点的文件名判成目录、默认 settings.json 的键前后不一致），因此这里在 document-start
  * 阶段抢先定义同名对象——polyfill 只在 `if (!window.__TAURI_INTERNALS__)` 成立时才安装，于是自动让位。
+ * 注意：**上述 polyfill 只存在于 0.14.0 负载**；0.15.0 负载已无它，本层的作用变成**提供** payload
+ * 需要的 `__TAURI_INTERNALS__`（负载里有 5 处读取、0 处赋值）。
  * 之后所有命令经 `window.__gpNextNative.invoke` 交给 ArkTS 侧真正落盘。
  *
  * 两个必须遵守的协议细节（来自 payload 的 @tauri-apps/plugin-fs 绑定）：

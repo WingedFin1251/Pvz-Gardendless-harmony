@@ -276,53 +276,91 @@ vote.start();
 
 ---
 
-## 存储：什么存在哪里（真机实测）
+## 存储：什么存在哪里（真机实测 + 负载源码核对）
 
-### 三层位置
+### base 变体：只有白名单里的两个键
 
-| 位置 | 里面有什么 | 系统「清除缓存」 | 系统「清除数据」 |
-| :--- | :--- | :--- | :--- |
-| **Preferences**（store `game_save`）| 玩家存档、游戏设置、壳层自身设置 | 理论上不该丢\* | **丢** |
-| `filesDir` | 下载流程的 fallback 文件、应用自己写的文件 | 不丢 | 丢 |
-| `cacheDir` | 下载中转的临时文件 | **丢** | 丢 |
-
-\* 有些 ROM 的「清除缓存」会连 Preferences 一起清（实机遇到过）—— 所以看到"设置 / 帧率回到默认"时，
-先确认用户清的是**缓存**还是**数据**，不要一上来就怀疑代码。
-
-### 存档键：全部在 Preferences 里
-
-页面 `localStorage` 里的存档键由壳层的 JS 代理 `NativeStorage`（`saveToNative` / `loadFromNative`）
-落到应用的 Preferences（store 名 `game_save`）。**base 变体自己只注册这个代理、不写任何壳层偏好**
-（铺满 / 留边是按画面比例实时算出来的，不持久化），因此这个 store 里只有游戏写的键：
+base 变体自己**不写任何壳层偏好**（铺满 / 留边是按画面比例实时算出来的，不持久化），
+所以 Preferences 里只有白名单中的游戏键：
 
 | 键 | 是什么 |
 | :--- | :--- |
 | `PvZ2_PlayerProperties` | **玩家存档**（关卡进度、植物 / 僵尸图鉴、花园、危险室、升级、每日关……），百 KB 量级 |
-| `PvZ2_Settings` | **游戏设置**（`AnimationFrameRate`、音量、键位、语言等），单值明文 JSON |
+| `PvZ2_Settings` | **游戏设置**（`AnimationFrameRate`、音量、键位、语言等 20 个字段），明文 JSON |
 
-> `lite` / `gpnext` 变体还会在此 store 里多几个**壳层自己**的键：`expected_refresh`（期望刷新率）、
-> `settings_hint_seen`、`webview_fullscreen`（铺满 / 留边）。
+> `lite` / `gpnext` 变体还会多几个**壳层自己**的键：`expected_refresh`、`settings_hint_seen`、`webview_fullscreen`。
 
-> ⚠️ 壳层**从不修改**任何游戏存档键（`PvZ2_Settings` 在 `Index.ets` 中出现 0 次）。
+### 游戏侧：谁在什么时候写存档（负载源码核对）
 
-### 排查方法（开发者模式下可直接读，不必加日志）
+| 键 | 写者 | 读者 |
+| :--- | :--- | :--- |
+| `PvZ2_PlayerProperties` | `assets/main/index.js` → `AllPlayerProperties.savePP()`：`localStorage.setItem('PvZ2_PlayerProperties', JSON.stringify(allPlayers))` | `getPlayer(index)` |
+| `PvZ2_Settings` | 同文件 → `Setting.saveSettings()`：`localStorage.setItem('PvZ2_Settings', JSON.stringify(settings))` | `Setting.getSettings()` |
+
+- **触发方式**：离散事件（关卡进度、解锁、货币、卡组、危险室、花园、世界地图…… 50+ 处），**没有防抖 / 节流**，
+  也没有 `beforeunload` / `pagehide` 存档钩子
+- ⚠️ **有两处会逐帧写盘**（真机上表现为持续的存储 I/O）：
+  - 花园格子 `update()` → **每帧** `savePP()`
+  - 骆驼关 `update()` → **每帧** `saveSettings()`
+  两者都会经过下面的壳层桥 → `preferences.put()` + `flush()`，**桥本身也不节流**
+- **格式**：裸 `JSON.stringify`，无压缩 / 加密 / 外层版本包裹；`PvZ2_Settings` 是 20 字段的明文对象（**没有 version 字段**）
+- **启动读取**：`mainScene` 先 `getSettings().PlayerIndex` → 再 `getPlayer(index)`；
+  缺失时建默认玩家（`name = "New Player"`）与默认设置；旧字段（数组 → 字典）的迁移散落在 `getLevelProps()` 等函数里，
+  迁移后置 `undefined` 并立即存回
+- 注意 `getPlayer()` 结尾会执行 `time = Date.now(); savePP()` ⇒ **每次进游戏都会重写一次存档**
+- 健壮性提醒：`getSettings()` **没有 try/catch**，若 `PvZ2_Settings` 里的 JSON 非法会直接抛异常
+
+### 壳层侧：`touchPatch.js` 的**硬编码白名单**（桥在这里，不在负载里）
+
+`rawfile/touchPatch.js`（经 `.javaScriptOnDocumentStart` 注入，早于页面一切脚本）：
+
+```js
+var PERSIST_KEYS = ['PvZ2_PlayerProperties', 'PvZ2_Settings'];   // 只镜像这两个键
+localStorage.setItem = function (key, value) {
+  originalSetItem.call(localStorage, key, value);
+  if (PERSIST_KEYS.indexOf(key) !== -1 && window.NativeStorage) {
+    window.NativeStorage.saveToNative(key, value);              // → Preferences(store game_save)
+  }
+};
+// 启动时反向回填：loadFromNative(key) → originalSetItem(...)，等 NativeStorage 就绪（最多 50 × 100ms）
+```
+
+- 因此 **Preferences 里只会出现白名单里的键**（外加壳层自己写的那几个）—— 与实测完全吻合
+- 游戏与引擎（`sys.localStorage = window.localStorage`）读写的就是**被 patch 的同一个对象**
+
+> 过期注释提醒：早期注释说"负载自带的 localStorage polyfill 只在 `__TAURI_INTERNALS__` 缺失时才安装"——
+> 那只对 **0.14.0 负载**成立。**当前 0.15.0 负载没有该 polyfill**（`saveToNative` / `loadFromNative` /
+> `plugin:store` 在负载里全部 0 命中），唯一的桥就是上面的 `touchPatch.js`。
+
+### `AnimationFrameRate` 的语义（源码核对）
+
+```js
+switch (animationFrameRate) {          // PvZ2_Settings.animationFrameRate
+  case 1: return 24;  case 2: return 30;  case 3: return 60;
+}
+return animationFrameRate = 0, Infinity;   // 其它值（含 0）= 无限制，并被强制归 0
+```
+
+- **唯一生效点**是把结果赋给引擎：`cc.game.frameRate = 该值` → 影响 pacer 的 `targetFrameRate`
+- 引擎**初始恒为 60**，直到设置面板加载后才按上面的值调整
+- `gp-next-settings.frameRate`（字符串 `'0'` / `'30'` / `'60'`）**不驱动引擎**，只用于面板显示兜底与导入校验；
+  真正改引擎的是 `experimental.frameScheduler/frameRate`、`window.gpNext.setFrameRate()` 或 mod-api 的 `setFrameRate`
+
+### 排查方法（开发者模式可直接读，不必加日志）
 
 ```powershell
-# 应用私有目录可读（设备需处于开发者模式）
 hdc -t <设备> file recv `
   /data/app/el2/100/base/com.gardendless.<变体>/haps/entry/preferences/game_save `
   <本地路径>
-# 内容是 <preferences> 结构的 XML，键名/值都是明文
+# 内容是 <preferences> 结构的 XML，键名与值都是明文
 ```
 
-> 🔒 该文件里**包含玩家的完整存档**，属于个人数据：只在本地查看，**不要提交进仓库、不要贴进 release 正文**。
+> 🔒 该文件里**包含玩家的完整存档**：只在本地查看，**不要提交进仓库、不要贴进 release 正文**。
 
-### 一个容易踩的坑：「帧率上限 60 fps」不等于读失败
+### 判定"持久化是否正常"的正确做法
 
-带 GP-Next 的变体里，`gp-next-settings.frameRate` 的**默认值就是 `'60'`**，而且它的读取实现是
-「读 → 合并默认值 → **立刻写回**」——**一旦读不到，60 会被马上固化写回**。
-因此在那个变体上判断"持久化到底行不行"，唯一可靠做法是：
+「帧率上限 60 fps」**不是**故障信号 —— 它本来就是存档为空时的默认值。要判定：
 
-1. 面板点「**设为不限**」（写入一个非默认值）
+1. 面板点「**设为不限**」（写入非默认值）
 2. `hdc shell "aa force-stop <bundle>"` 杀掉应用
-3. 重开 → 打开面板：仍是「**不限**」= 读写往返正常；回到「60」= 持久化有问题
+3. 重开 → 打开面板：仍显示「**不限**」⇒ DOM Storage 持久化正常；回到「60」⇒ 网页存储被清过

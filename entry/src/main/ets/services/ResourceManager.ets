@@ -410,8 +410,16 @@ export class ResourceManager {
       priority: this.getDefaultPriority(resourceType)
     };
 
+    // 覆盖同一个 key 时必须先扣掉旧条目，否则 cacheSize 虚高，最终会拒收所有新项
+    const previous = this.cache.get(path);
+    if (previous !== undefined) {
+      this.cacheSize -= previous.size;
+    }
     this.cache.set(path, resourceItem);
     this.cacheSize += itemSize;
+    if (this.cacheSize < 0) {
+      this.cacheSize = 0;   // 计费兜底，避免历史漂移把上限判断带偏
+    }
   }
 
   private async waitForResource(path: string): Promise<Uint8Array | null> {

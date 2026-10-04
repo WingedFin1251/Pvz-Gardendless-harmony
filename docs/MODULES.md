@@ -78,6 +78,7 @@ URL: https://cocos.local/{path}
 ### 数据持久化
 
 - **Preferences 键值对**: 通过 JS 代理 `NativeStorage` 暴露 `saveToNative(key, value)` / `loadFromNative(key)` 给 WebView
+  （具体存了哪些键、清缓存 / 清数据的差别，见文末《存储：什么存在哪里》）
 - **Cookie**: `onPageEnd` 时调用 `WebCookieManager.saveCookieAsync()`
 - **文件下载**: 见下方"下载流程"
 
@@ -106,7 +107,7 @@ setupDownloadDelegate()
 
 ---
 
-## 3. FilePickerHelper (`pages/FilePickerHelper.ets`)
+## 3. FilePickerHelper (`common/FilePickerHelper.ets`)
 
 **职责**: 封装 `DocumentViewPicker.save()`，让用户选择文件保存路径。
 
@@ -122,7 +123,7 @@ setupDownloadDelegate()
 
 ---
 
-## 4. ResourceManager (`utils/ResourceManager.ets`)
+## 4. ResourceManager (`services/ResourceManager.ets`)
 
 **职责**: LRU 缓存管理器（单例），提供资源预加载、并发控制、智能清理。
 
@@ -144,7 +145,7 @@ setupDownloadDelegate()
 
 ---
 
-## 5. PerformanceMonitor (`utils/PerformanceMonitor.ets`)
+## 5. PerformanceMonitor (`services/PerformanceMonitor.ets`)
 
 **职责**: 性能监控单例，跟踪 FPS、内存、渲染耗时、缓存命中率。
 
@@ -175,16 +176,16 @@ setupDownloadDelegate()
 ```
 Index.ets
 ├── EntryAbility.ets (加载此页面)
-├── FilePickerHelper.ets (下载文件选择)
+├── common/FilePickerHelper.ets (下载文件选择)
 ├── @kit.ArkWeb (WebView, WebCookieManager, WebDownloadDelegate)
 ├── @kit.AbilityKit (UIAbilityContext)
 ├── @ohos.data.preferences (键值对持久化)
 ├── @ohos.file.fs (文件操作)
-├── ResourceManager.ets (独立工具，可用于缓存优化)
-└── PerformanceMonitor.ets (独立工具，可用于性能监控)
+├── services/ResourceManager.ets (负载 LRU 缓存，已在拦截器中启用)
+└── services/PerformanceMonitor.ets (性能监控，未挂接)
 ```
 
-> **注意**: `ResourceManager` 和 `PerformanceMonitor` 目前为独立工具类，未在 `Index.ets` 中集成。如需启用资源缓存和性能监控，需在 `Index.ets` 中实例化并挂钩。
+> **注意**: `ResourceManager` **已经集成** —— `Index.ets` 启动时 `setContext()`，拦截器优先查它的同步 LRU 缓存（见 `services/PayloadServer.ets`）。`PerformanceMonitor` 仍未挂接。
 
 ---
 
@@ -270,3 +271,73 @@ vote.start();
 - **正确判据 = 壳层设置面板里的「实测」**（1 秒采样 `cc.director` 帧数）。
 - 壳层设置面板的「**设为不限**」按钮：调用 `window.gpNext.setFrameRate(999)`（安全老路径）+
   把 `gp-next-settings.frameRate` 写成 `'0'`（与手机一致），**不修改游戏存档**。
+
+---
+
+## 存储：什么存在哪里（真机 + 负载源码核对）
+
+### 三层位置
+
+| 位置 | 里面有什么 | 系统「清除缓存」 | 系统「清除数据」 |
+| :--- | :--- | :--- | :--- |
+| **Preferences**（store `game_save`）| 玩家存档、游戏设置、壳层自身设置 | 理论上不该丢\* | **丢** |
+| `filesDir`（`files/gp-next/…`）| **模组本体**、`settings.json`、导入导出与补丁目录 | 不丢 | 丢 |
+| `cacheDir` | 下载/中转的临时文件 | **丢** | 丢 |
+
+\* 有些 ROM 的「清除缓存」会连 Preferences 一起清（实机遇到过）—— 所以看到"设置 / 帧率回到默认"时，
+先确认清的是**缓存**还是**数据**，不要一上来就怀疑代码。
+
+### Preferences（store `game_save`）实测只有 5 个键
+
+| 键 | 类型 | 体积 | 是什么 |
+| :--- | :--- | ---: | :--- |
+| `PvZ2_PlayerProperties` | string | **~175 KB** | **玩家存档**（关卡、植物 / 僵尸图鉴、花园、危险室、升级、每日关……）|
+| `PvZ2_Settings` | string | ~3.4 KB | **游戏设置**（`AnimationFrameRate`、音量、键位、语言等 20 个字段）|
+| `expected_refresh` | string | 43 B | 壳层：期望刷新率（`off` / `60` / `120` / `max`）|
+| `settings_hint_seen` | bool | 45 B | 壳层：设置提示只弹一次 |
+| `webview_fullscreen` | bool | 61 B | 壳层：铺满 / 留边 |
+
+### 不在 Preferences 里的东西
+
+| 位置 | 内容 |
+| :--- | :--- |
+| `files/gp-next/settings.json` | 引擎侧：`version` / `packOrder` / `disabledPacks` |
+| `files/gp-next/packs/<包名>/` | **模组本体**（文件）← 这就是"清缓存后模组还在"的原因 |
+| `files/gp-next/{.exports,.incoming,patches}` | 导入 / 导出 / 补丁的中间目录 |
+| `cacheDir` | 临时文件 |
+| **页面 localStorage** | `gp-next-settings`（帧率上限、实验调度……）+ `gp-next-locale` |
+
+### `gp-next-settings` 的真相（负载源码）
+
+负载 `assets/settings-store-*.js` 里：
+
+- 键名常量 `x = 'gp-next-settings'`；**默认值 `frameRate: '60'`**、`experimental: { frameScheduler: false, frameRate: 120, … }`
+- 读 `N()`：`JSON.parse(localStorage.getItem(x) || 'null')` → 与默认值合并 → **紧接着 `M()` 写回**
+  （`M()` 就是 `localStorage.setItem(x, JSON.stringify(T))`）
+  ⇒ **一旦读不到，默认的 `60` 会被立刻固化写回** —— 这是"读失败就变成 60"的机制
+- 负载把 `PvZ2_*` 与 `gp-next-settings` 视为**同一份存档集合**（恢复 / 备份逻辑里一起处理）
+- **实测该键不在 Preferences 里** ⇒ 帧率的持久化真相是游戏自己的
+  `PvZ2_Settings.AnimationFrameRate`（`0` = 无限制），它随游戏存档一起落盘
+
+### 为什么"清完缓存帧率回到 60"是预期行为
+
+- 清**数据** → Preferences 被清 → `PvZ2_*` 复位 → 帧率回落默认 **60**（预期）
+- 清**缓存** → 模组（文件）必然还在；Preferences 是否被清取决于该 ROM 的清除范围
+- ⚠️ **看到「帧率上限 60 fps」不能判定持久化坏了** —— 它本来就是存档为空时的默认值
+
+**判定持久化是否正常的唯一可靠做法**：
+
+1. 面板点「**设为不限**」（写入非默认值 `frameRate='0'`）
+2. `hdc shell "aa force-stop <bundle>"` 杀掉应用
+3. 重开 → 打开面板：仍显示「**不限**」= 读写往返正常；回到「60」= 持久化有问题
+
+### 排查方法（开发者模式可直接读，不必加日志）
+
+```powershell
+hdc -t <设备> file recv `
+  /data/app/el2/100/base/com.gardendless.<变体>/haps/entry/preferences/game_save `
+  <本地路径>
+# 内容是 <preferences> 结构的 XML，键名与值都是明文
+```
+
+> 🔒 该文件里**包含玩家的完整存档**：只在本地查看，**不要提交进仓库、不要贴进 release 正文**。

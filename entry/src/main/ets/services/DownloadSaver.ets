@@ -1,5 +1,6 @@
 import { webview } from '@kit.ArkWeb';
 import { common } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 
 /**
@@ -81,9 +82,11 @@ export class DownloadSaver {
         callbacks.notify(`下载中: ${fileName}`, 10000);
         webDownloadItem.start(tempPath);
       } catch (err) {
-        console.error('处理下载任务失败:', err);
-        callbacks.notify('下载失败', 3000);
-        this.isDownloading = false;
+        const error = err as BusinessError;
+        console.error(`处理下载任务失败: ${error.message}`);
+        // 带上原因：这样"权限被拒"就不会再显示成"已取消下载"
+        callbacks.notify(`下载失败：${error.message}`, 4000);
+        this.resetState();
       }
     });
 

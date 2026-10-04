@@ -663,7 +663,11 @@ struct CocosJSApp {
         'NativeStorage',
         ['saveToNative', 'loadFromNative']
       );
-      this.webController.refresh();
+      // ⚠️ 这里**不要**再调 refresh()。
+      // 官方开发指南《前端页面调用应用侧函数》写得很明确：
+      //   · 在 onControllerAttached（页面加载**前**）注册 ⇒ 官方原话「在页面加载前注册，页面加载完成后生效」，无需 refresh；
+      //   · 只有在 onPageEnd（页面加载**后**）注册，才需要 refresh 重新加载才生效。
+      // 而本页面的两个代理都在 onControllerAttached 里注册，原来那句 refresh() 只会白白多加载一遍整页。
     } catch (err) {
       console.error('注册 NativeStorage 失败', err);
     }
@@ -813,6 +817,8 @@ struct CocosJSApp {
         // 0.15.0 负载已无该 polyfill；存档落盘这条链路完全由 touchPatch.js 的白名单负责（见 docs/MODULES.md）。
         .javaScriptOnDocumentStart([{ script: this.injectedScript, scriptRules: ['*'] }])
         .onControllerAttached(() => {
+          // 这里注册即可：onControllerAttached 在页面加载前触发，注册后随本次加载生效（官方指南），
+          // 因此两个注册方法内部都不需要再调 refresh()。
           this.registerNativeStorage();  // 注册 localStorage 持久化代理
           this.registerGpNextBridge();   // 注册 GP-Next 原生桥（__gpNextNative.invoke）
         })

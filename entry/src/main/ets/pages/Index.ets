@@ -11,6 +11,7 @@ import { SettingsPanel } from '../components/SettingsPanel';
 import { RefreshVote, readDisplayInfo } from '../services/RefreshVote';
 import { PayloadServer, PAYLOAD_DIR } from '../services/PayloadServer';
 import { PanelActions } from '../services/PanelActions';
+import { PreferenceStore } from '../services/PreferenceStore';
 import { util } from '@kit.ArkTS';
 
 
@@ -107,6 +108,7 @@ struct CocosJSApp {
 
   /** 期望帧率投票实例（仅在页面可见期间持有，避免后台空刷帧） */
   private readonly refreshVote: RefreshVote = new RefreshVote();   // 期望刷新率声明（见 services/RefreshVote.ets）
+  private readonly preferenceStore: PreferenceStore = new PreferenceStore();   // Preferences 落盘（put 立即 + flush 去抖）
   @State expectedRefresh: string = DEFAULT_EXPECTED_REFRESH;
   @State shellSettingsOpen: boolean = false;
   @State currentRefresh: number = 0;
@@ -201,6 +203,7 @@ struct CocosJSApp {
     // 初始化 Preferences
     try {
       this.prefs = await preferences.getPreferences(context, 'game_save');
+      this.preferenceStore.attach(this.prefs);   // 交给落盘层（Web 侧白名单键的持久化）
       // 恢复"铺满画面"偏好
       this.isFillScreen = await this.prefs.get(PREF_WEB_FULLSCREEN, false) as boolean;
       // 恢复"期望刷新率"偏好（面板里可改）
@@ -725,12 +728,14 @@ struct CocosJSApp {
   onPageHide() {
     this.stopHighRefreshVote();
     this.closeShellSettings();   // 顺带关掉设置面板并清理轮询定时器
+    this.preferenceStore.flushNow();   // 页面不可见：把去抖中的存档立刻落盘
   }
 
   aboutToDisappear() {
     // 页面销毁：停掉期望帧率投票 + 关掉设置面板（清理轮询定时器）
     this.stopHighRefreshVote();
     this.closeShellSettings();
+    this.preferenceStore.flushNow();   // 页面销毁前把去抖中的存档落盘
     if (this.timeoutId) clearTimeout(this.timeoutId);
     if (this.hideButtonTimer !== undefined) {
       clearTimeout(this.hideButtonTimer);
@@ -745,29 +750,20 @@ struct CocosJSApp {
 
   }
 
-  // 保存方法
+  // ==================== NativeStorage 代理方法（实现见 services/PreferenceStore.ets）====================
+  // ⚠️ 这两个方法**必须留在页面上**、名字与签名不能变：
+  //    页面是用 registerJavaScriptProxy(this, 'NativeStorage', [...]) 把自己注册成代理的，
+  //    换成别的对象会改变代理调用里的 this 绑定（第 4 步拆分就踩过这个坑，已回退）。
+  //    这里只做一行转发，落盘策略（put 立即 + flush 去抖）在 PreferenceStore 里。
+
+  /** Web 侧 localStorage.setItem（白名单键）→ Preferences */
   public async saveToNative(key: string, value: string): Promise<void> {
-    if (!this.prefs) return;
-    try {
-      await this.prefs.put(key, value);
-      await this.prefs.flush();
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`保存 ${key} 失败: ${error.message}`);
-    }
+    return this.preferenceStore.save(key, value);
   }
 
-  // 读取方法
+  /** Web 侧 localStorage.getItem ← Preferences */
   public async loadFromNative(key: string): Promise<string> {
-    if (!this.prefs) return '';
-    try {
-      const value = await this.prefs.get(key, '') as string;
-      return value;
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`读取 ${key} 失败: ${error.message}`);
-      return '';
-    }
+    return this.preferenceStore.load(key);
   }
 
 

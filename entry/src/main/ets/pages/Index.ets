@@ -308,6 +308,7 @@ struct CocosJSApp {
 
   /** 长按 GP 按钮：打开壳层设置面板（画面模式 + 期望刷新率） */
   private openShellSettings(): void {
+    console.info('[shell] 打开壳层设置面板');
     this.refreshDisplayInfo();
     this.readEngineFrameRate();   // 只读展示：GP-Next 的「帧率」设置
     this.measureEngineFps();      // 实测一次（约 1 秒后出结果）
@@ -321,6 +322,7 @@ struct CocosJSApp {
 
   /** 关闭设置面板并停掉刷新率轮询 */
   private closeShellSettings(): void {
+    console.info('[shell] 关闭壳层设置面板');
     this.shellSettingsOpen = false;
     if (this.refreshPollTimer !== undefined) {
       clearInterval(this.refreshPollTimer);
@@ -954,16 +956,21 @@ struct CocosJSApp {
       GpFloatingButton({
         hidden: this.gpButtonHidden,
         onShortPress: () => {
+          // 观测日志：隐藏态手势只会"唤醒"，第二次才执行动作 —— 自动化测试据此判断手势是否生效
+          console.info(`[shell] GP 单击 hidden=${this.gpButtonHidden}`);
           if (this.gpButtonHidden) {   // 已隐藏时单击先唤出
             this.setGpButtonHidden(false);
+            console.info('[shell] GP 单击 → 仅唤醒');
             return;
           }
           this.scheduleGpHide();       // 可见态：执行动作并重新计时
           this.openGpNextPanel();      // 打开 GP-Next 面板（实现见 services/PanelActions.ets）
         },
         onLongPress: () => {
+          console.info(`[shell] GP 长按 hidden=${this.gpButtonHidden}`);
           if (this.gpButtonHidden) {   // 已隐藏时长按先唤出，避免误触切换
             this.setGpButtonHidden(false);
+            console.info('[shell] GP 长按 → 仅唤醒');
             return;
           }
           this.scheduleGpHide();

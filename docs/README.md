@@ -12,6 +12,7 @@
 |------|------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 项目架构概览、数据流、组件层级 |
 - [本地资源读取机制](RESOURCE_LOADING.md) —— 负载资源如何从 HAP 里被读出来、三级取数策略、内存构成与维护红线
+- [模组数据持久化预案](PERSISTENCE_PLAN.md) —— 模组把数据放在 localStorage（物理在 cache/web）导致清缓存丢失；含确诊、五种方案对比、A1 改动点与护栏、验证方案
 | [MODULES.md](MODULES.md) | 各模块详细说明（Index、FilePickerHelper、ResourceManager 等） |
 | [BUILD.md](BUILD.md) | 构建配置、签名、部署流程 |
 | [ASPECT_RATIO.md](ASPECT_RATIO.md) | 画面比例约束（3:2 ~ 19:10）方案与取舍 |

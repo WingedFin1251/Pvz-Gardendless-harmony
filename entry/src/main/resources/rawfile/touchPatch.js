@@ -146,6 +146,35 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
     // 原生侧不设第二个白名单（PreferenceStore.save/load 直接存取），所以只要这里加上即可。
     var PERSIST_KEYS = ['PvZ2_PlayerProperties', 'PvZ2_Settings', 'gp-next-settings'];
 
+    // A1：除固定键外，**前缀匹配**的键也要持久化。
+    // 原因：第三方模组的键名由它自己定义、而且是动态的（例如「植物等级扩展」全部落在 gpn_ 下：
+    //   gpn_killlevel_plantkills_v3 / gpn_killlevel_plantproduces_v3 / gpn_level_log_db …），
+    // 固定白名单永远列不全 —— 结果是"清一次系统缓存，模组的游玩数据就归零"。
+    var PERSIST_PREFIXES = ['gpn_'];
+    // 护栏：避免异常键名/超大值把 Preferences 撑坏。
+    // 注意 gpn_killlevel_pvbackup_v1 是"玩家档备份"，实测可能到约 175KB，故单值上限取 256KB。
+    var PERSIST_MAX_VALUE_BYTES = 256 * 1024;
+    var PERSIST_MAX_KEYS = 64;
+    var PERSIST_MAX_KEY_LEN = 128;
+    // 取证用：每个键只上报一次（键名 + 长度），便于确认"模组到底写了哪些键、有多大"
+    var reportedKeys = {};
+
+    function shouldPersist(key) {
+        if (typeof key !== 'string' || key.length === 0 || key.length > PERSIST_MAX_KEY_LEN) { return false; }
+        if (PERSIST_KEYS.indexOf(key) !== -1) { return true; }
+        for (var i = 0; i < PERSIST_PREFIXES.length; i++) {
+            if (key.indexOf(PERSIST_PREFIXES[i]) === 0) { return true; }
+        }
+        return false;
+    }
+
+    function reportKeyOnce(key, value) {
+        if (reportedKeys[key]) { return; }
+        reportedKeys[key] = true;
+        var bytes = (typeof value === 'string') ? value.length : -1;
+        console.info('[localStorage][persist] ' + key + ' (' + bytes + ' 字符)');
+    }
+
     function waitForNativeStorage(callback, maxAttempts) {
         maxAttempts = maxAttempts || 50;
         var attempts = 0;
@@ -166,7 +195,12 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
 
     localStorage.setItem = function(key, value) {
         originalSetItem.call(localStorage, key, value);
-        if (PERSIST_KEYS.indexOf(key) !== -1 && window.NativeStorage) {
+        if (shouldPersist(key) && window.NativeStorage) {
+            if (typeof value === 'string' && value.length > PERSIST_MAX_VALUE_BYTES) {
+                console.warn('[localStorage] 跳过持久化（值过大）: ' + key + ' ' + value.length + ' 字符');
+                return;
+            }
+            reportKeyOnce(key, value);
             window.NativeStorage.saveToNative(key, value).catch(function(e) {
                 console.error('[localStorage] 保存 ' + key + ' 失败', e);
             });
@@ -175,7 +209,37 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
 
     waitForNativeStorage(function() {
         console.log('[localStorage] 开始恢复存档');
-        Promise.all(PERSIST_KEYS.map(function(key) {
+        // A1 关键：清缓存后页面侧一个键都不知道，**必须由原生侧枚举**出"曾被持久化的键"。
+        // 原生侧未实现该接口时退回固定白名单（保证兼容）。
+        var keyListPromise;
+        if (typeof window.NativeStorage.persistedKeys === 'function') {
+            // ⚠️ 必须先用 Promise.resolve() 归一：JavaScriptProxy 返回的是**原生 JSPromise**，
+            // 它的 .then() 不是标准 Promise 链 —— **回调的返回值会被直接丢弃**（恒定解析成 null）。
+            // 少了这一层，下面的 keys.map(...) 就会拿到 null 而抛
+            // "Cannot read properties of null (reading 'map')"（真机实测的正是这个错）。
+            // 这与 shim 里 invoke() 的处理是同一个坑，别再踩第三遍。
+            keyListPromise = Promise.resolve(window.NativeStorage.persistedKeys()).then(function(text) {
+                var list = JSON.parse(text);
+                if (Object.prototype.toString.call(list) !== '[object Array]' || list.length === 0) {
+                    return PERSIST_KEYS;
+                }
+                // 与固定白名单合并去重
+                var merged = PERSIST_KEYS.slice();
+                for (var i = 0; i < list.length; i++) {
+                    if (merged.indexOf(list[i]) === -1) { merged.push(list[i]); }
+                    if (merged.length >= PERSIST_MAX_KEYS) { break; }
+                }
+                console.info('[localStorage] 原生侧已持久化 ' + list.length + ' 个键（含模组键）');
+                return merged;
+            }).catch(function(e) {
+                console.warn('[localStorage] 取键列表失败，退回固定白名单', e);
+                return PERSIST_KEYS;
+            });
+        } else {
+            keyListPromise = Promise.resolve(PERSIST_KEYS);
+        }
+        keyListPromise.then(function(keys) {
+        Promise.all(keys.map(function(key) {
             return window.NativeStorage.loadFromNative(key).then(function(nativeValue) {
                 // 只要原生侧有值就覆盖：原生副本是「最后一次写入」的权威版本。
                 // 原来这里还要求 !originalGetItem(key)（页面侧没有值才恢复）—— 但 gp-next-settings
@@ -187,6 +251,7 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
                 }
             }).catch(function(e) { console.error('恢复 ' + key + ' 失败', e); });
         })).then(function() { console.log('[localStorage] 存档恢复完成'); });
+        });
     });
 })();
 

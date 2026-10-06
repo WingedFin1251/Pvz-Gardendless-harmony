@@ -671,7 +671,7 @@ struct CocosJSApp {
       this.webController.registerJavaScriptProxy(
         this,
         'NativeStorage',
-        ['saveToNative', 'loadFromNative']
+        ['saveToNative', 'loadFromNative', 'persistedKeys']
       );
       // ⚠️ 这里**不要**再调 refresh()。
       // 官方开发指南《前端页面调用应用侧函数》写得很明确：
@@ -731,6 +731,15 @@ struct CocosJSApp {
   }
 
   /** Web 侧 localStorage.getItem ← Preferences */
+  /**
+   * A1：原生侧枚举"已持久化的键"（固定键 ∪ gpn_ 前缀）。
+   * 页面在启动时先问这个列表，再逐个 loadFromNative 回填 —— 否则清缓存后页面不知道该恢复哪些键。
+   */
+  public async persistedKeys(): Promise<string> {
+    const keys: string[] = await this.preferenceStore.listPersistedKeys();
+    return JSON.stringify(keys);
+  }
+
   public async loadFromNative(key: string): Promise<string> {
     return this.preferenceStore.load(key);
   }

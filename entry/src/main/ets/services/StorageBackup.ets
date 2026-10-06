@@ -1,4 +1,5 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { util } from '@kit.ArkTS';
 import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
@@ -162,23 +163,55 @@ export class StorageBackup {
     }
     console.info(`[A6] 导入源 uri: ${uri}`);
 
+    // ⚠️ 官方示例的写法（多篇指南一致）：
+    //     选择器返回的 uri **必须**用 openSync(uri, READ_ONLY) 打开后按 fd 读写；
+    //     statSync(uri) / readTextSync(uri) 走的是"路径"语义，对 docs uri 会报
+    //     code=13900002 No such file or directory（真机实测，两种编码形式都一样失败）。
+    //     因此这里以 openSync+readSync 为主，readTextSync 仅作为"普通路径"的降级尝试。
     let text: string = '';
     let lastError: string = '';
     for (let i = 0; i < candidates.length; i++) {
       const candidate: string = candidates[i];
+      let handle: fs.File | undefined = undefined;
       try {
-        const stat = fs.statSync(candidate);
-        if (stat.size > StorageBackup.MAX_IMPORT_BYTES) {
-          return { ok: false, message: `文件过大（${(stat.size / 1024 / 1024).toFixed(1)} MB），已中止，未改动任何数据` };
+        handle = fs.openSync(candidate, fs.OpenMode.READ_ONLY);
+        const size: number = fs.statSync(handle.fd).size;
+        if (size > StorageBackup.MAX_IMPORT_BYTES) {
+          return { ok: false, message: `文件过大（${(size / 1024 / 1024).toFixed(1)} MB），已中止，未改动任何数据` };
         }
-        text = fs.readTextSync(candidate);
-        console.info(`[A6] 读取成功（第 ${i + 1} 种路径形式），${stat.size} 字节`);
+        if (size === 0) {
+          lastError = `第 ${i + 1} 种形式：文件为空（0 字节）`;
+          continue;
+        }
+        const buffer: ArrayBuffer = new ArrayBuffer(size);
+        const readLen: number = fs.readSync(handle.fd, buffer);
+        text = util.TextDecoder.create('utf-8').decodeToString(new Uint8Array(buffer.slice(0, readLen)));
+        console.info(`[A6] 读取成功（第 ${i + 1} 种形式 / openSync+readSync），${readLen} 字节`);
         lastError = '';
         break;
       } catch (err) {
         const error = err as BusinessError;
         lastError = `code=${error.code}, message=${error.message}`;
-        console.warn(`[A6] 第 ${i + 1} 种路径形式读取失败: ${lastError}`);
+        console.warn(`[A6] 第 ${i + 1} 种形式 openSync+readSync 失败: ${lastError}`);
+        // 降级：按"普通路径"再试一次
+        try {
+          text = fs.readTextSync(candidate);
+          if (text.length > 0) {
+            console.info(`[A6] 读取成功（第 ${i + 1} 种形式 / readTextSync 降级），${text.length} 字符`);
+            lastError = '';
+            break;
+          }
+        } catch (fallbackErr) {
+          const fb = fallbackErr as BusinessError;
+          lastError = `openSync: code=${error.code}; readTextSync: code=${fb.code}, message=${fb.message}`;
+          console.warn(`[A6] 第 ${i + 1} 种形式 readTextSync 降级也失败: code=${fb.code}`);
+        }
+      } finally {
+        if (handle !== undefined) {
+          try { fs.closeSync(handle); } catch (closeErr) {
+            console.warn(`关闭备份文件失败: ${(closeErr as BusinessError).message}`);
+          }
+        }
       }
     }
     if (text.length === 0) {

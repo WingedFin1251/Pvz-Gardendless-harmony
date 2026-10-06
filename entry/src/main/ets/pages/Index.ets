@@ -71,12 +71,18 @@ struct CocosJSApp {
   //（SDK 原文：executed in the lexicographic order instead of array sequence），
   // 拆成两条无法保证"先 shim、后 touchPatch"；顺序敏感时应整体改用 runJavaScriptOnDocumentStart。
   // 初值只给 shim，真正内容在 aboutToAppear 里读入 touchPatch.js 后拼接。
-  private injectedScript: string = GPNEXT_SHIM;
+  // A6.2：必须是 @State —— 导入后要把"内联了待应用数据"的新脚本换进去，
+  // 只有状态变化才会让 Web 组件重新取这个属性（SDK 里没有 runJavaScriptOnDocumentStart 可用）。
+  @State private injectedScript: string = GPNEXT_SHIM;
+  /** A6.2：注入脚本的"不含导入数据"的基底（shim + touchPatch）；重载时以它为底重新拼接 */
+  private injectedBaseScript: string = GPNEXT_SHIM;
   private filePickerHelper?: FilePickerHelper;
   private readonly downloadSaver: DownloadSaver = new DownloadSaver();   // 下载回调 + 落盘（见 services/DownloadSaver.ets）
   // A6：数据备份（手动求全）—— 导出/导入进行中与提示文案
   @State private backupBusy: boolean = false;
   @State private backupHint: string = '';
+  /** A6.2：本次启动前暂存的待应用导入数据（非空时会被内联进注入脚本）*/
+  private pendingImportJson: string = '';
   private readonly shellPrefs: ShellPrefs = new ShellPrefs();            // 壳层自己的偏好（见 services/ShellPrefs.ets）
   private timeoutId?: number;
   /** 状态提示淡出后清空文案的定时器（M1：原来没跟踪，导致新提示被旧定时器立刻清空） */
@@ -145,11 +151,35 @@ struct CocosJSApp {
 
     // 读入 touchPatch.js，与 GPNEXT_SHIM 拼成一条注入脚本（原因见 injectedScript 的注释）。
     // 这样负载更新时不会再冲掉对 touchPatch.js 的引用 —— 原先它靠 index.html 里的一行 <script src>。
+    // A6.2：**必须先于注入脚本拼接**读一次暂存位 —— 那份 JSON 会被内联进 document-start 脚本，
+    // 从而在负载任何代码之前同步写入 localStorage。这里重新打开 Preferences 是无害的（同一实例）。
+    try {
+      this.prefs = await preferences.getPreferences(context, { name: 'game_save' });
+      this.preferenceStore.attach(this.prefs);
+      const staged = await this.preferenceStore.getPendingImport();
+      if (staged.length > 0) {
+        this.pendingImportJson = staged;
+        await this.preferenceStore.clearPendingImport();
+        console.info(`[A6] 检测到待应用导入数据: ${staged.length} 字符，将内联进注入脚本`);
+      }
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取待应用导入数据失败: code=${error.code}, message=${error.message}`);
+    }
+
     try {
       const bytes = context.resourceManager.getRawFileContentSync(TOUCH_PATCH_RAWFILE);
       const touchPatch = util.TextDecoder.create('utf-8').decodeToString(bytes);
       if (touchPatch.length > 0) {
-        this.injectedScript = GPNEXT_SHIM + '\n;\n' + touchPatch;
+        this.injectedBaseScript = GPNEXT_SHIM + '\n;\n' + touchPatch;
+        let injected: string = this.injectedBaseScript;
+        if (this.pendingImportJson.length > 0) {
+          // 在整条注入脚本的**最末尾**同步调用：此时 touchPatch 已执行完（setItem 钩子已装好），
+          // 而负载的任何代码都还没跑 —— 导入的数据因此先于游戏落地。
+          injected += '\n;\nwindow.__pvzApplyImportSync(' + JSON.stringify(this.pendingImportJson) + ');';
+          console.info(`[A6] 已内联待应用导入数据到注入脚本末尾（${this.pendingImportJson.length} 字符）`);
+        }
+        this.injectedScript = injected;
         console.info(`注入脚本就绪: shim ${GPNEXT_SHIM.length} B + touchPatch ${touchPatch.length} B`);
       } else {
         console.error('touchPatch.js 内容为空，仅注入 shim');
@@ -1100,6 +1130,17 @@ struct CocosJSApp {
       pickSavePath: (fileName: string): Promise<string | null> => this.pickSaveTarget(fileName),
       pickStorageFile: (): Promise<string | null> => this.pickStorageFile(),
       notify: (message: string, duration: number): void => { this.showStatusMessage(message, duration); },
+      stageImport: (entriesJson: string): Promise<void> => this.preferenceStore.stagePendingImport(entriesJson),
+      reload: (entriesJson: string): void => {
+        // A6.2：⚠️ 必须把 @State 改成**不同的值**，否则 Web 组件不会重新取 attribute，
+        // 重载后的注入脚本里就没有这份数据（导入会静默不生效）。
+        this.pendingImportJson = entriesJson;
+        this.injectedScript = this.injectedBaseScript
+          + '\n;\nwindow.__pvzApplyImportSync(' + JSON.stringify(entriesJson) + ');';
+        console.info(`[A6] 注入脚本已更新（内联 ${entriesJson.length} 字符导入数据），即将重新加载`);
+        // 等一帧让组件取到新 attribute，再整页重载
+        setTimeout(() => { this.webController.refresh(); }, 150);
+      },
       filesDir: context !== undefined && context !== null ? context.filesDir : '',
       appVersion: this.readAppVersion()
     };

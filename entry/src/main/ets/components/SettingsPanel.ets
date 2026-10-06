@@ -60,7 +60,7 @@ export struct SettingsPanel {
               .layoutWeight(1)
             Button('✕')
               .fontSize(PANEL_FS_BUTTON)
-              .fontColor('#CFCFD6')
+              .fontColor($r('app.color.panel_hint_text'))
               .backgroundColor(PANEL_C_BTN)
               .width(34)
               .height(34)

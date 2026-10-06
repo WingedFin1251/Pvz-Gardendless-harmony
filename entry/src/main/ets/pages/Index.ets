@@ -387,7 +387,15 @@ struct CocosJSApp {
     if (!context) {
       throw new Error('Context 不可用，无法同步读取 rawfile');
     }
-    return context.resourceManager.getRawFileContentSync(path);
+    try {
+      return context.resourceManager.getRawFileContentSync(path);
+    } catch (err) {
+      const error = err as BusinessError;
+      // 这里**不打日志**：调用方（PayloadServer）本来就会为"退回 $rawfile 兜底"打一行 warn，
+      // 再打一遍会让正常的 favicon.ico 缺失变成两行（一行还会是 error 级）。
+      // 抛出 Error（ArkTS 的 arkts-limited-throw 不允许 throw 任意类型）。
+      throw new Error(`同步读取 rawfile 失败: ${path}: code=${error.code}, message=${error.message}`);
+    }
   }
 
   /** 面板里切换期望刷新率：立即生效 + 持久化 */
@@ -456,7 +464,7 @@ struct CocosJSApp {
   private async readEngineFrameRate(): Promise<void> {
     try {
       const readout = await PanelActions.readEngineReadout(
-        (script: string) => this.webController.runJavaScript(script));
+        (script: string) => this.runJsSafely(script));
       this.engineFrameRate = readout.frameRateLabel;
       this.frameSchedulerOn = readout.schedulerOn;
       this.schedulerFrameRate = readout.schedulerFrameRateLabel;
@@ -474,7 +482,7 @@ struct CocosJSApp {
   private async disableExperimentalScheduler(): Promise<void> {
     try {
       const ok = await PanelActions.disableScheduler(
-        (script: string) => this.webController.runJavaScript(script));
+        (script: string) => this.runJsSafely(script));
       if (ok) {
         this.frameSchedulerOn = false;
         this.showStatusMessage('已关闭「实验帧率调度」，正在重新加载页面…', 4000);
@@ -493,7 +501,7 @@ struct CocosJSApp {
   private async warnIfExperimentalSchedulerOn(): Promise<void> {
     try {
       const on = await PanelActions.isSchedulerOn(
-        (script: string) => this.webController.runJavaScript(script));
+        (script: string) => this.runJsSafely(script));
       this.frameSchedulerOn = on;
       if (on && !this.schedulerWarned) {
         this.schedulerWarned = true;
@@ -511,7 +519,7 @@ struct CocosJSApp {
   private async forceUnlimitedFrameRate(): Promise<void> {
     try {
       const ok = await PanelActions.forceUnlimited(
-        (script: string) => this.webController.runJavaScript(script));
+        (script: string) => this.runJsSafely(script));
       if (ok) {
         this.showStatusMessage('已把引擎上限与存档都设为「不限」（看下面"实测"确认）', 4500);
       } else {
@@ -530,7 +538,7 @@ struct CocosJSApp {
   private async measureEngineFps(): Promise<void> {
     try {
       this.engineFpsMeasured = await PanelActions.measureFps(
-        (script: string) => this.webController.runJavaScript(script));
+        (script: string) => this.runJsSafely(script));
     } catch (err) {
       this.engineFpsMeasured = '不可用';
     }
@@ -540,7 +548,7 @@ struct CocosJSApp {
   private async openGpNextPanel(): Promise<void> {
     try {
       await PanelActions.openGpNextPanel(
-        (script: string) => this.webController.runJavaScript(script));
+        (script: string) => this.runJsSafely(script));
     } catch (err) {
       const error = err as BusinessError;
       console.error(`打开 GP-Next 面板失败: code=${error.code}, message=${error.message}`);
@@ -974,10 +982,10 @@ struct CocosJSApp {
           LoadingProgress()
             .width(48)
             .height(48)
-            .color('#FFFFFF')
+            .color($r('app.color.loading_spinner'))
           Text('正在准备…')
             .fontSize(14)
-            .fontColor('#CCFFFFFF')
+            .fontColor($r('app.color.loading_text'))
         }
         .width('100%')
         .height('100%')
@@ -1015,7 +1023,7 @@ struct CocosJSApp {
                 Button('取消')
                   .layoutWeight(1)
                   .fontSize(14)
-                  .backgroundColor('#33FFFFFF')
+                  .backgroundColor($r('app.color.dialog_button_bg'))
                   .fontColor(Color.White)
                   .onClick(() => {
                     this.finishJsDialog(false);
@@ -1024,7 +1032,7 @@ struct CocosJSApp {
               Button(this.jsDialogKind === 'prompt' ? '保存' : '确定')
                 .layoutWeight(1)
                 .fontSize(14)
-                .backgroundColor('#0A59F7')
+                .backgroundColor($r('app.color.dialog_primary_button'))
                 .fontColor(Color.White)
                 .onClick(() => {
                   this.finishJsDialog(true);
@@ -1034,15 +1042,15 @@ struct CocosJSApp {
           }
           .width('78%')
           .padding(16)
-          .backgroundColor('#F01C1C1C')
+          .backgroundColor($r('app.color.dialog_card_bg'))
           .borderRadius(12)
           .borderWidth(1)
-          .borderColor('#40FFFFFF')
+          .borderColor($r('app.color.dialog_card_border'))
         }
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('#66000000')
+        .backgroundColor($r('app.color.dialog_mask'))
         // 必须用 Default：自身命中即阻塞兄弟节点（挡住下面的 Web 与 GP 按钮），但不阻塞子组件。
         // 若用 HitTestMode.Block，官方语义是"阻塞子组件的触摸测试"——按钮会点不动，
         // JsResult 永不回调，网页侧 prompt() 卡住不返回，render 进程阻塞，整个面板失去响应。
@@ -1162,10 +1170,25 @@ struct CocosJSApp {
   }
 
   /** A6：把页面能力与本机上下文打包给 StorageBackup（服务层不直接依赖页面） */
+  /**
+   * 在页面上下文执行 JS。
+   * `runJavaScript` 会抛（控制器未绑定 / 调用线程不对等），这里统一记日志后**原样抛出** ——
+   * 所有调用点都已有 try/catch，行为与改动前一致；包一层只为满足 ArkTS Check 的"特殊处理"要求。
+   */
+  private async runJsSafely(script: string): Promise<string> {
+    try {
+      return await this.webController.runJavaScript(script);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.warn(`runJavaScript 失败: code=${error.code}, message=${error.message}`);
+      throw new Error(`runJavaScript 失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
   private buildBackupDeps(): StorageBackupDeps {
     const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext;
     return {
-      runJs: (script: string): Promise<string> => this.webController.runJavaScript(script),
+      runJs: (script: string): Promise<string> => this.runJsSafely(script),
       pickSavePath: (fileName: string): Promise<string | null> => this.pickSaveTarget(fileName),
       pickStorageFile: (): Promise<string | null> => this.pickStorageFile(),
       notify: (message: string, duration: number): void => { this.showStatusMessage(message, duration); },
@@ -1178,7 +1201,14 @@ struct CocosJSApp {
           + '\n;\nwindow.__pvzApplyImportSync(' + JSON.stringify(entriesJson) + ');';
         console.info(`[A6] 注入脚本已更新（内联 ${entriesJson.length} 字符导入数据），即将重新加载`);
         // 等一帧让组件取到新 attribute，再整页重载
-        setTimeout(() => { this.webController.refresh(); }, 150);
+        setTimeout(() => {
+          try {
+            this.webController.refresh();
+          } catch (refreshErr) {
+            const refreshError = refreshErr as BusinessError;
+            console.error(`重新加载页面失败: code=${refreshError.code}, message=${refreshError.message}`);
+          }
+        }, 150);
       },
       filesDir: context !== undefined && context !== null ? context.filesDir : '',
       appVersion: this.readAppVersion()

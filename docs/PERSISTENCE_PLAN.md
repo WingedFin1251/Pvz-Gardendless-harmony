@@ -185,3 +185,24 @@
 3. **导入**：按按钮 → 选刚导出的文件 → 按提示重启 ⇒ **模组等级/计数恢复**
 4. **回归**：游戏本体存档与面板设置不受影响；无崩溃；导入非法文件时**给出明确报错且不改动任何数据**
 5. **卸载验证**（A6 独有的价值）：卸载应用 → 重装 → 导入该文件 ⇒ 数据仍能找回
+### 9.6 官方文档复核结论（2026-10-05，用 harmonyos-docs 技能逐条核对）
+
+对 §9.1 的 API 表做了官方文档复核（不只看 `.d.ts` 签名，还看文档的用法与限制），四点结论：
+
+1. **`WebStorage` 不能读数据** —— 官方只有这些方法：
+   `deleteOrigin(origin)`、`getOrigins()`、`getOriginQuota(origin)`、`getOriginUsage(origin)`、`deleteAllData(incognito?)`。
+   ⇒ **没有读取键值的接口** ⇒ 导出/导入**仍然必须走 JS 通道**（§9.2 / §9.3 成立，不用改）。
+2. **但 `WebStorage` 有一个白送的用途**：面板可以**完全不碰 JS** 就显示"网页存储占了多少字节"
+   （`getOriginUsage` / `getOriginQuota` / `getOrigins`）⇒ 导出前先给用户看体积；
+   另有 `deleteOrigin` / `deleteAllData` 可做"清空网页存储"（危险操作，需强确认）。
+3. **`runJavaScript` 的官方注意事项**：
+   - 「**异步**执行…结果通过异步回调返回」「必须在**用户界面（UI）线程**上使用」
+   - 「JavaScript 脚本若执行失败**或无返回值时，返回 null**」⇒ 必须把 null 当作失败处理，不能当空数据
+   - 存在错误码 `17100003`（经 runJavaScript 调用返回空 ArrayBuffer 的 JS 方法）
+   - **文档没有写出返回值大小上限** ⇒ §9.2 里"大数据优先用消息端口"是**稳妥选择**而非硬性限制（如实表述）
+4. **`WebMessagePort` 确实能扛大数据**：官方示例显示端口可收发 `string` 与 `ArrayBuffer`
+   （`setString` / `setArrayBuffer`，接收侧用 `onMessageEvent` 按 `WebMessageType.STRING/ARRAYBUFFER` 分发）。
+
+**另有一条尚存的未知**：文件选择器（`DocumentViewPicker.save`）在**本应用里的**落盘行为
+与"下载上传"路径**尚未在真机上端到端验证过**（验收清单第 6 项仍为未验证）⇒
+A6 实施时，**第一步应先验证"能选位置并写成功"**，再谈导入。

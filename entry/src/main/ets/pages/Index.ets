@@ -74,6 +74,14 @@ struct CocosJSApp {
   // A6.2：必须是 @State —— 导入后要把"内联了待应用数据"的新脚本换进去，
   // 只有状态变化才会让 Web 组件重新取这个属性（SDK 里没有 runJavaScriptOnDocumentStart 可用）。
   @State private injectedScript: string = GPNEXT_SHIM;
+  /**
+   * 启动确定性闸门：为 true 之前**不创建 Web 组件**。
+   * 理由：注入脚本的拼接发生在 aboutToAppear 的 await 之后（它的初值只有 shim）。
+   * 若在此期间 Web 已经开始加载文档，就会出现"脚本还只有 shim"或"原生桥尚未注册"的时序窗口
+   * —— 历史上正是这个窗口导致过偶发启动失败（负载 beforeEngineImport 失败 → startup-recovery）。
+   * 闸门打开后才创建 Web，于是 bridge 与脚本两件事都变成**确定性**的。
+   */
+  @State private injectedScriptReady: boolean = false;
   /** A6.2：注入脚本的"不含导入数据"的基底（shim + touchPatch）；重载时以它为底重新拼接 */
   private injectedBaseScript: string = GPNEXT_SHIM;
   private filePickerHelper?: FilePickerHelper;
@@ -195,13 +203,17 @@ struct CocosJSApp {
           console.info(`[A6] 已内联待应用导入数据到注入脚本末尾（${this.pendingImportJson.length} 字符）`);
         }
         this.injectedScript = injected;
+        this.injectedScriptReady = true;   // 闸门打开：此后才允许创建 Web
         console.info(`注入脚本就绪: shim ${GPNEXT_SHIM.length} B + touchPatch ${touchPatch.length} B`);
       } else {
         console.error('touchPatch.js 内容为空，仅注入 shim');
+        this.injectedScriptReady = true;   // 仍然放行：至少能用只有 shim 的脚本启动
       }
     } catch (err) {
       const error = err as BusinessError;
       console.error(`读取 ${TOUCH_PATCH_RAWFILE} 失败: code=${error.code}, message=${error.message}`);
+      // 读文件失败也必须放行（用初值=仅 shim），否则页面永远停在加载态
+      this.injectedScriptReady = true;
     }
 
     // 负载自检：新布局下「更新负载 = 替换 game/ 目录」，但拦截器对**不存在的文件**返回的是
@@ -813,7 +825,10 @@ struct CocosJSApp {
     // 根容器用 Stack：Web 铺满整屏，状态提示与 GP-Next 入口按钮分别叠加到顶部和右下角。
     // 叠加层只占用自身命中区域（状态栏另外放行触摸），不会遮挡游戏其余区域的操作。
     Stack({ alignContent: Alignment.BottomEnd }) {
-      Web({ src: "https://cocos.local/game/index.html",
+      // ⚠️ 启动确定性：脚本就绪前不创建 Web（见 injectedScriptReady 的注释）。
+      // 未就绪时给一个纯黑加载态，通常只出现一两帧。
+      if (this.injectedScriptReady) {
+        Web({ src: "https://cocos.local/game/index.html",
         controller: this.webController,
         renderMode: RenderMode.ASYNC_RENDER // 不阻塞ArkUI主线程
       })
@@ -954,6 +969,22 @@ struct CocosJSApp {
           this.openExternal(url);
           return true;
         })
+      } else {
+        Column({ space: 12 }) {
+          LoadingProgress()
+            .width(48)
+            .height(48)
+            .color('#FFFFFF')
+          Text('正在准备…')
+            .fontSize(14)
+            .fontColor('#CCFFFFFF')
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor(Color.Black)
+      }
+
       // 状态提示 + 加载进度条（叠加在画面顶部，放行触摸；组件见 components/StatusToast.ets）
       StatusToast({
         message: this.downloadStatus,

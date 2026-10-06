@@ -62,6 +62,35 @@ ArkTS 原生壳层 + ArkWeb 承载 Cocos 构建产物，保留原版核心玩法
 
 ---
 
+## 相关仓库（三仓库体系）
+
+本项目**不是单一仓库**，而是一个**三仓库体系**：三者共用同一套壳层代码，区别在**游戏负载**与**应用身份**。
+
+| 仓库 | 定位 | 游戏负载 | GP-Next 面板 | 包名 / 应用名 |
+|:---|:---|:---|:---|:---|
+| **`Gardendless`**（本仓库 · 主仓库）| 原仓库 / **基础版** | 原版游戏，**不含** GP-Next 前端 | ❌ 无 | `com.Pvz2.gardendless` / Gardendless |
+| `Gardendless-lite` | **精简版** | 含 GP-Next | ✅ 有 | `com.gardendless.lite` / Gardendless Lite |
+| `Gardendless-gpnext` | **GP-Next 版**（独立应用身份，可与 lite 共存）| 含 GP-Next | ✅ 有 | `com.gardendless.gpnext` / Gardendless GP-Next |
+
+**「精简」指仓库层面，不是功能层面**：lite 与 gpnext 不把约 570 MB 的游戏负载纳入版本管理，
+并重建了提交历史（跟踪文件从 8492 降到 52、`.git` 从约 1.6 GB 降到约 0.7 MB）。
+**lite 与 gpnext 的功能完全一致**，区别只在应用身份（包名 / 桌面名称 / 签名配置）。
+
+**共享 vs 身份**：三个仓库的壳层源码（`entry/src/main/ets/**`）、`rawfile/touchPatch.js`
+与其余文档**保持同步**；差异集中在 6 个「身份 / 签名」文件
+（`AppScope/app.json5` 的 `bundleName`、两处 `string.json` 的应用名、`build-profile.json5` 的签名配置、`README.md`、`docs/BUILD.md` 中的包名引用）。
+
+**能力差异（有意为之）**：GP-Next 相关能力（浮动按钮、铺满开关、
+`preferences` 键 `webview_fullscreen`）**只存在于 lite / gpnext**，不进入本仓库。
+
+> **维护者备注**：本仓库在本项目的开发流程中还充当**对照基线** ——
+> 它**不接收** GP-Next 相关改动与后续壳层修复（缓存修复、持久化改进等同样不回流），
+> 以便与 lite / gpnext 做 A/B 对照与回归参考。
+> 因此本仓库的 `Index.ets` 与另两个仓库**有意**不再逐行一致：
+> 这里没有 `GP_BUTTON_*` / `gpButtonHidden` / `isFillScreen` 等符号。
+
+---
+
 ## 快速开始
 
 ### 环境准备

@@ -10,10 +10,17 @@ export interface DisplaySnapshot {
 
 /** 读取当前屏幕刷新率与支持的档位（只读，用于面板显示） */
 export function readDisplayInfo(): DisplaySnapshot {
-  const d = display.getDefaultDisplaySync();
-  const sup = d.supportedRefreshRates;
-  const supported: number[] = (sup !== undefined && sup.length > 0) ? sup : [d.refreshRate];
-  return { refreshRate: d.refreshRate, supported: supported };
+  try {
+    const d = display.getDefaultDisplaySync();
+    const sup = d.supportedRefreshRates;
+    const supported: number[] = (sup !== undefined && sup.length > 0) ? sup : [d.refreshRate];
+    return { refreshRate: d.refreshRate, supported: supported };
+  } catch (err) {
+    // 该函数只用于面板显示，且调用方没有 try ⇒ 这里兜底返回 60 档，绝不让面板因读显示信息而崩
+    const error = err as BusinessError;
+    console.warn(`读取显示信息失败，按 60Hz 兜底: code=${error.code}, message=${error.message}`);
+    return { refreshRate: 60, supported: [60] };
+  }
 }
 
 /**

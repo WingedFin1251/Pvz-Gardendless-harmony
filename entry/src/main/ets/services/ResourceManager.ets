@@ -366,7 +366,14 @@ export class ResourceManager {
       }, this.preloadConfig.timeout);
     });
     // getRawFile 自 API 9 起废弃，官方建议使用 getRawFileContent 替代（返回类型同为 Uint8Array）
-    const loadPromise: Promise<Uint8Array> = resMgr.getRawFileContent(path);
+    let loadPromise: Promise<Uint8Array>;
+    try {
+      loadPromise = resMgr.getRawFileContent(path);
+    } catch (err) {
+      const readError = err as BusinessError;
+      // 抛出 Error（arkts-limited-throw 限制）；调用方按"加载失败"处理，只看 message
+      throw new Error(`发起资源读取失败: ${path}: code=${readError.code}, message=${readError.message}`);
+    }
     try {
       return await Promise.race([loadPromise, timeoutPromise]);
     } finally {

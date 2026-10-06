@@ -1,8 +1,18 @@
 {
   "color": [
-    {
-      "name": "start_window_background",
-      "value": "#000000"
-    }
+    { "name": "start_window_background", "value": "#000000" },
+    { "name": "loading_spinner", "value": "#FFFFFF" },
+    { "name": "loading_text", "value": "#CCFFFFFF" },
+    { "name": "dialog_button_bg", "value": "#33FFFFFF" },
+    { "name": "dialog_mask", "value": "#66000000" },
+    { "name": "dialog_primary_button", "value": "#0A59F7" },
+    { "name": "dialog_card_bg", "value": "#F01C1C1C" },
+    { "name": "dialog_card_border", "value": "#40FFFFFF" },
+    { "name": "float_button_bg", "value": "#99000000" },
+    { "name": "float_button_border", "value": "#40FFFFFF" },
+    { "name": "panel_hint_text", "value": "#CFCFD6" },
+    { "name": "toast_text", "value": "#FFFFFF" },
+    { "name": "toast_bg", "value": "#E6000000" },
+    { "name": "progress_bar", "value": "#0A59F7" }
   ]
 }

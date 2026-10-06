@@ -21,9 +21,9 @@ export struct StatusToast {
         Text(this.message)
           .fontSize(14)
           // 固定深色半透明 + 白字：不随主题变化，深/浅色模式下都清晰
-          .fontColor('#FFFFFF')
+          .fontColor($r('app.color.toast_text'))
           .padding(8)
-          .backgroundColor('#E6000000')
+          .backgroundColor($r('app.color.toast_bg'))
           .width('100%')
           .textAlign(TextAlign.Center)
           .opacity(this.statusOpacity)
@@ -32,7 +32,7 @@ export struct StatusToast {
 
       if (this.loading && this.progress < 100) {
         Progress({ value: this.progress, total: 100, type: ProgressType.Linear })
-          .width('100%').height(4).color('#0A59F7')
+          .width('100%').height(4).color($r('app.color.progress_bar'))
       }
     }
     .width('100%')

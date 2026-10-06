@@ -465,8 +465,19 @@ hdc -t <设备> file recv `
 - **按下/抬起必须严格配对**：`mousedown` 延迟 16ms 派发，因此必须维护"当前按下的目标"，
   在 `touchend` 与 **`touchcancel`** 两条路径上都补发 `mouseup`；否则页面会卡在"鼠标按住"态，
   表现为**游戏中途点不动植物、重启才恢复**。
+- ⚠️ **释放时若 `mousedown` 尚未派发，必须补发一个 `mousedown`（合成一次完整点击），不能只 `clearTimeout`**：
+  只取消的话，"短于 16ms 的轻点"等于**这次触摸从未按下** ⇒ 游戏收不到点击
+  ⇒ 表现是"轻轻一按种不下去、要稍微停留一下才行"（这是真实踩过的回归）。
 - `touchcancel` 常被忽略但必须有：浏览器/系统接管手势（滚动、边缘手势等）时用它结束触摸，**不会有 `touchend`**。
-- 不要用 `isGpPanelElement` 在 `touchend` 里提前 return（从游戏区拖到 GP 按钮上松手会漏发 `mouseup`）；
-  该判断只用于 `touchstart`（决定这次触摸是否交给游戏）。
-- **自愈**：下一次 `touchstart` 若发现仍有残留按下态，先补发一次 `mouseup`。
+- **GP 面板的放行：先释放、再 return。** `touchend` 里要**先**走释放逻辑，**再**
+  `if (isGpPanelElement(event.target)) return;`。顺序错任一方向都会坏：
+  · 放在最前面（释放之前）⇒ 从游戏区拖到 GP 按钮上松手会漏发 `mouseup`（按下态卡死）；
+  · 完全不 return ⇒ `touchend` 的 `preventDefault()`/`stopPropagation()` 会让面板自己的触摸处理
+    收不到事件 ⇒ **整个 GP-Next 面板点不动**（真实踩过的回归）。
+  `touchstart` / `touchmove` 的放行保持原样即可。
+- **多指手势不是"新的一次按下"**：`touchstart` 里"自愈 + 登记按下态"必须限定
+  `event.touches.length === 1`；`touchend` 也要 `event.touches.length === 0`（所有手指离开）才释放。
+  否则双指滚动/三指右键会被当成新按下 ⇒ 手势中途补发 `mouseup` + 多发一个 `mousedown`
+  ⇒ 手感变钝（真实踩过的回归）。
+- **自愈**：下一次单指 `touchstart` 若发现仍有残留按下态，先补发一次 `mouseup`。
 - 诊断用 `console.warn`（页面的 `console.log/info` 不进 hilog，**warn 才进**）。

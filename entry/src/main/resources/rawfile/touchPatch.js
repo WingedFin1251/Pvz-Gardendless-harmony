@@ -345,3 +345,48 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
         console.warn('[perf] hp-overlay 降频注入失败', e);
     }
 })();
+
+// ==================== A6：手动导出 / 导入（供原生侧经 runJavaScript 调用）====================
+// 与上面的 A1 自动镜像**互不干扰**：A1 是 setItem 钩子被动触发，这里是原生主动调用。
+// 手动导出按"求全"设计：全收，一个不落（含模组日志键）。
+window.__pvzStorageExport = function () {
+    try {
+        var out = {};
+        for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            out[k] = localStorage.getItem(k);
+        }
+        return JSON.stringify(out);
+    } catch (e) {
+        return '__PVZ_ERR__' + (e && e.message ? e.message : String(e));
+    }
+};
+
+// 导入分片传输：把 JSON 分块送进来，避免把几百 KB 拼进脚本文本（转义/长度风险）。
+window.__pvzStorageApplyBegin = function () {
+    window.__pvzApplyBuf = '';
+    return 1;
+};
+window.__pvzStorageApplyChunk = function (chunk) {
+    window.__pvzApplyBuf = (window.__pvzApplyBuf || '') + chunk;
+    return window.__pvzApplyBuf.length;
+};
+window.__pvzStorageApplyEnd = function () {
+    try {
+        var obj = JSON.parse(window.__pvzApplyBuf || '{}');
+        window.__pvzApplyBuf = '';
+        if (!obj || typeof obj !== 'object') { return '__PVZ_ERR__不是对象'; }
+        var n = 0;
+        for (var k in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, k) && typeof obj[k] === 'string') {
+                // 只覆盖、从不删除：文件里没有的键一律保留
+                localStorage.setItem(k, obj[k]);
+                n++;
+            }
+        }
+        return String(n);
+    } catch (e) {
+        window.__pvzApplyBuf = '';
+        return '__PVZ_ERR__' + (e && e.message ? e.message : String(e));
+    }
+};

@@ -56,6 +56,11 @@ export class PreferenceStore {
   private flushTimer: number = -1;
   /** 是否已经安排了一次"刷盘失败后的重试"（避免失败时疯狂重试） */
   private retryScheduled: boolean = false;
+  /**
+   * A6：待应用的导入数据（暂存位）。用独立的键名，且**不在** A1 白名单内（既不是固定键、
+   * 也不是 gpn_ 前缀）⇒ 不会被镜像/回填，纯粹是原生侧给下一次页面加载的一张便条。
+   */
+  private static readonly PENDING_IMPORT_KEY: string = '__a6_pending_import';
 
   /** 绑定 Preferences 实例（页面初始化完 prefs 之后调用一次） */
   attach(prefs: preferences.Preferences): void {
@@ -93,6 +98,47 @@ export class PreferenceStore {
    * 用途：清缓存后页面侧一个键都不知道，必须由原生侧枚举回来，否则启动时无从回填 ——
    * 这正是"模组数据清缓存就归零"的另一半原因。
    */
+  /** A6：把待应用 JSON 放进暂存位（下次页面加载的最开头由注入脚本同步应用） */
+  async stagePendingImport(json: string): Promise<void> {
+    const store = this.prefs;
+    if (!store) {
+      throw new Error('Preferences 未就绪，无法暂存导入数据');
+    }
+    await store.put(PreferenceStore.PENDING_IMPORT_KEY, json);
+    this.flushNow();
+  }
+
+  /** A6：读出待应用 JSON（没有则返回空串） */
+  async getPendingImport(): Promise<string> {
+    const store = this.prefs;
+    if (!store) {
+      return '';
+    }
+    try {
+      const value = await store.get(PreferenceStore.PENDING_IMPORT_KEY, '') as string;
+      return value === undefined || value === null ? '' : value;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取待应用导入数据失败: code=${error.code}, message=${error.message}`);
+      return '';
+    }
+  }
+
+  /** A6：清空暂存位（已内联进注入脚本后立刻调用，保证只应用一次） */
+  async clearPendingImport(): Promise<void> {
+    const store = this.prefs;
+    if (!store) {
+      return;
+    }
+    try {
+      await store.delete(PreferenceStore.PENDING_IMPORT_KEY);
+      this.flushNow();
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`清空待应用导入数据失败: code=${error.code}, message=${error.message}`);
+    }
+  }
+
   async listPersistedKeys(): Promise<string[]> {
     const store = this.prefs;
     if (!store) {

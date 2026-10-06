@@ -20,7 +20,7 @@
 | 四份成长计数 | `gpn_killlevel_plantkills_v3`、`gpn_killlevel_plantproduces_v3`、`gpn_killlevel_plantsupports_v4`、`gpn_killlevel_plantplanted_v3` |
 | 等级/觉醒/突破基准 | `gpn_killlevel_kills_v2`、`gpn_killlevel_awaken_v1`、`gpn_killlevel_awakenbase_v1`、`gpn_killlevel_breakbase_v1` |
 | 存档作用域与指纹 | `gpn_killlevel_save_id`、`gpn_killlevel_lastscope_v1`、`gpn_killlevel_scopefp_v1` |
-| 配置与 HUD 状态 | `gpn_killlevel_threshold_cfg_v1`、`gpn_killlevel_hud_folded`、`gpn_killlevel_lsoff_v2`、`gpn_killlevel_reset_v4` |
+| 配置与 HUD 状态 | `gpn_killlevel_threshold_cfg_v1`、`gpn_killlevel_hud_folded`、`gpn_killlevel_lsoff_v2`、`gpn_killlevel_reset_v4`、`gpn_killlevel_debug` |
 | 日志与注入控制 | `gpn_level_log_db`、`gpn_level_log_lines_v1`、`gpn_level_inject_blacklist_v1`、`gpn_level_inject_blacklist_ver`、`gpn_level_inject_subset`、`gpn_level_once_reset_ver` |
 | 玩家档备份 | `gpn_killlevel_pvbackup_v1`（另有 `PV_KEY = 'PvZ2_PlayerProperties'`，即直接读写游戏存档） |
 | 动态键 | `LOG_KEY = LOG_KEY_LEGACY + '_' + BUILD_TAG`（键名**运行时拼接**） |
@@ -57,7 +57,7 @@
 
 | 方案 | 做法 | 优点 | 缺点/风险 | 谁做 |
 | :--- | :--- | :--- | :--- | :--- |
-| **A1（推荐·一期）** | 把白名单从"固定键"扩展为"**前缀允许列表**"：凡形如 `gpn_` 的键一律镜像 | 一条规则覆盖本模组**全部 22 个键**（含动态拼接键）；改动小、语义清晰；`gpn_` 是 GP-Next 自己的命名空间，撞车概率极低 | 若将来出现超大值（如 `pvbackup` ≈ 玩家档大小）会推高 Preferences 体积 | 我们 |
+| **A1（推荐·一期）** | 把白名单从"固定键"扩展为"**前缀允许列表**"：凡形如 `gpn_` 的键一律镜像 | 一条规则覆盖本模组**全部 23 个键**（含 1 个 HUD 调试读数开关）（含动态拼接键）；改动小、语义清晰；`gpn_` 是 GP-Next 自己的命名空间，撞车概率极低 | 若将来出现超大值（如 `pvbackup` ≈ 玩家档大小）会推高 Preferences 体积 | 我们 |
 | A2（二期可选） | **全量镜像**：除一个**黑名单**外，所有 `localStorage` 键都镜像 | 一劳永逸，任何模组都受益 | 会把引擎/浏览器自身的杂键也搬进来（体积与语义不可控）⇒ 需要**键数上限 + 单值上限 + 黑名单** | 我们 |
 | A3 | 模组在 `pack.json` 里**声明自己的存储键** | 精确、可控 | 需要改**模组规范**并让作者逐一适配 ⇒ 覆盖不了存量模组 | 上游+作者 |
 | A4 | 模组改用**沙箱目录**（`files/gp-next/…`，本来就不怕清缓存） | 最彻底（数据根本不在 `cache/`）| 需要作者改代码；且模组是"网页上下文"，走文件得经 GP-Next 的文件 API | 作者 |
@@ -76,7 +76,7 @@
    - 回填侧（`loadFromNative` 的填充循环）用**同一个判定**，避免"写得进、填不回"的不对称
    - 保持既有教训：回填条件必须是 **`if (nativeValue)`**（原生侧有值就覆盖），不要再退回"页面侧没有才填"
 2. **ArkTS 侧（`services/PreferenceStore.ets`）**
-   - 它持有白名单校验（防止网页侧随意写键）⇒ 同样改为"精确 ∪ 前缀"
+   - 它**不做键校验**（只 `store.put(key, value)`）⇒ **白名单判定其实只在 `touchPatch.js` 一侧** ⇒ A1 实际上只需改**一个文件**
    - 保持"写失败要重试"的既有逻辑（`flushNow` + 延迟重试）
 3. **不必改**：`Index.ets` 的 `saveToNative` / `loadFromNative` 转发、`ResourceManager`、`PayloadServer`
 

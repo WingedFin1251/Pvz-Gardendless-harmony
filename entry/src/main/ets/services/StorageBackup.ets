@@ -96,20 +96,45 @@ export class StorageBackup {
       return { ok: false, message: '已取消导出' };
     }
 
-    let file: fs.File | undefined = undefined;
+    // ⚠️ 与导入同理：选择器回传的 uri 可能是**百分号编码**的。
+    // 写入时必须**优先用解码后的真实路径** —— 选择器已经在真实路径创建了空文件；
+    // 若用编码形式写入，会在同一目录下**另建一个名字怪异的文件**（或直接失败）。
+    const writeCandidates: string[] = [];
     try {
-      file = fs.openSync(uri, fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC | fs.OpenMode.CREATE);
-      fs.writeSync(file.fd, payload);
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`写入备份文件失败: code=${error.code}, message=${error.message}`);
-      return { ok: false, message: '写入失败：' + error.message };
-    } finally {
-      if (file !== undefined) {
-        try { fs.closeSync(file); } catch (closeErr) {
-          console.warn(`关闭备份文件失败: ${(closeErr as BusinessError).message}`);
+      const decodedTarget: string = decodeURIComponent(uri);
+      if (decodedTarget !== uri) { writeCandidates.push(decodedTarget); }
+    } catch (decodeErr) {
+      console.warn(`uri 解码失败（按原样使用）: ${(decodeErr as BusinessError).message}`);
+    }
+    writeCandidates.push(uri);
+    console.info(`[A6] 导出目标 uri: ${uri}`);
+
+    let written: number = -1;
+    let lastError: string = '';
+    for (let i = 0; i < writeCandidates.length; i++) {
+      const candidate: string = writeCandidates[i];
+      let handle: fs.File | undefined = undefined;
+      try {
+        handle = fs.openSync(candidate, fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC | fs.OpenMode.CREATE);
+        written = fs.writeSync(handle.fd, payload);
+        console.info(`[A6] 写入成功（第 ${i + 1} 种路径形式），${written} 字节`);
+        lastError = '';
+        break;
+      } catch (err) {
+        const error = err as BusinessError;
+        lastError = `code=${error.code}, message=${error.message}`;
+        console.warn(`[A6] 第 ${i + 1} 种路径形式写入失败: ${lastError}`);
+      } finally {
+        if (handle !== undefined) {
+          try { fs.closeSync(handle); } catch (closeErr) {
+            console.warn(`关闭备份文件失败: ${(closeErr as BusinessError).message}`);
+          }
         }
       }
+    }
+    if (written < 0) {
+      console.error(`写入备份文件失败（两种形式都不行）: ${lastError}`);
+      return { ok: false, message: '写入失败：' + lastError };
     }
 
     const kb: string = (payload.length / 1024).toFixed(1);
@@ -123,17 +148,40 @@ export class StorageBackup {
       return { ok: false, message: '已取消导入' };
     }
 
-    let text: string = '';
+    // ⚠️ 系统选择器回传的 uri 可能是**百分号编码**的（目录/文件名含中文时必然如此，
+    // 例如 pvzge%E5%AD%98%E6%A1%A3 = pvzge存档）。fs 需要解码后的路径；
+    // 但某些版本直接接受原始 uri ⇒ **两种都试**，并把实际可用的那种记进日志。
+    const candidates: string[] = [uri];
     try {
-      const stat = fs.statSync(uri);
-      if (stat.size > StorageBackup.MAX_IMPORT_BYTES) {
-        return { ok: false, message: `文件过大（${(stat.size / 1024 / 1024).toFixed(1)} MB），已中止，未改动任何数据` };
+      const decoded: string = decodeURIComponent(uri);
+      if (decoded !== uri) { candidates.push(decoded); }
+    } catch (decodeErr) {
+      console.warn(`uri 解码失败（按原样使用）: ${(decodeErr as BusinessError).message}`);
+    }
+    console.info(`[A6] 导入源 uri: ${uri}`);
+
+    let text: string = '';
+    let lastError: string = '';
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate: string = candidates[i];
+      try {
+        const stat = fs.statSync(candidate);
+        if (stat.size > StorageBackup.MAX_IMPORT_BYTES) {
+          return { ok: false, message: `文件过大（${(stat.size / 1024 / 1024).toFixed(1)} MB），已中止，未改动任何数据` };
+        }
+        text = fs.readTextSync(candidate);
+        console.info(`[A6] 读取成功（第 ${i + 1} 种路径形式），${stat.size} 字节`);
+        lastError = '';
+        break;
+      } catch (err) {
+        const error = err as BusinessError;
+        lastError = `code=${error.code}, message=${error.message}`;
+        console.warn(`[A6] 第 ${i + 1} 种路径形式读取失败: ${lastError}`);
       }
-      text = fs.readTextSync(uri);
-    } catch (err) {
-      const error = err as BusinessError;
-      console.error(`读取备份文件失败: code=${error.code}, message=${error.message}`);
-      return { ok: false, message: '读取失败：' + error.message };
+    }
+    if (text.length === 0) {
+      console.error(`读取备份文件失败（两种形式都不行）: ${lastError}`);
+      return { ok: false, message: '读取失败：' + lastError };
     }
 
     // 校验：必须是我们自己的格式，且版本已知 —— 否则明确报错且不改动任何数据

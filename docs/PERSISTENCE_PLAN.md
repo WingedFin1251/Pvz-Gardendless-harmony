@@ -155,6 +155,26 @@
 2. ArkTS → 页面：执行收集脚本，遍历 `localStorage`（`length` + `key(i)`），产出 `{ key: value }` 的 JSON
 3. 结果通过**消息端口**（大数据）或 `runJavaScriptExt` 回传；**不建议**用 `runJavaScript` 回传整份大字符串
 4. 调 `FilePickerHelper.selectSavePath('pvzge-localstorage-<日期>.json')` ⇒ **用户自选位置**（如「下载」）
+
+   **格式决定（2026-10-06）：导出为单个 `.json`，不用 zip。** 理由：
+   - `localStorage` 的值**本质都是字符串** ⇒ JSON 无损，没有非文本内容可压
+   - 实测真实数据量 ≈ **325KB**（玩家档 175KB + 四份计数各约 5KB + 设置/面板约 4KB）；
+     日志键 `gpn_level_log_lines_v1_*`（实测 101KB 且持续增长）**默认排除** ⇒ 压缩省下的那点体积没有价值
+   - 备份更需要**可读、可手改、可 diff**；JSON 还能自带 `format`/`version` 供**导入时校验**
+   - 若将来要导"**模组文件本体**"（`files/gp-next/packs/**`，MB 级）或做**完整备份**
+     （localStorage + `files/gp-next/` + Preferences），**那时才改用 zip** ——
+     原生 `@ohos.zlib` 已有 `zipFile`/`unzipFile`（可**整目录**打包）与 `compressFile`/`createZip`，
+     且本工程已在用 `zlib.decompressFile` 解模组包
+
+   导出文件的形状（导入侧只接受 `format` 匹配且 `version` 已知者，否则明确报错且**不改动任何数据**）：
+
+   ```json
+   { "format": "pvzge-localstorage", "version": 1,
+     "exportedAt": "2026-10-06T13:50:00+08:00",
+     "origin": "https://cocos.local",
+     "app": { "bundle": "com.gardendless.gpnext", "version": "0.15.0" },
+     "entries": { "<localStorage 键>": "<值>", "...": "..." } }
+   ```
 5. 复用现有落盘逻辑写文件 + `StatusToast` 提示成功与文件名
 6. 可选：先提示**体积**（整份可能 0.4~1 MB，其中玩家档约 175 KB、模组备份键可能再约 175 KB）
 

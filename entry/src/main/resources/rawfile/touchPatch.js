@@ -89,9 +89,16 @@ function createMouseEvent(type, touch, button) {
 
 // ==================== touchstart ====================
 document.addEventListener("touchstart", function(event) {
-    // 自愈：上一次按下若没正常抬起（touchcancel / 拖到 GP 面板松手 / 极短点击），
-    // 先补发一次 mouseup，再开始这次触摸 —— 用户不必重启应用。
-    releasePress('新的 touchstart 到来时仍有残留按下态', 0);
+    // ⚠️ 按下态只认"第一根手指"（touches.length === 1）。
+    //    上一版在**每次** touchstart 都自愈并重新登记按下态，导致双指/三指手势
+    //    （滚动、右键）也被当成"新的一次按下" ⇒ 手势中途补发 mouseup + 多发一个 mousedown
+    //    ⇒ 表现为"手感变钝、点不动"。这里修掉这个回归。
+    var isFirstFinger = (event.touches.length === 1);
+    if (isFirstFinger) {
+        // 自愈：上一次按下若没正常抬起（touchcancel / 拖到 GP 面板松手 / 极短点击），
+        // 先补发一次 mouseup，再开始这次触摸 —— 用户不必重启应用。
+        releasePress('新的 touchstart 到来时仍有残留按下态', 0);
+    }
 
     if (isGpPanelElement(event.target)) return;
 
@@ -114,6 +121,13 @@ document.addEventListener("touchstart", function(event) {
     touch.target.dispatchEvent(createMouseEvent("mousemove", touch, 0));
     _lastX = touch.clientX;
     _lastY = touch.clientY;
+
+    // 多指手势不是"新的一次按下"：只处理上面的滚动/右键分支，绝不碰按下态
+    if (!isFirstFinger) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
 
     // DOWN 延迟执行，防止误触；同时登记"按下态"，供任何结束路径补发 mouseup
     var downTouch = touch;
@@ -181,10 +195,14 @@ document.addEventListener("touchmove", function(event) {
 // ⚠️ 不能再用 isGpPanelElement 提前 return：从游戏区拖到 GP 按钮上松手时，
 //    目标会变成面板元素，若在这里 return 就永远不发 mouseup（按下态卡死）。
 document.addEventListener("touchend", function(event) {
-    _lastYScroll = null;
     var touch = event.changedTouches[0];
     if (touch) { _lastTouch = touch; }
-    releasePress(null, DELAY_TIME);   // 保持原有的 16ms 延迟，行为与改动前一致
+    // 多指手势里"抬起一根"不等于结束按下：等所有手指都离开再释放，
+    // 否则一次双指手势会中途丢掉 mouseup（上一版的另一个回归）。
+    if (event.touches.length === 0) {
+        _lastYScroll = null;
+        releasePress(null, DELAY_TIME);   // 保持原有的 16ms 延迟，行为与改动前一致
+    }
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
 }, { capture: true, passive: false });

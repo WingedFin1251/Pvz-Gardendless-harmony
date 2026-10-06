@@ -24,6 +24,25 @@ import { BusinessError } from '@kit.BasicServicesKit';
 const FLUSH_DEBOUNCE_MS: number = 400;
 /** 去抖上限：从"首次有待刷写数据"起算，最多推迟这么久必须刷一次（防持续写入永不落盘） */
 const FLUSH_MAX_DELAY_MS: number = 1500;
+
+/**
+ * A1：持久化键的判定规则 —— 固定键 ∪ 前缀匹配。
+ * 与页面侧 `touchPatch.js` 的 `PERSIST_KEYS` / `PERSIST_PREFIXES` **必须保持一致**。
+ * 前缀存在的理由：第三方模组的键名是动态的（如 gpn_killlevel_plantkills_v3），固定白名单列不全。
+ */
+const PERSIST_KEYS: string[] = ['PvZ2_PlayerProperties', 'PvZ2_Settings', 'gp-next-settings'];
+const PERSIST_PREFIXES: string[] = ['gpn_'];
+/** 护栏：单值上限（字符数，与页面侧一致：模组的玩家档备份约 175KB，故取 256KB） */
+const PERSIST_MAX_VALUE_BYTES: number = 256 * 1024;
+
+function isPersistKey(key: string): boolean {
+  if (key.length === 0 || key.length > 128) { return false; }
+  if (PERSIST_KEYS.indexOf(key) >= 0) { return true; }
+  for (let i = 0; i < PERSIST_PREFIXES.length; i++) {
+    if (key.startsWith(PERSIST_PREFIXES[i])) { return true; }
+  }
+  return false;
+}
 /** 刷盘失败后延迟重试的间隔（仅安排一次，避免失败时疯狂重试） */
 const FLUSH_RETRY_DELAY_MS: number = 2000;
 
@@ -51,6 +70,11 @@ export class PreferenceStore {
   /** Web 侧 localStorage.setItem（白名单键）→ Preferences；put 立即，flush 去抖 */
   async save(key: string, value: string): Promise<void> {
     const store = this.prefs;
+    // A1 护栏：超大值不入 Preferences（页面侧同样会跳过；这里是第二道网）
+    if (value !== undefined && value !== null && value.length > PERSIST_MAX_VALUE_BYTES) {
+      console.warn(`跳过持久化（值过大）: ${key} ${value.length} 字符`);
+      return;
+    }
     if (!store) {
       return;
     }
@@ -64,6 +88,32 @@ export class PreferenceStore {
   }
 
   /** Web 侧 localStorage.getItem ← Preferences（读不到返回空串） */
+  /**
+   * A1：列出"应当持久化"的键（固定键 ∪ 前缀匹配）。
+   * 用途：清缓存后页面侧一个键都不知道，必须由原生侧枚举回来，否则启动时无从回填 ——
+   * 这正是"模组数据清缓存就归零"的另一半原因。
+   */
+  async listPersistedKeys(): Promise<string[]> {
+    const store = this.prefs;
+    if (!store) {
+      return [];
+    }
+    try {
+      const all: Object = await store.getAll();
+      const keys: string[] = [];
+      for (const key of Object.keys(all)) {
+        if (isPersistKey(key)) {
+          keys.push(key);
+        }
+      }
+      return keys;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`枚举持久化键失败: code=${error.code}, message=${error.message}`);
+      return [];
+    }
+  }
+
   async load(key: string): Promise<string> {
     const store = this.prefs;
     if (!store) {

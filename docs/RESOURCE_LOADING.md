@@ -299,3 +299,31 @@ hdc -t <target> shell "ps -A -o PID,PPID,RSS,NAME | grep -i <bundle>"
 4. **不要试图"预加载全部资源"** —— 1.35GB 包 + 约 8 倍解码膨胀，必然爆内存；拦截器还必须同步返回。
 5. **不要用"满了就拒绝"替代淘汰** —— 会让运行中反复请求的那批永远进不来（本文档第 9 节）。
 6. **改动后必须真机验证**：至少确认「能过启动页进入标题/关卡」+「无崩溃」+「`缓存项数已达上限` 不再出现」。
+---
+
+## 13. 官方文档依据与已知限制（2026-10-05 复核）
+
+用官方文档（API 26.0.0）核对了本项目的拦截方案与相关 API，结论如下。
+
+### 13.1 我们的方案与官方一致
+
+- 官方《拦截Web组件发起的网络请求》给出两种拦截机制：**`onInterceptRequest`**（本文用的）
+  与 **`SchemeHandler`**（`onRequestStart`/`onRequestStop`，ArkTS 自 API 12 起可用）。
+- 我们的做法：把页面伪装成标准 **`https://cocos.local/`** 源 + `.domStorageAccess(true)`（我们已设），
+  再用 `onInterceptRequest` 逐请求作答 —— **属于官方支持的正路**。
+- **不需要 `customizeSchemes`**：该接口用于给**自定义协议**授予跨域/fetch 权限；
+  我们用的是标准 `https://`（页面自身就是 `https://cocos.local/…`）⇒ **同源**，无需授权。
+
+### 13.2 两条官方限制（当前不影响，但要知道）
+
+| 限制 | 官方原文/含义 | 对我们的影响 |
+| :--- | :--- | :--- |
+| **拿不到 POST 体** | 「`onInterceptRequest` 接口中**无法获取 Post Data**，如果想要获取 Post Data 需使用 **SchemeHandler** 机制」 | 我们只服务 **GET 静态资源** ⇒ **不受影响**；若将来要接 POST 体，需切到 SchemeHandler |
+| **SchemeHandler 的时序要求** | 「需要在 Web 组件**初始化之后**设置 SchemeHandler，否则设置失败」；想拦**第一个请求**还要配合 `initializeWebEngine` | 我们**不用它**：`onInterceptRequest` 是**组件属性**，首次加载即生效 —— 这一点比 SchemeHandler 省事 |
+
+### 13.3 相关官方事实（备查）
+
+- **ArkWeb 对单个应用的静态资源缓存上限是 100M**（其自身缓存，与本项目 LRU 的 80MB 预算是两回事）。
+- 网页数据的清理有两条原生接口：`WebviewController.removeCache(clearRom)`（内核缓存）
+  与 `WebStorage.deleteAllData()` / `deleteOrigin(origin)`（DOM Storage / Web SQL）。
+- Cookie 侧：官方每 30s 周期性落盘，也可主动 `saveCookieAsync()`（本项目已在用）。

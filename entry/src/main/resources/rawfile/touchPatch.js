@@ -39,11 +39,22 @@ var _pressedTarget = null;   // 已按下（或即将按下）的目标
 var _pressTimer = -1;        // 尚未执行的 mousedown 定时器
 var _lastTouch = null;       // 最近一次触摸对象（用于补发 mouseup 时的坐标）
 
-/** 结束一次按下：取消未执行的 mousedown，并（若确实处于按下态）补发 mouseup */
+/** 结束一次按下：必要时**补发 mousedown**（保证轻点也算点击），再发 mouseup */
 function releasePress(reason, delayMs) {
     if (_pressTimer !== -1) {
+        // ⚠️ 这里**不能只 clearTimeout**：mousedown 是延迟 DELAY_TIME(16ms) 派发的，
+        // 若轻点比 16ms 还短，clearTimeout 就等于"这次触摸从未按下" ⇒ 游戏收不到点击
+        // ⇒ 表现就是"轻轻一按种不下去、要稍微停留一下才行"。
+        // 正解：补发一个 mousedown（合成一次完整点击），后续照常发 mouseup。
         clearTimeout(_pressTimer);
         _pressTimer = -1;
+        if (_pressedTarget) {
+            try {
+                _pressedTarget.dispatchEvent(createMouseEvent("mousedown", _lastTouch, 0));
+            } catch (e) {
+                console.error('[TouchPatch] 补发 mousedown 失败: ' + (e && e.message ? e.message : String(e)));
+            }
+        }
     }
     if (!_pressedTarget) {
         return;
@@ -192,8 +203,11 @@ document.addEventListener("touchmove", function(event) {
 }, { capture: true, passive: false });
 
 // ==================== touchend / touchcancel ====================
-// ⚠️ 不能再用 isGpPanelElement 提前 return：从游戏区拖到 GP 按钮上松手时，
-//    目标会变成面板元素，若在这里 return 就永远不发 mouseup（按下态卡死）。
+// ⚠️ 顺序很关键：**先**释放按下态（releasePress），**再**放行 GP 面板。
+//    · 以前把"命中面板就 return"放在最前面 ⇒ 从游戏区拖到 GP 按钮上松手时永远不发 mouseup
+//      （按下态卡死 ⇒ 中途点不动植物）；
+//    · 但完全不 return 也不行 ⇒ 这里是 capture 阶段，preventDefault/stopPropagation 会让
+//      面板自己的触摸处理收不到事件（症状：整个 GP-Next 面板点不动）。
 document.addEventListener("touchend", function(event) {
     var touch = event.changedTouches[0];
     if (touch) { _lastTouch = touch; }
@@ -203,6 +217,10 @@ document.addEventListener("touchend", function(event) {
         _lastYScroll = null;
         releasePress(null, DELAY_TIME);   // 保持原有的 16ms 延迟，行为与改动前一致
     }
+    // ⚠️ 面板上的触摸必须**原样放行**：这里是 capture 阶段，一旦 preventDefault/stopPropagation，
+    // 面板自己的触摸处理就再也收不到事件（症状：GP-Next 面板整个点不动）。
+    // 注意顺序 —— 释放按下态必须在**放行之前**做，否则"从游戏区拖到 GP 按钮上松手"又会漏发 mouseup。
+    if (isGpPanelElement(event.target)) return;
     if (event.cancelable) event.preventDefault();
     event.stopPropagation();
 }, { capture: true, passive: false });
@@ -214,6 +232,7 @@ document.addEventListener("touchcancel", function(event) {
     var touch = event.changedTouches[0];
     if (touch) { _lastTouch = touch; }
     releasePress('touchcancel', 0);   // cancel 说明这次触摸已经作废 ⇒ 立即释放
+    if (isGpPanelElement(event.target)) return;   // 面板放行（同上：释放已做，这里只管不拦）
     event.stopPropagation();
 }, { capture: true, passive: false });
 

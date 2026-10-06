@@ -149,6 +149,21 @@ struct CocosJSApp {
     }
     this.filePickerHelper = new FilePickerHelper(context);
 
+    // ⚠️ 建桥必须放在**本函数第一个 await 之前**！
+    // aboutToAppear 是 async 的，框架**不等它** —— 只保证"第一个 await 之前的同步部分"
+    // 早于 build()/onControllerAttached 完成。曾把读暂存位的 await 插在建桥之前，
+    // 结果 onControllerAttached 先跑、registerGpNextBridge() 看到 gpNextBridge 还是 undefined
+    // ⇒ 跳过注册 ⇒ 页面 document-start 调 __gpNextNative.invoke 报"原生桥尚未就绪"
+    // ⇒ 负载 beforeEngineImport 的 fs|exists 失败 ⇒ Cocos 启动失败 ⇒ 触发负载的 startup-recovery。
+    // 原生桥需要宿主提供三件事：打开外链、另存为、导入数据包
+    // （ArkTS 不允许用对象字面量实现带方法的接口，故直接传函数）
+    this.gpNextBridge = new GpNextBridge(context,
+      (url: string) => {
+        this.openExternal(url);
+      },
+      (fileName: string) => this.pickSaveTarget(fileName),
+      () => this.importPackages());
+
     // 读入 touchPatch.js，与 GPNEXT_SHIM 拼成一条注入脚本（原因见 injectedScript 的注释）。
     // 这样负载更新时不会再冲掉对 touchPatch.js 的引用 —— 原先它靠 index.html 里的一行 <script src>。
     // A6.2：**必须先于注入脚本拼接**读一次暂存位 —— 那份 JSON 会被内联进 document-start 脚本，
@@ -210,14 +225,7 @@ struct CocosJSApp {
       console.info(`负载自检通过: ${PAYLOAD_DIR}`);
     }
 
-    // 原生桥需要宿主提供三件事：打开外链、另存为、导入数据包
-    // （ArkTS 不允许用对象字面量实现带方法的接口，故直接传函数）
-    this.gpNextBridge = new GpNextBridge(context,
-      (url: string) => {
-        this.openExternal(url);
-      },
-      (fileName: string) => this.pickSaveTarget(fileName),
-      () => this.importPackages());
+
 
     // 初始化 ResourceManager（LRU 缓存，80MB/300项上限）
     ResourceManager.getInstance().setContext(context);

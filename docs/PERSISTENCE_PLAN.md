@@ -491,3 +491,28 @@ window.__pvzStorageApply = function (json) {
    随后页面自动重载；
 3. 重载后确认数据确实**生效**（可用一份**改动过的**备份做对照：改掉某个计数值再导入，看游戏里是否变化）；
 4. 回归：游戏能正常启动、A1 的自动镜像不受影响。
+---
+
+## 15. A6.2 的一个真实回归：`aboutToAppear` 的 await 位置（2026-10-06）
+
+**现象**：偶发启动失败，负载报
+`[Cocos Bootstrap] failed to start game StartupFailure: Cocos startup failed at beforeEngineImport:
+[gp-next-shim] 原生桥尚未就绪: plugin:fs|exists`，随后触发负载自带的 `startup-recovery`
+（日志里能看到它连试 4 次）。
+
+**根因**：A6.2 为了"在拼注入脚本之前读导入暂存位"，把两个 `await` 插到了**创建 `gpNextBridge` 之前**。
+`aboutToAppear` 是 async 的，框架**不等它** —— 只保证"第一个 `await` 之前的同步部分"先于
+`build()` / `onControllerAttached` 完成。于是 `onControllerAttached` 先触发时 `gpNextBridge` 还是
+`undefined` ⇒ `registerGpNextBridge()` 直接跳过注册 ⇒ 页面 document-start 调 `bridge` 失败 ⇒ 负载启动失败。
+表现为**偶发**（等待时长与 Web 组件挂载存在竞态）。
+
+**修法**：把 `this.gpNextBridge = new GpNextBridge(...)` 挪到 `filePickerHelper` 之后、
+**本函数第一个 `await` 之前**；读暂存位的 `await` 保持在拼注入脚本之前（那是它必须的位置）。
+自检：`建桥行 < 第一个真正的 await 行`（比较时必须剔除注释行）。
+
+**验证**（真机，`hilog -T JSAPP` 流式对比）：
+- 修前：连续多次启动都是 `GP-Next 原生桥未初始化，跳过注册` + `StartupFailure`（含负载自动重试 4 次）
+- 修后：**5 次启动全部 `GP-Next 原生桥已注册`，零 `StartupFailure`**
+
+**教训（已同步到 AGENTS.md）**：凡是"必须在 `build()`/`onControllerAttached` 之前就绪"的对象，
+一律放在 `aboutToAppear` 的第一个 `await` 之前；竞态类问题**必须多次启动**才算验证。

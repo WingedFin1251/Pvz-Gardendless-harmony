@@ -456,3 +456,17 @@ hdc -t <设备> file recv `
 1. 面板点「**设为不限**」（写入非默认值）
 2. `hdc shell "aa force-stop <bundle>"` 杀掉应用
 3. 重开 → 打开面板：仍显示「**不限**」⇒ DOM Storage 持久化正常；回到「60」⇒ 网页存储被清过
+
+## touchPatch.js 的触摸翻译与"按下态"安全
+
+`rawfile/touchPatch.js` 把 touch 事件翻译成合成鼠标事件交给 Cocos（游戏按鼠标输入编写）。要点：
+
+- 监听必须带 `{ capture: true, passive: false }`（否则 `preventDefault()` 失效并每次触摸打一条 Error 日志）。
+- **按下/抬起必须严格配对**：`mousedown` 延迟 16ms 派发，因此必须维护"当前按下的目标"，
+  在 `touchend` 与 **`touchcancel`** 两条路径上都补发 `mouseup`；否则页面会卡在"鼠标按住"态，
+  表现为**游戏中途点不动植物、重启才恢复**。
+- `touchcancel` 常被忽略但必须有：浏览器/系统接管手势（滚动、边缘手势等）时用它结束触摸，**不会有 `touchend`**。
+- 不要用 `isGpPanelElement` 在 `touchend` 里提前 return（从游戏区拖到 GP 按钮上松手会漏发 `mouseup`）；
+  该判断只用于 `touchstart`（决定这次触摸是否交给游戏）。
+- **自愈**：下一次 `touchstart` 若发现仍有残留按下态，先补发一次 `mouseup`。
+- 诊断用 `console.warn`（页面的 `console.log/info` 不进 hilog，**warn 才进**）。

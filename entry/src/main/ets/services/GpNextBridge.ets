@@ -552,19 +552,27 @@ export class GpNextBridge {
 
   /** Tauri FileInfo：lstat/stat 的返回值（见 GpNextFileInfo 的说明） */
   private statInfo(path: string, noFollow: boolean): GpNextFileInfo {
-    const stat = noFollow ? fs.lstatSync(path) : fs.statSync(path);
-    const info: GpNextFileInfo = {
-      isFile: stat.isFile(),
-      isDirectory: stat.isDirectory(),
-      isSymlink: stat.isSymbolicLink(),
-      size: stat.size,
-      // Tauri 的 FileInfo 用毫秒；HarmonyOS 的 Stat.mtime/atime/ctime 是秒
-      mtime: stat.mtime * 1000,
-      atime: stat.atime * 1000,
-      birthtime: stat.ctime * 1000,
-      readonly: false
-    };
-    return info;
+    // ⚠️ fs.*Sync 必须**字面落在 try 内**：ArkTS Check 看的是"调用点所在的作用域"，
+    // 把它们挪到另一个函数里、再由 try 包住调用方 —— 检查器照样报"函数可能抛异常"（实测）。
+    try {
+      const stat = noFollow ? fs.lstatSync(path) : fs.statSync(path);
+      const info: GpNextFileInfo = {
+        isFile: stat.isFile(),
+        isDirectory: stat.isDirectory(),
+        isSymlink: stat.isSymbolicLink(),
+        size: stat.size,
+        // Tauri 的 FileInfo 用毫秒；HarmonyOS 的 Stat.mtime/atime/ctime 是秒
+        mtime: stat.mtime * 1000,
+        atime: stat.atime * 1000,
+        birthtime: stat.ctime * 1000,
+        readonly: false
+      };
+      return info;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.warn(`stat 失败: ${path}: code=${error.code}, message=${error.message}`);
+      throw new Error(`stat 失败: ${path}: code=${error.code}, message=${error.message}`);
+    }
   }
 
   /**
@@ -685,20 +693,27 @@ export class GpNextBridge {
    * 注意：本版本 SDK **没有** fs.rmSync，rmdirSync 只能删空目录，所以只能自己递归。
    */
   private removeDirectoryRecursive(path: string): void {
-    const children: string[] = fs.listFileSync(path);
-    for (let index = 0; index < children.length; index++) {
-      const childPath = `${path}/${children[index]}`;
-      const childStat = fs.lstatSync(childPath);
-      if (childStat.isSymbolicLink()) {
-        throw new Error(`拒绝操作符号链接: ${childPath}`);
+    // ⚠️ 同 statInfo：fs.*Sync 必须字面落在 try 内，否则 ArkTS Check 仍会报"可能抛异常"。
+    try {
+      const children: string[] = fs.listFileSync(path);
+      for (let index = 0; index < children.length; index++) {
+        const childPath = `${path}/${children[index]}`;
+        const childStat = fs.lstatSync(childPath);
+        if (childStat.isSymbolicLink()) {
+          throw new Error(`拒绝操作符号链接: ${childPath}`);
+        }
+        if (childStat.isDirectory()) {
+          this.removeDirectoryRecursive(childPath);
+        } else {
+          fs.unlinkSync(childPath);
+        }
       }
-      if (childStat.isDirectory()) {
-        this.removeDirectoryRecursive(childPath);
-      } else {
-        fs.unlinkSync(childPath);
-      }
+      fs.rmdirSync(path);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`删除目录失败: ${path}: code=${error.code}, message=${error.message}`);
+      throw new Error(`删除目录失败: ${path}: code=${error.code}, message=${error.message}`);
     }
-    fs.rmdirSync(path);
   }
 
   // ==================== 另存为 ====================

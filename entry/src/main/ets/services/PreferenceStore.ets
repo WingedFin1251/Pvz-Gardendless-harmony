@@ -104,7 +104,13 @@ export class PreferenceStore {
     if (!store) {
       throw new Error('Preferences 未就绪，无法暂存导入数据');
     }
-    await store.put(PreferenceStore.PENDING_IMPORT_KEY, json);
+    try {
+      await store.put(PreferenceStore.PENDING_IMPORT_KEY, json);
+    } catch (err) {
+      const error = err as BusinessError;
+      // 抛出 Error（arkts-limited-throw 限制）；页面侧只把 message 显示成"导入失败"
+      throw new Error(`暂存导入数据失败: code=${error.code}, message=${error.message}`);
+    }
     this.flushNow();
   }
 

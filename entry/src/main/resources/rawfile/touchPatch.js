@@ -26,6 +26,49 @@ var DELAY_TIME = 16;
 var MOVE_THRESHOLD = 3; // 像素移动阈值：参考Android版 moveThreshold=20f/density≈7物理px，折半为3CSSpx
 var _lastX = 0, _lastY = 0, _lastYScroll = null;
 
+// ==================== 按下态看门狗（修"游戏中途触摸失效"） ====================
+// 症状：游戏一开始正常，中途突然点不动植物（种植失效），重启后恢复。
+// 根因：本层把触摸翻译成合成鼠标事件，但 mousedown 与 mouseup **不对称**：
+//   · 浏览器可以用 touchcancel 结束一次触摸（滚动/手势被系统接管等），原实现**没监听**它
+//     ⇒ mousedown 发出去了、mouseup 永远不来 ⇒ 页面停在"鼠标按住"态，Cocos 以为一直在拖拽；
+//   · mousedown 是延迟 16ms 派发的，极短点击会让 mouseup 先于 mousedown；
+//   · touchend 里若命中 GP 面板会提前 return ⇒ 从游戏区拖到 GP 按钮上松手也不发 mouseup。
+// 这里维护一个"当前按下的目标"，任何结束路径都走 releasePress 补发 mouseup；
+// 并且**下一次 touchstart 时若发现残留按下态，先补发一次**（自愈，用户无需重启）。
+var _pressedTarget = null;   // 已按下（或即将按下）的目标
+var _pressTimer = -1;        // 尚未执行的 mousedown 定时器
+var _lastTouch = null;       // 最近一次触摸对象（用于补发 mouseup 时的坐标）
+
+/** 结束一次按下：取消未执行的 mousedown，并（若确实处于按下态）补发 mouseup */
+function releasePress(reason, delayMs) {
+    if (_pressTimer !== -1) {
+        clearTimeout(_pressTimer);
+        _pressTimer = -1;
+    }
+    if (!_pressedTarget) {
+        return;
+    }
+    var target = _pressedTarget;
+    _pressedTarget = null;
+    var touch = _lastTouch;
+    var fire = function() {
+        try {
+            target.dispatchEvent(createMouseEvent("mouseup", touch, 0));
+        } catch (e) {
+            console.error('[TouchPatch] 补发 mouseup 失败: ' + (e && e.message ? e.message : String(e)));
+        }
+    };
+    if (delayMs && delayMs > 0) {
+        setTimeout(fire, delayMs);
+    } else {
+        fire();
+    }
+    if (reason) {
+        // 用 warn 级：页面的 console.log/info 不进 hilog，warn 才进 —— 便于真机排查
+        console.warn('[TouchPatch] 已释放残留按下态（' + reason + '）');
+    }
+}
+
 function createMouseEvent(type, touch, button) {
     return new MouseEvent(type, {
         bubbles: true,
@@ -46,9 +89,14 @@ function createMouseEvent(type, touch, button) {
 
 // ==================== touchstart ====================
 document.addEventListener("touchstart", function(event) {
+    // 自愈：上一次按下若没正常抬起（touchcancel / 拖到 GP 面板松手 / 极短点击），
+    // 先补发一次 mouseup，再开始这次触摸 —— 用户不必重启应用。
+    releasePress('新的 touchstart 到来时仍有残留按下态', 0);
+
     if (isGpPanelElement(event.target)) return;
 
     var touch = event.changedTouches[0];
+    _lastTouch = touch;
 
     if (event.touches.length === 3) {
         var downEv = createMouseEvent("mousedown", touch, 2);
@@ -67,10 +115,17 @@ document.addEventListener("touchstart", function(event) {
     _lastX = touch.clientX;
     _lastY = touch.clientY;
 
-    // DOWN 延迟执行，防止误触
+    // DOWN 延迟执行，防止误触；同时登记"按下态"，供任何结束路径补发 mouseup
     var downTouch = touch;
-    setTimeout(function() {
-        downTouch.target.dispatchEvent(createMouseEvent("mousedown", downTouch, 0));
+    _pressedTarget = touch.target;
+    _pressTimer = setTimeout(function() {
+        _pressTimer = -1;
+        try {
+            downTouch.target.dispatchEvent(createMouseEvent("mousedown", downTouch, 0));
+        } catch (e) {
+            console.error('[TouchPatch] 派发 mousedown 失败: ' + (e && e.message ? e.message : String(e)));
+            _pressedTarget = null;
+        }
     }, DELAY_TIME);
     event.preventDefault();
     event.stopPropagation();
@@ -122,16 +177,25 @@ document.addEventListener("touchmove", function(event) {
     event.stopPropagation();
 }, { capture: true, passive: false });
 
-// ==================== touchend ====================
+// ==================== touchend / touchcancel ====================
+// ⚠️ 不能再用 isGpPanelElement 提前 return：从游戏区拖到 GP 按钮上松手时，
+//    目标会变成面板元素，若在这里 return 就永远不发 mouseup（按下态卡死）。
 document.addEventListener("touchend", function(event) {
-    if (isGpPanelElement(event.target)) return;
-
     _lastYScroll = null;
     var touch = event.changedTouches[0];
-    setTimeout(function() {
-        touch.target.dispatchEvent(createMouseEvent("mouseup", touch, 0));
-    }, DELAY_TIME);
+    if (touch) { _lastTouch = touch; }
+    releasePress(null, DELAY_TIME);   // 保持原有的 16ms 延迟，行为与改动前一致
     if (event.cancelable) event.preventDefault();
+    event.stopPropagation();
+}, { capture: true, passive: false });
+
+// A7：touchcancel —— 浏览器/系统接管手势时用它结束触摸（不会有 touchend）。
+// 原实现没监听它，导致 mousedown 之后永远没有 mouseup ⇒ 中途触摸失效、重启才恢复。
+document.addEventListener("touchcancel", function(event) {
+    _lastYScroll = null;
+    var touch = event.changedTouches[0];
+    if (touch) { _lastTouch = touch; }
+    releasePress('touchcancel', 0);   // cancel 说明这次触摸已经作废 ⇒ 立即释放
     event.stopPropagation();
 }, { capture: true, passive: false });
 

@@ -51,7 +51,7 @@ return PayloadServer.serve(
   (path: string) => this.readRawfileBytes(path));   // 同步字节读（用于回填 LRU）
 ```
 
-**`onInterceptRequest` 要求当场返回响应，不能 `await`。** 这一条决定了后面所有设计：
+**`onInterceptRequest` 要求当场返回响应，不能 `await`（官方文档的示例就是**直接 `return` 响应对象**；其回调类型为 `Callback<OnInterceptRequestEvent, WebResourceResponse>`，有返回值即意味着同步）。** 这一条决定了后面所有设计：
 
 - 想"快" → 只能靠**内存里已经有字节**（LRU 缓存）
 - 想"填缓存" → 只能用**同步**读（`getRawFileContentSync`），异步的 `getRawFileContent` 来不及

@@ -1058,6 +1058,9 @@ struct CocosJSApp {
     try {
       const result = await StorageBackup.exportAll(this.buildBackupDeps());
       this.backupHint = result.message;
+      // 结果也写 hilog：真机上导出目标是用户文档区（应用沙箱之外），
+      // 宿主机 hdc 读不到那个目录 ⇒ 日志是唯一可靠的验证手段。
+      console.info(`[A6] 导出${result.ok ? '成功' : '未完成'}: ${result.message}`);
       this.showStatusMessage(result.message, 6000);
     } catch (err) {
       const error = err as BusinessError;
@@ -1077,6 +1080,7 @@ struct CocosJSApp {
     try {
       const result = await StorageBackup.importFromFile(this.buildBackupDeps());
       this.backupHint = result.message;
+      console.info(`[A6] 导入${result.ok ? '成功' : '未完成'}: ${result.message}`);
       this.showStatusMessage(result.message, 8000);
     } catch (err) {
       const error = err as BusinessError;

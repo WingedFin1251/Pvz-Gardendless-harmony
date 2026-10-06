@@ -21,6 +21,10 @@ export interface StorageBackupDeps {
   pickSavePath: (fileName: string) => Promise<string | null>;
   /** 让用户选一个备份文件；取消返回 null */
   pickStorageFile: () => Promise<string | null>;
+  /** A6.2：把校验通过的 entries JSON 放进原生暂存位（下次页面加载最开头同步应用）*/
+  stageImport: (entriesJson: string) => Promise<void>;
+  /** A6.2：让 Web 组件整页重新加载（重新加载时注入脚本会把暂存位同步写进 localStorage）*/
+  reload: (entriesJson: string) => void;
   /** 顶部状态提示 */
   notify: (message: string, duration: number) => void;
   /** 应用自己的文件目录（导入前的自动备份落在这里，不打扰用户） */
@@ -42,10 +46,8 @@ export class StorageBackup {
   /** 导入文件体积上限（防护：防止选到奇怪的大文件） */
   private static readonly MAX_IMPORT_BYTES: number = 8 * 1024 * 1024;
   /** 分片大小（字符数）：把 JSON 分块送进页面，避免拼进脚本文本 */
-  private static readonly CHUNK_SIZE: number = 60000;
+  /** A6.2：导入改为暂存+重载后，分片常量已无用（保留占位以免影响行号对齐的其他改动） */
   private static readonly JS_EXPORT: string = 'window.__pvzStorageExport()';
-  private static readonly JS_APPLY_BEGIN: string = 'window.__pvzStorageApplyBegin()';
-  private static readonly JS_APPLY_END: string = 'window.__pvzStorageApplyEnd()';
   private static readonly ERR_PREFIX: string = '__PVZ_ERR__';
 
   /** 生成默认文件名：pvzge-localstorage-YYYYMMDD-HHmm.json */
@@ -220,21 +222,14 @@ export class StorageBackup {
       console.warn(`导入前自动备份失败（继续导入）: ${error.message}`);
     }
 
-    // 分片传输 + 应用
-    await deps.runJs(StorageBackup.JS_APPLY_BEGIN);
-    for (let offset = 0; offset < entriesJson.length; offset += StorageBackup.CHUNK_SIZE) {
-      const chunk: string = entriesJson.substring(offset, offset + StorageBackup.CHUNK_SIZE);
-      await deps.runJs('window.__pvzStorageApplyChunk(' + JSON.stringify(chunk) + ')');
-    }
-    const applied: string = await deps.runJs(StorageBackup.JS_APPLY_END);
-    const resultText: string = (applied === undefined || applied === null) ? '' : applied;
-    if (resultText.startsWith(StorageBackup.ERR_PREFIX)) {
-      return { ok: false, message: '导入失败：' + resultText.substring(StorageBackup.ERR_PREFIX.length) };
-    }
-    const count: number = Number(resultText);
-    if (!Number.isFinite(count) || count <= 0) {
-      return { ok: false, message: '导入未生效：页面回传 ' + resultText };
-    }
-    return { ok: true, message: `已导入 ${count} 个键。重启应用后生效（导入前的状态已自动备份）` };
+    // A6.2 ⭐ 关键改动：**不在游戏运行中写 localStorage**。
+    // 游戏会把内存里的存档定期（以及退出时）写回，运行中导入的结果迟早被覆盖。
+    // 正确做法：把数据暂存到原生侧 → 立即整页重新加载 → 注入脚本在 document-start
+    //（负载任何代码之前）**同步**写进 localStorage。
+    await deps.stageImport(entriesJson);
+    const kb: string = (entriesJson.length / 1024).toFixed(1);
+    console.info(`[A6] 导入数据已暂存（${kb} KB），即将重新加载页面以在文档开头同步应用`);
+    deps.reload(entriesJson);
+    return { ok: true, message: `已暂存导入数据（${kb} KB），正在重新加载以应用…` };
   }
 }

@@ -362,20 +362,15 @@ window.__pvzStorageExport = function () {
     }
 };
 
-// 导入分片传输：把 JSON 分块送进来，避免把几百 KB 拼进脚本文本（转义/长度风险）。
-window.__pvzStorageApplyBegin = function () {
-    window.__pvzApplyBuf = '';
-    return 1;
-};
-window.__pvzStorageApplyChunk = function (chunk) {
-    window.__pvzApplyBuf = (window.__pvzApplyBuf || '') + chunk;
-    return window.__pvzApplyBuf.length;
-};
-window.__pvzStorageApplyEnd = function () {
+// 导入的**同步**应用（A6.2）：
+//   · 由原生侧把待应用 JSON **内联进 document-start 的注入脚本**后调用，
+//     因此这一步发生在**负载任何代码之前** → 游戏启动时读到的就是导入后的数据。
+//   · 之所以必须同步：若在游戏运行中写 localStorage，游戏内存里的旧存档会被定期/退出时写回，
+//     把导入结果覆盖掉（实测游戏会周期性回写存档）。
+window.__pvzApplyImportSync = function (jsonText) {
     try {
-        var obj = JSON.parse(window.__pvzApplyBuf || '{}');
-        window.__pvzApplyBuf = '';
-        if (!obj || typeof obj !== 'object') { return '__PVZ_ERR__不是对象'; }
+        var obj = JSON.parse(jsonText);
+        if (!obj || typeof obj !== 'object') { return -1; }
         var n = 0;
         for (var k in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, k) && typeof obj[k] === 'string') {
@@ -384,9 +379,15 @@ window.__pvzStorageApplyEnd = function () {
                 n++;
             }
         }
-        return String(n);
+        console.info('[A6] 已在文档开头同步应用导入数据: ' + n + ' 个键');
+        // 应用成功即清掉暂存位（写空串；读取侧把空串视为"没有待应用数据"），保证只应用一次。
+        // 复用既有的 saveToNative：PreferenceStore.save 不做键名白名单校验，只限值大小。
+        if (window.NativeStorage && typeof window.NativeStorage.saveToNative === 'function') {
+            Promise.resolve(window.NativeStorage.saveToNative('__a6_pending_import', '')).catch(function () {});
+        }
+        return n;
     } catch (e) {
-        window.__pvzApplyBuf = '';
-        return '__PVZ_ERR__' + (e && e.message ? e.message : String(e));
+        console.error('[A6] 同步应用导入数据失败: ' + (e && e.message ? e.message : String(e)));
+        return -1;
     }
 };

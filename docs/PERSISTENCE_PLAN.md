@@ -328,3 +328,77 @@ A1.1 是在其之上**放宽白名单 + 加固护栏 + 加去抖**，可用同�
 - 自动侧只覆盖**已知命名约定**（`gpn_`）与**游戏本体键**；
 - 若某个模组用了别的键名，**自动不保证**，但用户随时可以**手动导出**拿到**全部键**（含该模组的数据），
   需要时再**手动导入**回来 ⇒ 这是"手动求全"存在的意义。
+---
+
+## 12. A6 改动地图（实施定位）：自动与手动是"两条入口"，不靠条件分支
+
+### 12.1 改哪些文件
+
+| 文件 | 改动 | 量级 |
+| :--- | :--- | :--- |
+| `components/SettingsPanel.ets` | 新增「数据备份」一节 + 导出/导入两个按钮 | ~40 行 |
+| `services/StorageBackup.ets`（**新文件**）| 打包成 JSON、落盘、读回 + 校验、导入前自动备份 | ~150 行 |
+| `common/FilePickerHelper.ets` | ✅ **已具备**（`selectSavePath()` 与第二个 select 方法）| **0 行** |
+| `pages/Index.ets` | 新增 2 个给页面调用的 `public` 方法（收集 / 应用）+ 注册进 JavaScriptProxy 方法表 | ~20 行 |
+| `resources/rawfile/touchPatch.js` | ⭐ **只加两个小函数**（收集器 / 应用器），挂在 `window` 上 | **~20 行** |
+
+**为什么必须动 touchPatch**：只有**页面**能读 `localStorage` —— 原生侧读不到
+（官方 `WebStorage` 只能查用量与删除，见 §9.6）⇒ 收集与写回都必须在页面里做。
+
+### 12.2 自动与手动怎么分开：**入口不同，不需要加条件**
+
+| | 自动（A1）| 手动（A6）|
+| :--- | :--- | :--- |
+| 谁发起 | 页面 **`setItem` 钩子自动**触发 | **用户点按钮** |
+| 路径 | `localStorage.setItem` 被覆写 ⇒ 白名单判定 ⇒ `saveToNative` | 按钮 ⇒ 原生 ⇒ **主动调用**页面函数 |
+| 是否互相干扰 | **不干扰**（各走各的）| |
+
+⇒ touchPatch 里新增的只是两个挂在 `window` 上的函数，**没有任何 `if (手动/自动)` 判断**：
+
+```js
+// A6：供原生侧调用的手动导出/导入（与 A1 的自动镜像互不干扰）
+window.__pvzStorageExport = function () {
+    var out = {};
+    for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        out[k] = localStorage.getItem(k);      // 全收，一个不落（符合"手动求全"）
+    }
+    return JSON.stringify(out);
+};
+window.__pvzStorageApply = function (json) {
+    var obj = JSON.parse(json), n = 0;
+    for (var k in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, k) && typeof obj[k] === 'string') {
+            localStorage.setItem(k, obj[k]);   // 只覆盖、从不删除
+            n++;
+        }
+    }
+    return n;
+};
+```
+
+### 12.3 唯一的一处交汇（而且正是想要的）
+
+手动**导入**时写回用的是 `localStorage.setItem` ⇒ **会自动触发 A1 的钩子** ⇒ **镜像同步更新**。
+这正是需要的：否则导入成功后一清缓存，又会被回填成**导入前**的旧值。
+
+⚠️ **但要如实说明边界**：能被镜像更新的只有 **A1 范围内的键**（固定 3 键 ∪ `gpn_`）。
+手动导入一个**非 `gpn_` 前缀**的模组数据，**这次能用，但下次清缓存仍会丢** ——
+这是"自动求准、手动求全"设计的必然结果（§11）。要长期保住它，只能不清缓存，或把它加进自动白名单。
+
+### 12.4 桥怎么走
+
+| 方向 | 方式 | 原因 |
+| :--- | :--- | :--- |
+| 页面 → 原生（导出）| `runJavaScript` / `runJavaScriptExt` | 结果只有一份 JSON（约 330KB）；注意官方说明：**异步、必须 UI 线程**，且"执行失败或无返回值时返回 null"，必须把 null 当失败处理（§9.6）|
+| 原生 → 页面（导入）| **消息端口**（`createWebMessagePorts` + `postMessage`，端口支持 `ArrayBuffer \| string`）| 不能把 ~330KB 的 JSON 拼进脚本文本（转义风险 + 长度风险）|
+
+### 12.5 实施顺序（建议）
+
+1. **前置验证**：先用 `FilePickerHelper.selectSavePath()` 选位置并写一个小文件、再读回来
+   —— 同时覆盖验收清单里"下载 mod"那条**未验证项**；
+2. **导出**（页面收集 → 原生落盘 → Toast 提示体积与文件名）；
+3. **导入**（选文件 → 校验 → 自动备份 → 消息端口写回 → 提示重启生效）。
+   回归验证用 §9.5 的 5 步，其中"卸载重装后仍能导入找回"是 A6 独有的价值。
+
+**A1 的代码一行不改**（`setItem` 钩子保持现状，已真机端到端验证）。

@@ -1,6 +1,8 @@
 import { webview } from '@kit.ArkWeb';
 import { common, Want } from '@kit.AbilityKit';
 import { FilePickerHelper } from '../common/FilePickerHelper';  // 复用 FilePickerHelper
+import { StorageBackup, StorageBackupDeps } from '../services/StorageBackup';   // A6：手动导出/导入 localStorage
+import { bundleManager } from '@kit.AbilityKit';                // A6：把应用版本写进导出文件
 import { preferences } from '@kit.ArkData';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
 import { ResourceManager } from '../services/ResourceManager';
@@ -72,6 +74,9 @@ struct CocosJSApp {
   private injectedScript: string = GPNEXT_SHIM;
   private filePickerHelper?: FilePickerHelper;
   private readonly downloadSaver: DownloadSaver = new DownloadSaver();   // 下载回调 + 落盘（见 services/DownloadSaver.ets）
+  // A6：数据备份（手动求全）—— 导出/导入进行中与提示文案
+  @State private backupBusy: boolean = false;
+  @State private backupHint: string = '';
   private readonly shellPrefs: ShellPrefs = new ShellPrefs();            // 壳层自己的偏好（见 services/ShellPrefs.ets）
   private timeoutId?: number;
   /** 状态提示淡出后清空文案的定时器（M1：原来没跟踪，导致新提示被旧定时器立刻清空） */
@@ -1017,7 +1022,11 @@ struct CocosJSApp {
           onRefreshEngine: () => { this.readEngineFrameRate(); this.measureEngineFps(); },
           onForceUnlimited: () => { this.forceUnlimitedFrameRate(); },
           onOpenGpNext: () => { this.openGpNextPanel(); },
-          onDisableScheduler: () => { this.disableExperimentalScheduler(); }
+          onDisableScheduler: () => { this.disableExperimentalScheduler(); },
+                backupHint: this.backupHint,
+                backupBusy: this.backupBusy,
+                onExportStorage: () => { this.exportStorageToFile(); },
+                onImportStorage: () => { this.importStorageFromFile(); }
         })
       }
     }
@@ -1041,6 +1050,74 @@ struct CocosJSApp {
    * 返回底层委托由调用方交给 `webController.setDownloadDelegate`。
    * 回调里保留了两处原本属于页面状态的判断（是否采纳进度、取消时的文案）。
    */
+  /** A6：导出当前全部 localStorage 到用户选择的位置（手动求全，含所有键） */
+  private async exportStorageToFile(): Promise<void> {
+    if (this.backupBusy) { return; }
+    this.backupBusy = true;
+    this.backupHint = '正在收集数据…';
+    try {
+      const result = await StorageBackup.exportAll(this.buildBackupDeps());
+      this.backupHint = result.message;
+      this.showStatusMessage(result.message, 6000);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`导出失败: code=${error.code}, message=${error.message}`);
+      this.backupHint = '导出失败：' + error.message;
+      this.showStatusMessage(this.backupHint, 6000);
+    } finally {
+      this.backupBusy = false;
+    }
+  }
+
+  /** A6：从备份文件导入（只覆盖、从不删除；导入前自动备份当前状态） */
+  private async importStorageFromFile(): Promise<void> {
+    if (this.backupBusy) { return; }
+    this.backupBusy = true;
+    this.backupHint = '正在选择备份文件…';
+    try {
+      const result = await StorageBackup.importFromFile(this.buildBackupDeps());
+      this.backupHint = result.message;
+      this.showStatusMessage(result.message, 8000);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`导入失败: code=${error.code}, message=${error.message}`);
+      this.backupHint = '导入失败：' + error.message;
+      this.showStatusMessage(this.backupHint, 8000);
+    } finally {
+      this.backupBusy = false;
+    }
+  }
+
+  /** A6：把页面能力与本机上下文打包给 StorageBackup（服务层不直接依赖页面） */
+  private buildBackupDeps(): StorageBackupDeps {
+    const context = this.getUIContext()?.getHostContext() as common.UIAbilityContext;
+    return {
+      runJs: (script: string): Promise<string> => this.webController.runJavaScript(script),
+      pickSavePath: (fileName: string): Promise<string | null> => this.pickSaveTarget(fileName),
+      pickStorageFile: (): Promise<string | null> => this.pickStorageFile(),
+      notify: (message: string, duration: number): void => { this.showStatusMessage(message, duration); },
+      filesDir: context !== undefined && context !== null ? context.filesDir : '',
+      appVersion: this.readAppVersion()
+    };
+  }
+
+  /** A6：读取应用版本（失败不影响功能，写 'unknown'） */
+  private readAppVersion(): string {
+    try {
+      const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+      return info.versionName;
+    } catch (err) {
+      return 'unknown';
+    }
+  }
+
+  /** A6：选一个备份文件（取消返回 null） */
+  private async pickStorageFile(): Promise<string | null> {
+    if (!this.filePickerHelper) { return null; }
+    const uris = await this.filePickerHelper.selectStorageFile();
+    return (uris && uris.length > 0) ? uris[0] : null;
+  }
+
   private setupDownloadDelegate(): webview.WebDownloadDelegate {
     return this.downloadSaver.install({
       updateProgress: (percent: number) => {

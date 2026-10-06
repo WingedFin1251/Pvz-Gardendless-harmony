@@ -23,6 +23,8 @@ export struct SettingsPanel {
   @Prop engineFpsMeasured: string = '—'; // 实测（引擎循环帧数）
   @Prop schedulerFrameRate: string = '已关闭';
   @Prop frameSchedulerOn: boolean = false;
+  @Prop backupHint: string = '';      // A6：数据备份区的提示行
+  @Prop backupBusy: boolean = false;  // A6：导出/导入进行中（禁用按钮，防重复点）
 
   // —— 动作（父组件实现） ——
   onClose: () => void = () => { };
@@ -32,6 +34,8 @@ export struct SettingsPanel {
   onForceUnlimited: () => void = () => { };
   onOpenGpNext: () => void = () => { };
   onDisableScheduler: () => void = () => { };
+  onExportStorage: () => void = () => { };   // A6：导出全部 localStorage
+  onImportStorage: () => void = () => { };   // A6：从备份文件导入
 
   /** 单个刷新率按钮（M11：复用；只接收常量参数，选中态通过 this 读取状态） */
   @Builder
@@ -188,6 +192,35 @@ export struct SettingsPanel {
               .margin({ bottom: PANEL_GAP_SECTION })
               .onClick(() => { this.onDisableScheduler(); })
           }
+
+          // ── 数据备份（A6：手动求全）──
+          Text('数据备份')
+            .fontSize(PANEL_FS_SECTION)
+            .fontColor(PANEL_C_SECTION)
+            .width('100%')
+            .margin({ bottom: PANEL_GAP_TITLE })
+          Text(this.backupHint.length > 0 ? this.backupHint
+            : '导出当前全部存档与模组数据为一个 .json 文件（含所有键）。导入时只覆盖文件里有的键，绝不删除其它键。')
+            .fontSize(PANEL_FS_HINT)
+            .fontColor(PANEL_C_SECONDARY)
+            .width('100%')
+            .margin({ bottom: PANEL_GAP_TITLE })
+          Row({ space: 6 }) {
+            Button('导出全部数据')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(PANEL_C_BTN)
+              .layoutWeight(1)
+              .enabled(!this.backupBusy)
+              .onClick(() => { this.onExportStorage(); })
+            Button('导入数据')
+              .fontSize(PANEL_FS_BUTTON)
+              .backgroundColor(PANEL_C_BTN)
+              .layoutWeight(1)
+              .enabled(!this.backupBusy)
+              .onClick(() => { this.onImportStorage(); })
+          }
+          .width('100%')
+          .margin({ bottom: PANEL_GAP_SECTION })
 
           // ── 完成 ──
           Button('完成')

@@ -1,19 +1,19 @@
-import { ResourceManager } from './ResourceManager';
-
 /**
  * 本地负载服务：把 `https://cocos.local/...` 的请求映射到 rawfile。
  *
- * 处理顺序（与原页面内实现完全一致，勿改）：
- *   1. 按规则补负载前缀（壳层自带文件不补）
- *   2. 先查 ResourceManager 的 LRU 缓存（同步、无异步开销）
- *   3. 未命中则用**同步字节读**拿到内容（同时回填缓存，让第 2 步下次能命中）
- *   4. 同步字节读不可用时退回 $rawfile；都失败返回 null，交给系统处理
+ * 处理顺序：
+ *   1. 校验 URL 前缀、切掉 query、解码、拒绝可疑路径
+ *   2. 按规则补负载前缀（壳层自带文件不补）
+ *   3. 直接把 `$rawfile`（Resource）交给内核 —— **不做任何堆内读取或缓存**
  *
- * 为什么必须同步：onInterceptRequest 要求当场返回响应，异步读取来不及；
- * 所以填缓存只能用 getRawFileContentSync 这类同步接口。
+ * ⚠️ 2026-10-07：这里原来还有一条"同步整文件读 → 回填 LRU 缓存"的路径，已**移除**。
+ *    实测（交替 6 轮、A/B 各 3 次，见 docs/perf/RESOURCE_CACHE_AB.md）：
+ *    · 命中率只有 0–1%；
+ *    · 却多占约 **140MB native 堆**（188,477 kB → 48,439 kB）；
+ *    · 启动耗时**没有差异**（首个负载读取：14.109 s vs 14.145 s）。
+ *    ⇒ 零收益、零速度代价、净亏内存。所以直接 `$rawfile` 直传，让内核自己读。
  *
- * 说明：读取 rawfile 的函数由页面传入（`$rawfile` 是 UI 全局），
- * 这样数据来源与改动前完全一致，不引入行为变化。
+ * 说明：读取 rawfile 的函数由页面传入（`$rawfile` 是 UI 全局），数据来源保持不变。
  */
 
 /** 游戏负载（Cocos 构建产物，含它**自带的** index.html）统一放在 rawfile/<PAYLOAD_DIR> 下 */
@@ -64,23 +64,12 @@ export function mimeOf(fileName: string): string {
 
 export class PayloadServer {
   /**
-   * 资源缓存开关（A4 / A-B 实验用）。
-   *
-   * · true（**默认**）：未命中时用**同步整文件读**拿字节 → 回填 LRU 缓存 → 再交给内核（现状）。
-   * · false：直接走 `$rawfile`（Resource 直传，内核自己读，不进 ArkTS 堆）——不查缓存、不做堆读。
-   *
-   * ⚠️ 关掉之后 `[payload-cache]` 的统计会恒为 0（因为根本不查缓存），这是**预期现象**，
-   *    不是 bug；A/B 时请只看启动耗时与内存，不要拿缓存命中率当指标。
-   */
-  static readonly ENABLE_RESOURCE_CACHE: boolean = true;
-  /**
    * 处理一次请求。
    * @param url 请求 URL（非 cocos.local 的一律返回 null）
    * @param readRawfile 读取 rawfile 的函数（页面传 `$rawfile`，保持数据来源不变）
    */
   static serve(url: string,
-    readRawfile: (path: string) => Resource,
-    readRawfileBytes?: (path: string) => Uint8Array): WebResourceResponse | null {
+    readRawfile: (path: string) => Resource): WebResourceResponse | null {
     if (!url.startsWith('https://cocos.local/')) {
       return null;
     }
@@ -112,43 +101,9 @@ export class PayloadServer {
       rawFilePath = PAYLOAD_DIR + rawFilePath;
     }
 
-    // 0. 缓存关闭时（A4 的 B 组）：直接 $rawfile 直传 —— 不查缓存、不做同步整文件堆读
-    if (!PayloadServer.ENABLE_RESOURCE_CACHE) {
-      try {
-        return PayloadServer.buildResponse(readRawfile(rawFilePath), mimeOf(rawFilePath), rawFilePath);
-      } catch (error) {
-        console.error(`拦截器读取文件失败（$rawfile 直传）: ${rawFilePath}`, error);
-        return null;
-      }
-    }
-
-    // 1. 同步检查 ResourceManager LRU 缓存（快速路径，无异步开销）
-    const cachedData = ResourceManager.getInstance().getCachedSync(rawFilePath);
-    if (cachedData) {
-      return PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(cachedData), mimeOf(rawFilePath), rawFilePath);
-    }
-
-    // 2. 缓存未命中：优先用同步字节读（拿到字节才能回填缓存）
-    if (readRawfileBytes) {
-      try {
-        const bytes = readRawfileBytes(rawFilePath);
-        if (bytes && bytes.byteLength > 0) {
-          const itemSize = bytes.byteLength;
-          ResourceManager.getInstance().cacheResource(rawFilePath, bytes);
-          const response = PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(bytes), mimeOf(rawFilePath), rawFilePath);
-          // 哨兵：若 setResponseData 是"转移（detach）"语义，上面那一步会把这个 buffer 抽干。
-          // 官方文档没写是拷贝还是转移，所以用一行 warn 把它钉死：出现即说明缓存必须改存副本。
-          if (bytes.byteLength !== itemSize) {
-            console.warn(`[lru-detach] setResponseData 转移了 buffer: ${rawFilePath} ${itemSize} -> ${bytes.byteLength}`);
-          }
-          return response;
-        }
-      } catch (error) {
-        console.warn(`同步读取失败，退回 $rawfile: ${rawFilePath}`, error);
-      }
-    }
-
-    // 3. 退回 $rawfile（数据来源与改动前一致）
+    // 直接 `$rawfile`（Resource）交给内核：内核自己读文件，内容不进 ArkTS 堆。
+    // 历史：此处曾有一条"同步整文件读 + 回填 LRU 缓存"的路径，实测为负优化已移除
+    // （命中率 0–1%，却多占约 140MB native 堆；启动耗时无差异），见 docs/perf/RESOURCE_CACHE_AB.md。
     try {
       return PayloadServer.buildResponse(readRawfile(rawFilePath), mimeOf(rawFilePath), rawFilePath);
     } catch (error) {
@@ -217,15 +172,5 @@ export class PayloadServer {
       mime === 'application/xml';
   }
 
-  /**
-   * Uint8Array → 精确区间的 ArrayBuffer。
-   * 不能直接写 `bytes.buffer`：视图可能只覆盖底层缓冲的一部分（与 DownloadSaver 里同一个坑）。
-   * setResponseData 的官方参数类型是 string | number | ArrayBuffer | Resource。
-   */
-  private static toExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-    if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) {
-      return bytes.buffer as ArrayBuffer;
-    }
-    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  }
+
 }

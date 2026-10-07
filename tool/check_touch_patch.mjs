@@ -140,7 +140,15 @@ function loadMachine() {
   return {
     tick, fire, fireWindow, events, canvas, outside, panel, f1hint, recovery, styleTags,
     ls: rec.ls,
+    doc,
+    fireDoc: (type) => { for (const fn of (doc._handlers[type] || [])) fn({ type }); },
     nativeSaveCount: () => rec.nativeCalls.length,
+    lastNativeValue: (k) => {
+      for (let i = rec.nativeCalls.length - 1; i >= 0; i--) {
+        if (rec.nativeCalls[i].k === k) { return rec.nativeCalls[i].v; }
+      }
+      return undefined;
+    },
   };
 }
 
@@ -261,12 +269,40 @@ test('⑨ 同一键写入相同值只镜像一次，值变化后必须再镜像'
   m.ls.setItem('PvZ2_Settings', 'A');
   m.ls.setItem('PvZ2_Settings', 'A');
   m.ls.setItem('PvZ2_Settings', 'A');
+  m.tick(300);
   assert.equal(m.nativeSaveCount(), 1, '相同值重复写只应镜像一次（实际 ' + m.nativeSaveCount() + ' 次）');
   m.ls.setItem('PvZ2_Settings', 'B');
+  m.tick(300);
   assert.equal(m.nativeSaveCount(), 2, '值变化后必须再镜像一次（实际 ' + m.nativeSaveCount() + ' 次）');
   // 非白名单键不该镜像
   m.ls.setItem('__not_persisted__', 'X');
+  m.tick(300);
   assert.equal(m.nativeSaveCount(), 2, '非白名单键不得镜像');
+});
+
+// ---------- 契约 10：节流窗口内同键连写不同值 ⇒ 只镜像一次（最新值）----------
+test('⑩ 节流窗口内同键连写不同值只镜像一次，且是最新值', () => {
+  const m = loadMachine();
+  m.ls.setItem('PvZ2_PlayerProperties', 'v1');
+  m.tick(5);
+  m.ls.setItem('PvZ2_PlayerProperties', 'v2');
+  m.tick(5);
+  m.ls.setItem('PvZ2_PlayerProperties', 'v3');
+  assert.equal(m.nativeSaveCount(), 0, '节流窗口内不应立刻镜像');
+  m.tick(300);
+  assert.equal(m.nativeSaveCount(), 1, '一个窗口内只应镜像一次（实际 ' + m.nativeSaveCount() + '）');
+  assert.equal(m.lastNativeValue('PvZ2_PlayerProperties'), 'v3', '镜像的必须是最新值');
+});
+
+// ---------- 契约 11：页面隐藏时必须把待发的刷出去 ----------
+test('⑪ visibilitychange(hidden) 必须把待发镜像刷出去', () => {
+  const m = loadMachine();
+  m.ls.setItem('PvZ2_PlayerProperties', 'pending');
+  assert.equal(m.nativeSaveCount(), 0, '此时还应在待发状态');
+  m.doc.visibilityState = 'hidden';
+  m.fireDoc('visibilitychange');
+  assert.equal(m.nativeSaveCount(), 1, '隐藏时必须补发（实际 ' + m.nativeSaveCount() + '）');
+  assert.equal(m.lastNativeValue('PvZ2_PlayerProperties'), 'pending', '补发的必须是待发值');
 });
 
 // ---------- 汇总 ----------

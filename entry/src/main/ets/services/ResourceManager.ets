@@ -157,7 +157,10 @@ export class ResourceManager {
    */
   public getCachedSync(path: string): Uint8Array | null {
     const item = this.cache.get(path);
-    if (item && item.data) {
+    // ⚠️ `item.data` 非空判断不够：若底层 ArrayBuffer 被**转移（detach）**，视图对象仍然 truthy，
+    //    但 byteLength 会变成 0 ⇒ 直接发出去就是"200 + 空体"（JS/JSON 会静默解析失败）。
+    //    这里把它当 miss（会自动回磁盘重读 ⇒ 自愈）。
+    if (item && item.data && item.data.byteLength > 0) {
       this.cacheHitCount++;
       item.accessCount++;
       item.lastAccessTime = Date.now();

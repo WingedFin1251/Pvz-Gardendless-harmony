@@ -596,7 +596,7 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
 //   ① 根因上游修一行即可：赋值前比较字符串是否变化（并在 active 未变时不重复赋值）；
 //   ② GP-Next 设置里把「血条显示」的植物/僵尸/墓碑三项全关，该定时器会自行空转，效果比降频更彻底；
 //   ③ 识别方式是注册栈里匹配 'hp-overlay-'，负载更新后若模块改名会失效（失效时行为不变，安全）。
-// 详见 docs/GAME_SIDE_OPTIMIZATION.md。
+// 详见内部记录 .clean-staging/gpnext-diag/PAYLOAD-PERF-FINDINGS.md（按用户要求未入库）。
 (function () {
     var HP_OVERLAY_INTERVAL_MULTIPLIER = 0;
     if (HP_OVERLAY_INTERVAL_MULTIPLIER <= 1) { return; }   // 关闭时不安装钩子，零行为变化

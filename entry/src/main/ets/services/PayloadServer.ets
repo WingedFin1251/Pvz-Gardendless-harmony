@@ -105,7 +105,7 @@ export class PayloadServer {
     // 1. 同步检查 ResourceManager LRU 缓存（快速路径，无异步开销）
     const cachedData = ResourceManager.getInstance().getCachedSync(rawFilePath);
     if (cachedData) {
-      return PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(cachedData), mimeOf(rawFilePath));
+      return PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(cachedData), mimeOf(rawFilePath), rawFilePath);
     }
 
     // 2. 缓存未命中：优先用同步字节读（拿到字节才能回填缓存）
@@ -113,8 +113,15 @@ export class PayloadServer {
       try {
         const bytes = readRawfileBytes(rawFilePath);
         if (bytes && bytes.byteLength > 0) {
+          const itemSize = bytes.byteLength;
           ResourceManager.getInstance().cacheResource(rawFilePath, bytes);
-          return PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(bytes), mimeOf(rawFilePath));
+          const response = PayloadServer.buildResponse(PayloadServer.toExactArrayBuffer(bytes), mimeOf(rawFilePath), rawFilePath);
+          // 哨兵：若 setResponseData 是"转移（detach）"语义，上面那一步会把这个 buffer 抽干。
+          // 官方文档没写是拷贝还是转移，所以用一行 warn 把它钉死：出现即说明缓存必须改存副本。
+          if (bytes.byteLength !== itemSize) {
+            console.warn(`[lru-detach] setResponseData 转移了 buffer: ${rawFilePath} ${itemSize} -> ${bytes.byteLength}`);
+          }
+          return response;
         }
       } catch (error) {
         console.warn(`同步读取失败，退回 $rawfile: ${rawFilePath}`, error);
@@ -123,15 +130,34 @@ export class PayloadServer {
 
     // 3. 退回 $rawfile（数据来源与改动前一致）
     try {
-      return PayloadServer.buildResponse(readRawfile(rawFilePath), mimeOf(rawFilePath));
+      return PayloadServer.buildResponse(readRawfile(rawFilePath), mimeOf(rawFilePath), rawFilePath);
     } catch (error) {
       console.error(`拦截器读取文件失败: ${rawFilePath}`, error);
       return null;
     }
   }
 
+  /**
+   * 生成 CodeCache 用的 ResponseDataID。
+   *
+   * 官方《自定义页面请求响应》：在响应头里加 ResponseDataID，内核会为该 JS 生成 CodeCache；
+   * **不加则默认不生成**；且要求 ① 格式为不超过 13 位纯数字 ② 响应长度 ≥ 1024 ③ 内容变更时必须换值。
+   *
+   * 这里用「路径 + 字节长度」的简易哈希：负载资源名本身带内容哈希，长度再兜一层，
+   * 足以在负载更新时改变取值。⚠️ 待实测项：该头在 onInterceptRequest 路径上的实际收益。
+   */
+  private static codeCacheId(seed: string): string {
+    let hash = 2166136261;                       // FNV-1a 32bit
+    for (let i = 0; i < seed.length; i++) {
+      hash ^= seed.charCodeAt(i);
+      hash = (hash * 16777619) >>> 0;
+    }
+    const text = `${hash}`.padStart(10, '0').slice(0, 13);
+    return text;
+  }
+
   /** 统一构造 200 响应 */
-  private static buildResponse(data: ArrayBuffer | Resource, mime: string): WebResourceResponse {
+  private static buildResponse(data: ArrayBuffer | Resource, mime: string, path?: string): WebResourceResponse {
     const response = new WebResourceResponse();
     response.setResponseData(data);
     // ⚠️ 只有文本类才设 utf-8。
@@ -143,8 +169,23 @@ export class PayloadServer {
     response.setResponseMimeType(mime);
     response.setResponseCode(200);
     response.setReasonMessage('OK');
+    // CodeCache：只给长度 ≥1024 的 JS 加（官方条件），值随"路径 + 长度"变化
+    if (mime === 'application/javascript' && path !== undefined) {
+      const byteLength = PayloadServer.dataByteLength(data);
+      if (byteLength >= 1024) {
+        response.setResponseHeader([{ headerKey: 'ResponseDataID', headerValue: PayloadServer.codeCacheId(`${path}:${byteLength}`) }]);
+      }
+    }
     response.setResponseIsReady(true);
     return response;
+  }
+
+  /** 取响应数据的字节长度；Resource 类型拿不到长度则返回 0（此时不加 CodeCache 头） */
+  private static dataByteLength(data: ArrayBuffer | Resource): number {
+    if (data instanceof ArrayBuffer) {
+      return data.byteLength;
+    }
+    return 0;
   }
 
   /** 文本类 MIME：这类才需要显式 utf-8；二进制一律不设编码，交由内核按 MIME 处理 */

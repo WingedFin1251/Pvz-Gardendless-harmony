@@ -64,6 +64,16 @@ export function mimeOf(fileName: string): string {
 
 export class PayloadServer {
   /**
+   * 资源缓存开关（A4 / A-B 实验用）。
+   *
+   * · true（**默认**）：未命中时用**同步整文件读**拿字节 → 回填 LRU 缓存 → 再交给内核（现状）。
+   * · false：直接走 `$rawfile`（Resource 直传，内核自己读，不进 ArkTS 堆）——不查缓存、不做堆读。
+   *
+   * ⚠️ 关掉之后 `[payload-cache]` 的统计会恒为 0（因为根本不查缓存），这是**预期现象**，
+   *    不是 bug；A/B 时请只看启动耗时与内存，不要拿缓存命中率当指标。
+   */
+  static readonly ENABLE_RESOURCE_CACHE: boolean = true;
+  /**
    * 处理一次请求。
    * @param url 请求 URL（非 cocos.local 的一律返回 null）
    * @param readRawfile 读取 rawfile 的函数（页面传 `$rawfile`，保持数据来源不变）
@@ -100,6 +110,16 @@ export class PayloadServer {
     // 已经是 game/ 开头的请求（来自页面的相对路径）不重复补。
     if (!rawFilePath.startsWith(PAYLOAD_DIR) && SHELL_ROOT_FILES.indexOf(rawFilePath) < 0) {
       rawFilePath = PAYLOAD_DIR + rawFilePath;
+    }
+
+    // 0. 缓存关闭时（A4 的 B 组）：直接 $rawfile 直传 —— 不查缓存、不做同步整文件堆读
+    if (!PayloadServer.ENABLE_RESOURCE_CACHE) {
+      try {
+        return PayloadServer.buildResponse(readRawfile(rawFilePath), mimeOf(rawFilePath), rawFilePath);
+      } catch (error) {
+        console.error(`拦截器读取文件失败（$rawfile 直传）: ${rawFilePath}`, error);
+        return null;
+      }
     }
 
     // 1. 同步检查 ResourceManager LRU 缓存（快速路径，无异步开销）
@@ -169,12 +189,13 @@ export class PayloadServer {
     response.setResponseMimeType(mime);
     response.setResponseCode(200);
     response.setReasonMessage('OK');
-    // CodeCache：只给长度 ≥1024 的 JS 加（官方条件），值随"路径 + 长度"变化
+    // CodeCache：值随"路径 + 字节长度"变化；`$rawfile` 直传时拿不到长度，就只用路径
+    // （负载资源名本身带内容哈希，负载更新 ⇒ 路径变 ⇒ 值也随之变）。
+    // 官方另有"响应长度 ≥1024 才生成"的条件，那是内核侧的判断，这里不必自己筛。
     if (mime === 'application/javascript' && path !== undefined) {
       const byteLength = PayloadServer.dataByteLength(data);
-      if (byteLength >= 1024) {
-        response.setResponseHeader([{ headerKey: 'ResponseDataID', headerValue: PayloadServer.codeCacheId(`${path}:${byteLength}`) }]);
-      }
+      const seed = byteLength > 0 ? `${path}:${byteLength}` : path;
+      response.setResponseHeader([{ headerKey: 'ResponseDataID', headerValue: PayloadServer.codeCacheId(seed) }]);
     }
     response.setResponseIsReady(true);
     return response;

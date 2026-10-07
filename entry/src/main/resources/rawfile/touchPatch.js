@@ -220,6 +220,7 @@ document.addEventListener("touchmove", function(event) {
     if (_gestureTarget === null) return;
 
     var touch = event.changedTouches[0];
+    if (touch) { _lastTouch = touch; }   // 记住最新坐标：中断复位时用它补 up 比用陈旧坐标安全
 
     if (event.touches.length === 2) {
         var t1 = event.touches[0], t2 = event.touches[1];
@@ -300,6 +301,33 @@ document.addEventListener("touchcancel", function(event) {
     if (!gestureOwned) return;        // 面板手势放行（同上：释放已做，这里只管不拦）
     event.stopPropagation();
 }, { capture: true, passive: false });
+
+// ==================== 中断复位：失焦 / 切后台 / 画布消失 ====================
+// 这三条路径都不会有 touchend/touchcancel，若停在"按下"态就会表现成"点不动"。
+window.addEventListener('blur', function() {
+    releasePress('window blur', 0);
+});
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+        releasePress('page hidden', 0);
+    }
+});
+
+// ==================== touch-action 兜底 ====================
+// 我们靠 {capture:true,passive:false} + preventDefault 拦触摸；再补一层 CSS 兜底，
+// 防止某些路径漏拦时浏览器自己去滚动/缩放。幂等：重复注入不会叠加。
+(function installTouchActionStyle() {
+    try {
+        if (document.getElementById('touchpatch-touch-action')) { return; }
+        var style = document.createElement('style');
+        style.id = 'touchpatch-touch-action';
+        style.textContent = '#GameDiv,#Cocos3dGameContainer,#GameCanvas{touch-action:none !important;}';
+        var host = document.head || document.body;
+        if (host && host.appendChild) { host.appendChild(style); }
+    } catch (e) {
+        console.warn('[TouchPatch] 注入 touch-action 失败: ' + (e && e.message ? e.message : String(e)));
+    }
+})();
 
 console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈值过滤+Wheel去抖），GP面板自动放行');
 

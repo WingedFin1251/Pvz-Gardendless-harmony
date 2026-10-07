@@ -42,11 +42,15 @@ function loadMachine() {
   let now = 0;
   let seq = 1;
 
+  const styleTags = [];
   const doc = {
     body: null,
+    head: null,
+    visibilityState: 'visible',
     _handlers: {},
     addEventListener(type, fn) { (doc._handlers[type] ||= []).push(fn); },
     getElementById(id) { return id === 'GameCanvas' ? rec.canvas : null; },
+    createElement() { return { id: '', textContent: '', appendChild() {} }; },
   };
   const canvas = makeTarget('canvas', 'GameCanvas');
   const outside = makeTarget('outside');            // 非 canvas、非面板（模拟负载里的覆盖元素）
@@ -54,6 +58,7 @@ function loadMachine() {
   const f1hint = makeTarget('f1hint', '', ['gp-f1-hint']);       // 负载的提示条（pointer-events:auto + click）
   const recovery = makeTarget('recovery', '', ['gp-recovery-screen']); // 启动失败恢复界面（全屏）
   const body = makeTarget('body');
+  body.appendChild = (node) => { styleTags.push(node); };
   doc.body = body;
   panel.parentElement = body;
   outside.parentElement = body;
@@ -61,7 +66,7 @@ function loadMachine() {
   f1hint.parentElement = body;
   recovery.parentElement = body;
 
-  rec = { events, canvas, outside, panel, f1hint, recovery, body, doc };
+  rec = { events, canvas, outside, panel, f1hint, recovery, body, doc, styleTags };
 
   const nativeStorage = {
     saveToNative: () => Promise.resolve(),
@@ -70,9 +75,14 @@ function loadMachine() {
     saveToNativeSync: () => 0,
   };
 
+  const win = {
+    NativeStorage: nativeStorage,
+    _handlers: {},
+    addEventListener(type, fn) { (win._handlers[type] ||= []).push(fn); },
+  };
   const sandbox = {
     document: doc,
-    window: { NativeStorage: nativeStorage },
+    window: win,
     localStorage: { _m: new Map(), getItem(k) { return this._m.has(k) ? this._m.get(k) : null; }, setItem(k, v) { this._m.set(k, String(v)); }, removeItem(k) { this._m.delete(k); } },
     console: { log: () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     setTimeout(fn, ms) { const id = seq++; timers.push({ id, at: now + (ms || 0), fn }); return id; },
@@ -117,7 +127,12 @@ function loadMachine() {
     handler(ev);
   }
 
-  return { tick, fire, events, canvas, outside, panel, f1hint, recovery };
+  /** 触发 window 上的事件（如 blur） */
+  function fireWindow(type) {
+    for (const fn of (win._handlers[type] || [])) fn({ type });
+  }
+
+  return { tick, fire, fireWindow, events, canvas, outside, panel, f1hint, recovery, styleTags };
 }
 
 const results = [];
@@ -209,6 +224,26 @@ test('⑥ gp-f1-hint / gp-recovery-screen 上的触摸必须原样放行', () =>
     m.tick(60);
     assert.equal(m.events.length, 0, name + ' 上不应产生任何合成鼠标事件（实际: ' + JSON.stringify(m.events) + '）');
   }
+});
+
+// ---------- 契约 7：touch-action 兜底样式必须被注入（幂等由 getElementById 保证）----------
+test('⑦ 必须给游戏容器注入 touch-action:none 兜底样式', () => {
+  const m = loadMachine();
+  assert.equal(m.styleTags.length, 1, '应恰好注入一个 style 标签（实际 ' + m.styleTags.length + '）');
+  const css = String(m.styleTags[0].textContent || '');
+  assert.ok(css.indexOf('touch-action:none') >= 0, '样式内容应含 touch-action:none，实际: ' + css);
+  assert.ok(css.indexOf('#GameCanvas') >= 0, '样式应命中 #GameCanvas，实际: ' + css);
+});
+
+// ---------- 契约 8：window blur 必须释放按下态 ----------
+test('⑧ window blur 时必须释放按下态（补 mouseup）', () => {
+  const m = loadMachine();
+  m.fire('touchstart', { target: m.canvas, points: [p(1, 80, 80)] });
+  m.tick(50);
+  assert.ok(typesOf(m.events).includes('mousedown'), '应先有 mousedown');
+  m.fireWindow('blur');
+  m.tick(50);
+  assert.ok(typesOf(m.events).includes('mouseup'), 'blur 后必须补 mouseup');
 });
 
 // ---------- 汇总 ----------

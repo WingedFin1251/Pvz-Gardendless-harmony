@@ -5,7 +5,7 @@ import { StorageBackup, StorageBackupDeps } from '../services/StorageBackup';   
 import { bundleManager } from '@kit.AbilityKit';                // A6：把应用版本写进导出文件
 import { preferences } from '@kit.ArkData';
 import { BusinessError } from '@kit.BasicServicesKit'; // 确保已导入
-import { ResourceManager } from '../services/ResourceManager';
+
 import { GpNextBridge } from '../services/GpNextBridge';
 import { GPNEXT_SHIM } from '../common/GpNextShim';
 import { SettingsPanel } from '../components/SettingsPanel';
@@ -239,10 +239,6 @@ struct CocosJSApp {
 
 
 
-    // 初始化 ResourceManager（LRU 缓存，80MB/300项上限）
-    ResourceManager.getInstance().setContext(context);
-    console.info('ResourceManager 已初始化');
-
     // 初始化 Preferences
     try {
       // M3：两种重载都有效 —— 官方文档把 Options 形式标为「10+」（API 10 新增能力），
@@ -377,26 +373,7 @@ struct CocosJSApp {
     }
   }
 
-  /**
-   * 同步读取 rawfile 字节（H1：给 LRU 缓存回填用）。
-   * 用 context.resourceManager.getRawFileContentSync —— 与 $rawfile 读的是同一份 hap 资源；
-   * 读不到时抛错，由 PayloadServer 退回 $rawfile。
-   */
-  private readRawfileBytes(path: string): Uint8Array {
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    if (!context) {
-      throw new Error('Context 不可用，无法同步读取 rawfile');
-    }
-    try {
-      return context.resourceManager.getRawFileContentSync(path);
-    } catch (err) {
-      const error = err as BusinessError;
-      // 这里**不打日志**：调用方（PayloadServer）本来就会为"退回 $rawfile 兜底"打一行 warn，
-      // 再打一遍会让正常的 favicon.ico 缺失变成两行（一行还会是 error 级）。
-      // 抛出 Error（ArkTS 的 arkts-limited-throw 不允许 throw 任意类型）。
-      throw new Error(`同步读取 rawfile 失败: ${path}: code=${error.code}, message=${error.message}`);
-    }
-  }
+
 
   /** 面板里切换期望刷新率：立即生效 + 持久化 */
   private setExpectedRefresh(value: string): void {
@@ -753,11 +730,6 @@ struct CocosJSApp {
 
   /** 页面不可见（切后台 / 跳转）：停止投票，避免空刷帧与额外功耗 */
   onPageHide() {
-    // H1：切后台时也打一次缓存统计 —— aboutToDisappear 只在优雅退出时触发，
-    // 而实测常用 force-stop / 直接杀进程，读不到命中率。onPageHide 稳定得多。
-    const hideStats = ResourceManager.getInstance().getCacheStats();
-    console.info(`[payload-cache] 切后台统计: ${hideStats.totalItems} 项, ` +
-      `${(hideStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${hideStats.hitRate}%，淘汰 ${hideStats.evictedCount} 次`);
     this.stopHighRefreshVote();
     this.closeShellSettings();   // 顺带关掉设置面板并清理轮询定时器
     this.preferenceStore.flushNow();   // 页面不可见：把去抖中的存档立刻落盘
@@ -773,12 +745,6 @@ struct CocosJSApp {
       clearTimeout(this.hideButtonTimer);
       this.hideButtonTimer = undefined;
     }
-
-    // 资源缓存统计
-    const cacheStats = ResourceManager.getInstance().getCacheStats();
-    console.info(`ResourceManager: ${cacheStats.totalItems}项, ` +
-      `${(cacheStats.totalSize / 1024 / 1024).toFixed(2)}MB / ${(cacheStats.maxSize / 1024 / 1024).toFixed(0)}MB, ` +
-      `命中率: ${cacheStats.hitRate}%，淘汰 ${cacheStats.evictedCount} 次`);
 
   }
 
@@ -924,10 +890,6 @@ struct CocosJSApp {
         })
         .onProgressChange((event) => { this.progress = event.newProgress; })
         .onPageEnd(() => {
-          // H1：加载完成后打一次缓存统计（可用 hilog 直接验证缓存是否真的被填起来）
-          const payloadCacheStats = ResourceManager.getInstance().getCacheStats();
-          console.info(`[payload-cache] ${payloadCacheStats.totalItems} 项, ` +
-            `${(payloadCacheStats.totalSize / 1024 / 1024).toFixed(2)}MB, 命中率 ${payloadCacheStats.hitRate}%，淘汰 ${payloadCacheStats.evictedCount} 次`);
           this.isLoading = false;
           this.warnIfExperimentalSchedulerOn();   // 实验帧率调度开着时提示一次（平板会卡）
           this.webReady = true;
@@ -946,15 +908,14 @@ struct CocosJSApp {
         })
         .onInterceptRequest((event) => {
           if (!event) return null;
-          // 负载请求一律交给 PayloadServer：前缀规则、LRU 缓存、MIME 都在那里。
-          // 传两个读取函数：$rawfile（Resource，兼容路径）与同步字节读（用于回填 LRU 缓存）。
-          // 必须同步：onInterceptRequest 要当场返回响应，异步读取来不及。
+          // 负载请求一律交给 PayloadServer：前缀规则、路径校验、MIME 都在那里。
+          // 只传 `$rawfile`（Resource）—— 内核自己读文件，内容不进 ArkTS 堆（见 docs/perf/RESOURCE_CACHE_AB.md）。
+          // 必须同步：onInterceptRequest 要当场返回响应。
           // ⚠️ 必须自己接住异常：这里是 ArkWeb 的回调，抛出去会变成框架侧的异常路径。
           try {
             return PayloadServer.serve(
               event.request.getRequestUrl(),
-              (path: string) => $rawfile(path),
-              (path: string) => this.readRawfileBytes(path));
+              (path: string) => $rawfile(path));
           } catch (err) {
             const serveError = err as BusinessError;
             console.error(`负载请求处理失败，按原方式加载: code=${serveError.code}, message=${serveError.message}`);

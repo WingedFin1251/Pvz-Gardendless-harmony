@@ -3,7 +3,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { webview } from '@kit.ArkWeb';  // 新增导入，用于 WebView 性能优化
-import { ResourceManager } from '../services/ResourceManager';
+
 
 const DOMAIN = 0x0000;
 
@@ -68,13 +68,6 @@ export default class EntryAbility extends UIAbility {
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', '修剪内存失败: %{public}s', (err as BusinessError).message);
     }
-    // 自家 LRU 缓存（上限 80MB）也要响应内存压力：此前只修剪了 Web 侧，缓存永远不释放。
-    try {
-      ResourceManager.getInstance().clearCache();
-      hilog.info(DOMAIN, 'testTag', '已清空负载资源缓存以响应内存压力');
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', '清空资源缓存失败: %{public}s', (err as BusinessError).message);
-    }
   }
 
   onDestroy(): void {
@@ -135,6 +128,21 @@ export default class EntryAbility extends UIAbility {
     }
   }
 
+  /**
+   * 让屏幕在游戏运行期间保持常亮。
+   *
+   * 此前壳层没有这个调用：玩的时候系统会按自己的息屏时间把屏幕关掉（手一停就黑屏）。
+   * 官方接口 Window.setWindowKeepScreenOn(boolean)（API 9+）；成功与失败都记日志，便于真机核对。
+   */
+  private async setKeepScreenOn(mainWindow: window.Window): Promise<void> {
+    try {
+      await mainWindow.setWindowKeepScreenOn(true);
+      hilog.info(DOMAIN, 'testTag', '已设置屏幕常亮');
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', '设置屏幕常亮失败: %{public}s', (err as BusinessError).message);
+    }
+  }
+
   onWindowStageCreate(windowStage: window.WindowStage): void {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
@@ -147,11 +155,12 @@ export default class EntryAbility extends UIAbility {
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
 
-      // 获取主窗口，设置全屏 + 横屏
+      // 获取主窗口，设置全屏 + 横屏 + 屏幕常亮
       windowStage.getMainWindow()
         .then(async (mainWindow) => {
           await this.setFullScreen(mainWindow);
           await this.setLandscapeOrientation(mainWindow);
+          await this.setKeepScreenOn(mainWindow);
         })
         .catch((error: BusinessError) => {
           hilog.error(DOMAIN, 'testTag', '获取主窗口失败: %{public}s', error.message);

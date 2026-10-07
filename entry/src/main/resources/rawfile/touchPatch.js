@@ -422,6 +422,38 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
     //      比"每帧算一次哈希"便宜得多（后者要遍历整个 175KB）。
     var lastMirrored = {};
 
+
+
+    // ⭐ 按 key 节流合并（真机实测：真正的花园里 ~18.6 次/秒、每次约 107KB ⇒ ≈2.0 MB/s 跨进程搬运，
+    //   而且**每次都写新值**（grownTime / waterCD 这类浮点在变）⇒ "值未变则跳过"在那里挡不掉任何一次）。
+    //   但跨进程发这么密是**可证明的浪费**：ArkTS 侧的磁盘写本来就按 400ms/1500ms 去抖
+    //   ⇒ 200ms 内发两次，第二次必然只是覆盖同一个待写值。
+    //   ⇒ 这里每个键最多每 MIRROR_MIN_INTERVAL_MS 镜像一次，期间只保留**最新值**。
+    //   游戏的真状态在 localStorage 里已同步写好（镜像只为跨重启持久化），读路径不受影响
+    //   ⇒ 只丢"最后 200ms 的中间态"，而磁盘写本来也要等 400ms+。
+    var MIRROR_MIN_INTERVAL_MS = 200;
+    var mirrorPending = {};   // key -> { value, timer }
+
+    function sendMirror(key, value) {
+        if (lastMirrored[key] === value) { return; }
+        lastMirrored[key] = value;
+        reportKeyOnce(key, value);
+        window.NativeStorage.saveToNative(key, value).catch(function(e) {
+            console.error('[localStorage] 保存 ' + key + ' 失败', e);
+        });
+    }
+
+    function flushMirrorAll() {
+        for (var k in mirrorPending) {
+            if (mirrorPending.hasOwnProperty(k)) {
+                var slot = mirrorPending[k];
+                if (slot.timer) { clearTimeout(slot.timer); }
+                delete mirrorPending[k];
+                sendMirror(k, slot.value);
+            }
+        }
+    }
+
     localStorage.setItem = function(key, value) {
         originalSetItem.call(localStorage, key, value);
         if (shouldPersist(key) && window.NativeStorage) {
@@ -429,16 +461,26 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
                 console.warn('[localStorage] 跳过持久化（值过大）: ' + key + ' ' + value.length + ' 字符');
                 return;
             }
-            if (lastMirrored[key] === value) {
-                return;   // 值未变：不跨进程、不建 Promise
+            var existing = mirrorPending[key];
+            if (existing) {
+                existing.value = value;   // 只覆盖值、不新建定时器 ⇒ 一个窗口只发一次
+                return;
             }
-            lastMirrored[key] = value;
-            reportKeyOnce(key, value);
-            window.NativeStorage.saveToNative(key, value).catch(function(e) {
-                console.error('[localStorage] 保存 ' + key + ' 失败', e);
-            });
+            var slot = { value: value, timer: 0 };
+            mirrorPending[key] = slot;
+            slot.timer = setTimeout(function() {
+                delete mirrorPending[key];
+                sendMirror(key, slot.value);
+            }, MIRROR_MIN_INTERVAL_MS);
         }
     };
+
+    // ⚠️ 页面要走了必须把待发的刷出去，否则丢最后一次。
+    //   （ArkTS 侧 onPageHide 的 flushNow 只刷"已 put 的"，管不了 JS 侧还在待发的。）
+    window.addEventListener('pagehide', flushMirrorAll);
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') { flushMirrorAll(); }
+    });
 
     waitForNativeStorage(function() {
         console.log('[localStorage] 开始恢复存档');

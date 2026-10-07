@@ -5,15 +5,60 @@
 // 打一条 Error 级日志（真机实测 1 分钟内 143 条，且每条都要跨 ArkWeb↔ArkTS 回传）。
 var _gameCanvas = null;
 function getGameCanvas() {
+    // 负载重载 / 画布重建后，旧引用会指向游离节点 ⇒ 校验 isConnected，失效就重查
+    if (_gameCanvas && _gameCanvas.isConnected === false) {
+        _gameCanvas = null;
+    }
     if (!_gameCanvas) _gameCanvas = document.getElementById("GameCanvas");
     return _gameCanvas;
 }
 
+/**
+ * 合成鼠标事件的**目标**。
+ *
+ * ⚠️ 引擎（cocos-js）的注册方式是：
+ *     window.addEventListener("mousedown", …只置 _isPressed=true…)
+ *     canvas.addEventListener("mousedown" / "mousemove" / "mouseup" / "wheel", …真正的处理…)
+ *     window.addEventListener("mouseup", …)   // up 从任何元素都能冒泡到 window
+ *   ⇒ **down / move / wheel 只有派发在 #GameCanvas 上才收得到**，而 up 打在哪儿都能到。
+ *   如果按 touch.target 派发，一旦落点不是 canvas（负载里有 gp-f1-hint / gp-recovery-screen /
+ *   toast 等覆盖元素），引擎就会收到"孤立的 mouseup"⇒ 游戏侧 UI.onMouseUp 把
+ *   MouseClickCoolingDown 置 2 ⇒ **把紧随其后的点击吃掉**（实测症状：暂停键要点好几下）。
+ *   所以这里一律解析到 canvas；取不到 canvas 时才退回命中元素。
+ */
+function eventTarget(hitTarget) {
+    var canvas = getGameCanvas();
+    if (canvas && canvas.isConnected !== false) {
+        return canvas;
+    }
+    return hitTarget;
+}
+
 // ==================== 检测 GP-Next 面板 ====================
+/**
+ * 这次触摸是否应该**原样放行**（不翻译成鼠标事件、不 consume）。
+ *
+ * ⚠️ 名单必须覆盖负载自己画在页面上的所有可交互覆盖元素，否则它们的触摸会被我们吃掉：
+ *   · gp-overlay / gp-open —— GP-Next 面板本体；
+ *   · .gp-f1-hint          —— fixed 定位、pointer-events:auto 且**带 click 监听**的提示条；
+ *   · .gp-recovery-screen  —— 启动失败恢复界面（position:fixed;inset:0;z-index:2147483647，**全屏**）；
+ *   · #ge-toast-wrap       —— 提示容器（当前是 pointer-events:none，防御性加入）；
+ *   · 表单控件（INPUT/TEXTAREA/SELECT/contenteditable）—— 需要系统原生软键盘与选择行为。
+ * 判定沿祖先链向上找，命中任一即放行。
+ */
 function isGpPanelElement(target) {
     var el = target;
     while (el && el !== document.body) {
-        if (el.id === 'gp-overlay' || (el.classList && el.classList.contains('gp-open'))) {
+        if (el.id === 'gp-overlay' || el.id === 'ge-toast-wrap') {
+            return true;
+        }
+        if (el.classList && (el.classList.contains('gp-open') ||
+            el.classList.contains('gp-f1-hint') ||
+            el.classList.contains('gp-recovery-screen'))) {
+            return true;
+        }
+        var tag = el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true) {
             return true;
         }
         el = el.parentElement;
@@ -38,9 +83,15 @@ var _lastX = 0, _lastY = 0, _lastYScroll = null;
 var _pressedTarget = null;   // 已按下（或即将按下）的目标
 var _pressTimer = -1;        // 尚未执行的 mousedown 定时器
 var _lastTouch = null;       // 最近一次触摸对象（用于补发 mouseup 时的坐标）
+// 本次手势的"归属"：touchstart 时判定一次，之后 move/end 都只看它，不再逐事件判 target。
+//   · 命中 GP 面板 ⇒ 置 null（整段手势原样放行，不翻译、不拦截）
+//   · 否则 ⇒ 解析成 canvas（见 eventTarget），本次手势所有合成事件都打到它
+var _gestureTarget = null;
 
 /** 结束一次按下：必要时**补发 mousedown**（保证轻点也算点击），再发 mouseup */
 function releasePress(reason, delayMs) {
+    // 本次手势到此为止：归属复位（up 用的是已经复制走的 _pressedTarget，不受影响）
+    _gestureTarget = null;
     if (_pressTimer !== -1) {
         // ⚠️ 这里**不能只 clearTimeout**：mousedown 是延迟 DELAY_TIME(16ms) 派发的，
         // 若轻点比 16ms 还短，clearTimeout 就等于"这次触摸从未按下" ⇒ 游戏收不到点击
@@ -111,16 +162,22 @@ document.addEventListener("touchstart", function(event) {
         releasePress('新的 touchstart 到来时仍有残留按下态', 0);
     }
 
-    if (isGpPanelElement(event.target)) return;
+    if (isGpPanelElement(event.target)) {
+        _gestureTarget = null;   // 面板手势：整段放行，不翻译
+        return;
+    }
 
     var touch = event.changedTouches[0];
     _lastTouch = touch;
+    // 归属只判一次：本次手势之后所有合成事件都打到它（B3）
+    var gestureTarget = eventTarget(touch.target);
+    _gestureTarget = gestureTarget;
 
     if (event.touches.length === 3) {
         var downEv = createMouseEvent("mousedown", touch, 2);
         var upEv = createMouseEvent("mouseup", touch, 2);
-        setTimeout(function() { touch.target.dispatchEvent(downEv); }, DELAY_TIME);
-        setTimeout(function() { touch.target.dispatchEvent(upEv); }, DELAY_TIME * 2);
+        setTimeout(function() { gestureTarget.dispatchEvent(downEv); }, DELAY_TIME);
+        setTimeout(function() { gestureTarget.dispatchEvent(upEv); }, DELAY_TIME * 2);
     }
 
     if (event.touches.length === 2) {
@@ -129,7 +186,7 @@ document.addEventListener("touchstart", function(event) {
     }
 
     // 首次 MOVE 无条件分发（光标定位到触摸点）
-    touch.target.dispatchEvent(createMouseEvent("mousemove", touch, 0));
+    gestureTarget.dispatchEvent(createMouseEvent("mousemove", touch, 0));
     _lastX = touch.clientX;
     _lastY = touch.clientY;
 
@@ -142,11 +199,11 @@ document.addEventListener("touchstart", function(event) {
 
     // DOWN 延迟执行，防止误触；同时登记"按下态"，供任何结束路径补发 mouseup
     var downTouch = touch;
-    _pressedTarget = touch.target;
+    _pressedTarget = gestureTarget;   // 释放时按这个目标补发 mouseup（releasePress 里用）
     _pressTimer = setTimeout(function() {
         _pressTimer = -1;
         try {
-            downTouch.target.dispatchEvent(createMouseEvent("mousedown", downTouch, 0));
+            gestureTarget.dispatchEvent(createMouseEvent("mousedown", downTouch, 0));
         } catch (e) {
             console.error('[TouchPatch] 派发 mousedown 失败: ' + (e && e.message ? e.message : String(e)));
             _pressedTarget = null;
@@ -158,7 +215,9 @@ document.addEventListener("touchstart", function(event) {
 
 // ==================== touchmove ====================
 document.addEventListener("touchmove", function(event) {
-    if (isGpPanelElement(event.target)) return;
+    // ⚠️ 只看 touchstart 定下的归属（B3）：命中面板的手势整段放行；
+    //    从游戏区拖到面板上方时**必须继续发 move**（旧实现按 event.target 提前 return ⇒ 光标/植物卡在边界）
+    if (_gestureTarget === null) return;
 
     var touch = event.changedTouches[0];
 
@@ -195,7 +254,7 @@ document.addEventListener("touchmove", function(event) {
         _lastY = touch.clientY;
         var moveTouch = touch;
         setTimeout(function() {
-            moveTouch.target.dispatchEvent(createMouseEvent("mousemove", moveTouch, 0));
+            _gestureTarget && _gestureTarget.dispatchEvent(createMouseEvent("mousemove", moveTouch, 0));
         }, DELAY_TIME);
     }
     event.preventDefault();
@@ -209,6 +268,7 @@ document.addEventListener("touchmove", function(event) {
 //    · 但完全不 return 也不行 ⇒ 这里是 capture 阶段，preventDefault/stopPropagation 会让
 //      面板自己的触摸处理收不到事件（症状：整个 GP-Next 面板点不动）。
 document.addEventListener("touchend", function(event) {
+    var gestureOwned = (_gestureTarget !== null);   // 先记下归属：releasePress 会把它复位
     var touch = event.changedTouches[0];
     if (touch) { _lastTouch = touch; }
     // 多指手势里"抬起一根"不等于结束按下：等所有手指都离开再释放，
@@ -217,22 +277,27 @@ document.addEventListener("touchend", function(event) {
         _lastYScroll = null;
         releasePress(null, DELAY_TIME);   // 保持原有的 16ms 延迟，行为与改动前一致
     }
-    // ⚠️ 面板上的触摸必须**原样放行**：这里是 capture 阶段，一旦 preventDefault/stopPropagation，
-    // 面板自己的触摸处理就再也收不到事件（症状：GP-Next 面板整个点不动）。
-    // 注意顺序 —— 释放按下态必须在**放行之前**做，否则"从游戏区拖到 GP 按钮上松手"又会漏发 mouseup。
-    if (isGpPanelElement(event.target)) return;
-    if (event.cancelable) event.preventDefault();
-    event.stopPropagation();
+    // ⚠️ 是否 consume 也按**手势归属**判（不再看 event.target）：
+    //    · 面板手势（归属为 null）⇒ 原样放行 —— 这里是 capture 阶段，一旦 preventDefault/stopPropagation，
+    //      面板自己的触摸处理就再也收不到事件（症状：GP-Next 面板整个点不动）；
+    //    · 游戏手势 ⇒ consume。即使松手时手指移到了面板元素上，也仍然要 consume 并补 mouseup
+    //      （旧实现按 target 提前 return ⇒ 这条路径漏发 up ⇒ 按下态卡死）。
+    //    顺序：释放已在上面做完（releasePress 会把 _gestureTarget 复位，所以先用局部变量记住）。
+    if (gestureOwned) {
+        if (event.cancelable) event.preventDefault();
+        event.stopPropagation();
+    }
 }, { capture: true, passive: false });
 
 // A7：touchcancel —— 浏览器/系统接管手势时用它结束触摸（不会有 touchend）。
 // 原实现没监听它，导致 mousedown 之后永远没有 mouseup ⇒ 中途触摸失效、重启才恢复。
 document.addEventListener("touchcancel", function(event) {
+    var gestureOwned = (_gestureTarget !== null);
     _lastYScroll = null;
     var touch = event.changedTouches[0];
     if (touch) { _lastTouch = touch; }
     releasePress('touchcancel', 0);   // cancel 说明这次触摸已经作废 ⇒ 立即释放
-    if (isGpPanelElement(event.target)) return;   // 面板放行（同上：释放已做，这里只管不拦）
+    if (!gestureOwned) return;        // 面板手势放行（同上：释放已做，这里只管不拦）
     event.stopPropagation();
 }, { capture: true, passive: false });
 

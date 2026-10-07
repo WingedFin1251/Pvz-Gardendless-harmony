@@ -43,7 +43,7 @@ export interface CacheConfig {
   maxSize: number; // 最大缓存大小(字节)
   maxItems: number; // 最大缓存项数
   defaultPriority: number; // 默认优先级
-  cleanupThreshold: number; // 清理阈值(0-1)
+
 }
 
 // 预加载配置
@@ -79,7 +79,7 @@ export class ResourceManager {
       maxSize: 80 * 1024 * 1024, // 80MB（Cocos游戏资源量大，需更大缓存）
       maxItems: 300,
       defaultPriority: 5,
-      cleanupThreshold: 0.8 // 达到80%时开始清理
+
     };
     
     // 手动合并cacheConfig
@@ -87,7 +87,7 @@ export class ResourceManager {
       if (cacheConfig.maxSize !== undefined) this.config.maxSize = cacheConfig.maxSize;
       if (cacheConfig.maxItems !== undefined) this.config.maxItems = cacheConfig.maxItems;
       if (cacheConfig.defaultPriority !== undefined) this.config.defaultPriority = cacheConfig.defaultPriority;
-      if (cacheConfig.cleanupThreshold !== undefined) this.config.cleanupThreshold = cacheConfig.cleanupThreshold;
+
     }
 
     this.preloadConfig = {
@@ -230,46 +230,7 @@ export class ResourceManager {
     console.info(`缓存已清理，释放 ${this.formatBytes(beforeSize)}，清理了 ${beforeCount} 个资源`);
   }
 
-  /**
-   * 智能清理缓存（LRU + 优先级）
-   */
-  public smartCleanup(): void {
-    const usageRatio = this.cacheSize / this.config.maxSize;
-    if (usageRatio < this.config.cleanupThreshold) {
-      return; // 未达到清理阈值
-    }
 
-    console.info(`开始智能清理缓存，当前使用率: ${Math.round(usageRatio * 100)}%`);
-    
-    // 将缓存项转换为数组并排序
-    const items = Array.from(this.cache.values());
-    items.sort((a, b) => {
-      // 计算得分：访问频率 * 时间衰减 / 优先级
-      const scoreA = this.calculateCacheScore(a);
-      const scoreB = this.calculateCacheScore(b);
-      return scoreA - scoreB; // 分数低的先清理
-    });
-
-    // 清理到阈值以下
-    const targetSize = this.config.maxSize * (this.config.cleanupThreshold - 0.2); // 清理到60%
-    let cleanedCount = 0;
-    let cleanedSize = 0;
-
-    for (const item of items) {
-      if (this.cacheSize <= targetSize && this.cache.size <= this.config.maxItems * 0.8) {
-        break;
-      }
-
-      this.cache.delete(item.id);
-      this.cacheSize -= item.size;
-      cleanedCount++;
-      cleanedSize += item.size;
-    }
-
-    if (cleanedCount > 0) {
-      console.info(`智能清理完成，清理了 ${cleanedCount} 个资源，释放 ${this.formatBytes(cleanedSize)}`);
-    }
-  }
 
   /**
    * 获取缓存统计信息
@@ -399,16 +360,17 @@ export class ResourceManager {
       return;
     }
 
-    // 先按字节预算做一次"智能清理"（它会看总量/优先级；未达字节阈值时它自己会空转，属正常）
-    if (this.cacheSize + itemSize > this.config.maxSize) {
-      this.smartCleanup();
-    }
-
     // 容量不够时**淘汰最久未用的条目**，而不是拒绝新条目。
     // 原实现是"满了就 return"，而它依赖的 smartCleanup 只看**字节**占用率（0.8），
     // 300 个小资源的字节占用远低于该阈值 ⇒ smartCleanup 每次空转 ⇒ 条数上限一旦触到就永久拒收，
     // 于是"后来才被重复请求、最该进缓存"的 JS/JSON 反而永远进不来（实测日志刷屏即此）。
     // 现在按真正的 LRU 语义处理：淘汰 lastAccessTime 最早的那些，腾出位置再插入。
+    //
+    // ⚠️ 2026-10-07：已**移除** smartCleanup 调用。它有三处硬伤：
+    //   · 评分 `calculateCacheScore` 的四个因子有三个方向是反的（越该留的越先被删）；
+    //   · 出口是"删到 60% 字节 / 240 项"，属**过度清理**，让缓存长期偏空；
+    //   · 它内部 `usageRatio < cleanupThreshold` 那道闸恒不成立（唯一调用方进来时必然 >90%）。
+    // 下面两个循环已经用真正的 LRU 精确执行了"字节预算"与"条数上限"两个约束，语义更清晰也更正确。
     while (this.cacheSize + itemSize > this.config.maxSize && this.cache.size > 0) {
       if (!this.evictLeastRecentlyUsed()) {
         break;
@@ -479,7 +441,7 @@ export class ResourceManager {
    * 淘汰一个"最久未被访问"的条目（LRU）。
    * 返回是否真的淘汰了东西，供调用方判断能否继续。
    * 只按 lastAccessTime 这一个明确、无歧义的维度排序 —— 不掺优先级，
-   * 避免与 smartCleanup 里那套评分口径相互影响。
+   * 不与任何"综合评分"式的淘汰策略混用（2026-10-07：smartCleanup 已移除）。
    */
   private evictLeastRecentlyUsed(): boolean {
     if (this.cache.size === 0) {
@@ -501,25 +463,6 @@ export class ResourceManager {
     }
     this.evictedCount++;
     return true;
-  }  private calculateCacheScore(item: ResourceItem): number {
-    const now = Date.now();
-    const timeSinceLastAccess = now - item.lastAccessTime;
-    const hoursSinceLastAccess = timeSinceLastAccess / (1000 * 60 * 60);
-    
-    // 时间衰减因子（最近访问的权重更高）
-    const timeDecay = Math.max(0.1, 1 / (1 + hoursSinceLastAccess * 0.1));
-    
-    // 访问频率因子
-    const frequencyFactor = Math.log1p(item.accessCount);
-    
-    // 优先级因子（优先级越高，分数越低）
-    const priorityFactor = 1 / item.priority;
-    
-    // 大小因子（越大越容易被清理）
-    const sizeFactor = item.size / (1024 * 1024); // MB
-    
-    // 综合得分
-    return (sizeFactor * priorityFactor) / (frequencyFactor * timeDecay);
   }
 
   private detectResourceType(path: string): ResourceType {

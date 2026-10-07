@@ -3,6 +3,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { webview } from '@kit.ArkWeb';  // 新增导入，用于 WebView 性能优化
+import { ResourceManager } from '../services/ResourceManager';
 
 const DOMAIN = 0x0000;
 
@@ -66,6 +67,13 @@ export default class EntryAbility extends UIAbility {
       hilog.info(DOMAIN, 'testTag', '按内存压力修剪 Web 内存: level=%{public}d pressure=%{public}d', level, pressure);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', '修剪内存失败: %{public}s', (err as BusinessError).message);
+    }
+    // 自家 LRU 缓存（上限 80MB）也要响应内存压力：此前只修剪了 Web 侧，缓存永远不释放。
+    try {
+      ResourceManager.getInstance().clearCache();
+      hilog.info(DOMAIN, 'testTag', '已清空负载资源缓存以响应内存压力');
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', '清空资源缓存失败: %{public}s', (err as BusinessError).message);
     }
   }
 

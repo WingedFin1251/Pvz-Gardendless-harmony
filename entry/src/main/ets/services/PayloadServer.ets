@@ -74,8 +74,27 @@ export class PayloadServer {
     if (!url.startsWith('https://cocos.local/')) {
       return null;
     }
-    let rawFilePath = decodeURIComponent(url.replace('https://cocos.local/', ''));
-    rawFilePath = rawFilePath.split('?')[0];
+    // ⚠️ 顺序：**先切 query 再 decode**。反过来的话，文件名里含 `%3F` 的请求会被截断。
+    const rawPath = url.replace('https://cocos.local/', '').split('?')[0];
+    let rawFilePath: string;
+    try {
+      rawFilePath = decodeURIComponent(rawPath);
+    } catch (error) {
+      // 畸形转义（如 `%zz`）会让 decodeURIComponent 抛异常；不接住就会抛穿 ArkWeb 的回调
+      console.warn(`URL 解码失败，按未找到处理: ${rawPath}`);
+      return null;
+    }
+
+    // 路径穿越防护：解码后再查（`%2e%2e` 解码后就是 `..`），命中即本地拒绝，不外发
+    if (rawFilePath.indexOf('..') >= 0 || rawFilePath.indexOf('\\') >= 0 ||
+      rawFilePath.indexOf('\u0000') >= 0) {
+      console.warn(`拒绝可疑路径: ${rawFilePath}`);
+      const denied = new WebResourceResponse();
+      denied.setResponseCode(403);
+      denied.setReasonMessage('Forbidden');
+      denied.setResponseIsReady(true);
+      return denied;
+    }
 
     // 负载自带的 index.html 用根绝对路径引用自己的模块（/assets/<hash>.js），故这里补前缀；
     // 已经是 game/ 开头的请求（来自页面的相对路径）不重复补。

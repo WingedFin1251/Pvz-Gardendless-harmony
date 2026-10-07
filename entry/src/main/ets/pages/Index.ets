@@ -949,10 +949,17 @@ struct CocosJSApp {
           // 负载请求一律交给 PayloadServer：前缀规则、LRU 缓存、MIME 都在那里。
           // 传两个读取函数：$rawfile（Resource，兼容路径）与同步字节读（用于回填 LRU 缓存）。
           // 必须同步：onInterceptRequest 要当场返回响应，异步读取来不及。
-          return PayloadServer.serve(
-            event.request.getRequestUrl(),
-            (path: string) => $rawfile(path),
-            (path: string) => this.readRawfileBytes(path));
+          // ⚠️ 必须自己接住异常：这里是 ArkWeb 的回调，抛出去会变成框架侧的异常路径。
+          try {
+            return PayloadServer.serve(
+              event.request.getRequestUrl(),
+              (path: string) => $rawfile(path),
+              (path: string) => this.readRawfileBytes(path));
+          } catch (err) {
+            const serveError = err as BusinessError;
+            console.error(`负载请求处理失败，按原方式加载: code=${serveError.code}, message=${serveError.message}`);
+            return null;
+          }
         })
         .onLoadIntercept((event) => {
           if (!event) return false;

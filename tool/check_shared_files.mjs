@@ -30,7 +30,15 @@ if (!fs.existsSync(other)) {
 }
 
 // 需要逐字节一致的目录/文件
-const TARGETS = ['entry/src/main/ets', 'entry/src/main/resources', 'entry/src/main/resources/rawfile/touchPatch.js', 'tool'];
+// ⚠️ 只列**共享源码**：绝不要把 entry/src/main/resources 整个装进来 ——
+//    那下面是 gitignore 的游戏负载（几千个文件），两边本来就可能不同，会刷一堆假警报。
+const TARGETS = [
+  'entry/src/main/ets',                                   // 壳层源码
+  'entry/src/main/resources/rawfile/touchPatch.js',       // 注入脚本（纳入 Git）
+  'entry/src/main/resources/base/element/color.json',     // 颜色资源（分层参数）
+  'entry/src/main/resources/dark/element/color.json',
+  'tool',                                                 // 自检脚本
+];
 const EXT = ['.ets', '.ts', '.js', '.mjs', '.json'];
 
 function walk(root, out = []) {

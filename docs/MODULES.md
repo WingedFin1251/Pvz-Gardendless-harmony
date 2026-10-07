@@ -492,3 +492,21 @@ hdc -t <设备> file recv `
 
 由此产生一个**有意保留**的行为：**面板打开时，游戏内容仍然可以被触摸**（用户 2026-10-07 实测确认并拍板保留）。
 若要改成"面板打开时屏蔽游戏触摸"，只需在 `touchstart` 里加一条"面板可见 ⇒ 归属置空"，一处即可，不要散改。
+## 资源缓存已移除（2026-10-07）
+
+`entry/src/main/ets/services/ResourceManager.ets`（LRU 负载缓存，上限 80MB/300 项）**整类已删除**，
+连同 `PayloadServer` 里的"同步整文件读 + 回填缓存"路径、`Index.ets` 的 `readRawfileBytes` 与
+`[payload-cache]` 统计打点、`EntryAbility.onMemoryLevel` 里的 `clearCache()`。
+
+原因（真机 A/B 实测，交替 6 轮、A/B 各 3 次；完整数据见 `docs/perf/RESOURCE_CACHE_AB.md`）：
+
+| 指标 | 有缓存 | 无缓存（`$rawfile` 直传） | 结论 |
+| :--- | ---: | ---: | :--- |
+| `native heap` | 188,477 kB | 48,439 kB | **多占约 140MB** |
+| `Total Pss` | 859,899 kB | 721,075 kB | 多占约 136MB |
+| 缓存命中率 | 0–1% | —— | 收益≈0 |
+| 首个负载读取 | 14.109 s | 14.145 s | **无差异（+36ms）** |
+
+⇒ 零收益、零速度代价、净亏 140MB ⇒ 负载请求现在**一律直接把 `$rawfile`（Resource）交给内核**。
+
+⚠️ 因此 `[payload-cache]` 这类日志不再存在：**看不到它是正常的**，不要据此判断"缓存没生效"。

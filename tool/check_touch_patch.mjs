@@ -43,6 +43,7 @@ function loadMachine() {
   let seq = 1;
 
   const styleTags = [];
+  const nativeCalls = [];      // ⚠️ 必须在 rec = {...} 之前声明（否则 TDZ：Cannot access before initialization）
   const doc = {
     body: null,
     head: null,
@@ -66,10 +67,10 @@ function loadMachine() {
   f1hint.parentElement = body;
   recovery.parentElement = body;
 
-  rec = { events, canvas, outside, panel, f1hint, recovery, body, doc, styleTags };
+  rec = { events, canvas, outside, panel, f1hint, recovery, body, doc, styleTags, nativeCalls, ls: null };
 
   const nativeStorage = {
-    saveToNative: () => Promise.resolve(),
+    saveToNative: (k, v) => { nativeCalls.push({ k, v }); return Promise.resolve(); },
     persistedKeys: () => Promise.resolve([]),
     loadFromNative: () => Promise.resolve(''),
     saveToNativeSync: () => 0,
@@ -87,12 +88,16 @@ function loadMachine() {
     console: { log: () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
     setTimeout(fn, ms) { const id = seq++; timers.push({ id, at: now + (ms || 0), fn }); return id; },
     clearTimeout(id) { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1); },
+    // 假 rAF：挂在假时钟上（16ms），这样 tick() 能驱动它
+    requestAnimationFrame(fn) { const id = seq++; timers.push({ id, at: now + 16, fn }); return id; },
+    cancelAnimationFrame(id) { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1); },
     setInterval() { return 0; },
     clearInterval() {},
     MouseEvent: class MouseEvent { constructor(type, init) { Object.assign(this, { type }, init); } },
     WheelEvent: class WheelEvent { constructor(type, init) { Object.assign(this, { type }, init); } },
   };
   sandbox.window.__proto__ = sandbox;
+  rec.ls = sandbox.localStorage;
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(source, sandbox);
@@ -132,7 +137,11 @@ function loadMachine() {
     for (const fn of (win._handlers[type] || [])) fn({ type });
   }
 
-  return { tick, fire, fireWindow, events, canvas, outside, panel, f1hint, recovery, styleTags };
+  return {
+    tick, fire, fireWindow, events, canvas, outside, panel, f1hint, recovery, styleTags,
+    ls: rec.ls,
+    nativeSaveCount: () => rec.nativeCalls.length,
+  };
 }
 
 const results = [];
@@ -244,6 +253,20 @@ test('⑧ window blur 时必须释放按下态（补 mouseup）', () => {
   m.fireWindow('blur');
   m.tick(50);
   assert.ok(typesOf(m.events).includes('mouseup'), 'blur 后必须补 mouseup');
+});
+
+// ---------- 契约 9：同一个键写相同值，不得重复镜像到原生（P0 去重）----------
+test('⑨ 同一键写入相同值只镜像一次，值变化后必须再镜像', () => {
+  const m = loadMachine();
+  m.ls.setItem('PvZ2_Settings', 'A');
+  m.ls.setItem('PvZ2_Settings', 'A');
+  m.ls.setItem('PvZ2_Settings', 'A');
+  assert.equal(m.nativeSaveCount(), 1, '相同值重复写只应镜像一次（实际 ' + m.nativeSaveCount() + ' 次）');
+  m.ls.setItem('PvZ2_Settings', 'B');
+  assert.equal(m.nativeSaveCount(), 2, '值变化后必须再镜像一次（实际 ' + m.nativeSaveCount() + ' 次）');
+  // 非白名单键不该镜像
+  m.ls.setItem('__not_persisted__', 'X');
+  assert.equal(m.nativeSaveCount(), 2, '非白名单键不得镜像');
 });
 
 // ---------- 汇总 ----------

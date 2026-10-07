@@ -214,6 +214,33 @@ document.addEventListener("touchstart", function(event) {
 }, { capture: true, passive: false });
 
 // ==================== touchmove ====================
+// ==================== MOVE 按帧合并（报告 P2⑫）====================
+// 一帧内可能收到多个 touchmove。以前每个都 setTimeout 派发一次 ⇒ 同一帧里重复的 mousemove
+// 让引擎做无用的命中测试、也让页内 GC 更频繁。
+// 这里只保留"该帧最后一个点"，用 requestAnimationFrame 合并成一次派发；
+// 没有 rAF 时（后台/受限环境）退回 16ms 定时器。
+// ⚠️ 只丢中间点、保留终点 ⇒ 拖拽的最终落点不受影响。
+var _pendingMove = null;
+var _moveScheduled = false;
+function scheduleMove(touch) {
+    _pendingMove = touch;
+    if (_moveScheduled) { return; }
+    _moveScheduled = true;
+    var flush = function() {
+        _moveScheduled = false;
+        var pending = _pendingMove;
+        _pendingMove = null;
+        if (pending && _gestureTarget) {
+            _gestureTarget.dispatchEvent(createMouseEvent("mousemove", pending, 0));
+        }
+    };
+    if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(flush);
+    } else {
+        setTimeout(flush, DELAY_TIME);
+    }
+}
+
 document.addEventListener("touchmove", function(event) {
     // ⚠️ 只看 touchstart 定下的归属（B3）：命中面板的手势整段放行；
     //    从游戏区拖到面板上方时**必须继续发 move**（旧实现按 event.target 提前 return ⇒ 光标/植物卡在边界）
@@ -247,16 +274,13 @@ document.addEventListener("touchmove", function(event) {
         _lastYScroll = currentY;
     }
 
-    // MOVE：保留原异步时序，增加阈值过滤减少GC
+    // MOVE：阈值过滤（少发）＋ 按帧合并（同帧只发最后一个点）
     var dx = touch.clientX - _lastX;
     var dy = touch.clientY - _lastY;
     if (dx * dx + dy * dy >= MOVE_THRESHOLD * MOVE_THRESHOLD) {
         _lastX = touch.clientX;
         _lastY = touch.clientY;
-        var moveTouch = touch;
-        setTimeout(function() {
-            _gestureTarget && _gestureTarget.dispatchEvent(createMouseEvent("mousemove", moveTouch, 0));
-        }, DELAY_TIME);
+        scheduleMove(touch);
     }
     event.preventDefault();
     event.stopPropagation();
@@ -387,6 +411,17 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
     var originalSetItem = localStorage.setItem;
     var originalGetItem = localStorage.getItem;
 
+    // ⭐ 值未变则跳过（性能审查报告附录 A 认定的掉帧主因）。
+    //   花园格子 / 骆驼关的 update() 会**逐帧**写同一个键 ⇒ 旧实现每帧都：
+    //     ① 把整个 value 跨进程 JSB 搬一遍（存档实测可达 175KB），
+    //     ② 在 JS 侧新建一个 Promise + catch 闭包（喂 GC）。
+    //   这里记下"上次真正镜像出去的值"，相同就直接返回。
+    //   注意：ArkTS 侧本来就有 flush 去抖（400ms/1500ms），真正贵的是这次**跨进程搬运**，
+    //   所以去重必须做在 JS 侧、且必须在调用 saveToNative 之前。
+    //   ⚠️ 用 === 比较字符串是正确的：JS 按内容比较，长度不同会立刻短路；
+    //      比"每帧算一次哈希"便宜得多（后者要遍历整个 175KB）。
+    var lastMirrored = {};
+
     localStorage.setItem = function(key, value) {
         originalSetItem.call(localStorage, key, value);
         if (shouldPersist(key) && window.NativeStorage) {
@@ -394,6 +429,10 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
                 console.warn('[localStorage] 跳过持久化（值过大）: ' + key + ' ' + value.length + ' 字符');
                 return;
             }
+            if (lastMirrored[key] === value) {
+                return;   // 值未变：不跨进程、不建 Promise
+            }
+            lastMirrored[key] = value;
             reportKeyOnce(key, value);
             window.NativeStorage.saveToNative(key, value).catch(function(e) {
                 console.error('[localStorage] 保存 ' + key + ' 失败', e);

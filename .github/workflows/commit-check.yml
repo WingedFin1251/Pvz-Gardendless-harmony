@@ -1,6 +1,6 @@
-name: privacy-guard
+name: commit-check
 
-# 提交/PR 引入的内容里若含签名明文口令、本机绝对路径、设备标识等隐私信息，此检查会失败。
+# 提交/PR 引入的内容里若含签名明文口令、本机绝对路径、设备标识等敏感信息，此检查会失败。
 # 与本地钩子共用同一份实现：.githooks/pre-commit
 # 本地启用：git config core.hooksPath .githooks
 
@@ -10,7 +10,7 @@ on:
 
 jobs:
   scan:
-    name: 隐私守卫
+    name: 提交前检查
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
             echo "range=${BASE}..${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 运行守卫
+      - name: 运行检查
         env:
-          PRIVACY_RANGE: ${{ steps.range.outputs.range }}
+          CHECK_RANGE: ${{ steps.range.outputs.range }}
         run: sh .githooks/pre-commit

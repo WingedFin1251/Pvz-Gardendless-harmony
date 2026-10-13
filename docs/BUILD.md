@@ -178,15 +178,15 @@ entry/src/main/resources/rawfile/
    `game/src/settings.json`，缺失时在顶部状态栏显示「负载缺失: …」。
 3. **`rawfile` 在构建时被打进 HAP**：只替换本地目录不会影响已安装的应用，必须重新构建并安装。
 
-## 提交 / 推送前隐私守卫
+## 提交 / 推送前检查
 
 仓库带两个钩子（`.githooks/pre-commit`、`.githooks/pre-push`）与一份同名 CI
-（`.github/workflows/privacy-guard.yml`），用于阻止隐私信息进入提交或推向远端：
+（`.github/workflows/commit-check.yml`），用于阻止敏感信息进入提交或推向远端：
 
 - **pre-commit**：检查暂存内容，命中即拒绝提交；
 - **pre-push**：① 拒绝推送本地备份 ref（`refs/backup/*` 属本地留档，不在推送范围）；
   ② 对每个被推送的分支区间再跑一遍 pre-commit 的检查 —— 即使本地提交时用
-  `ALLOW_PRIVACY=1` 跳过，push 前仍会拦一次。
+  `ALLOW_COMMIT_CHECK=1` 跳过，push 前仍会拦一次。
 
 启用（每份克隆执行一次）：
 
@@ -206,14 +206,14 @@ git config core.hooksPath .githooks
 手工扫描某个区间（CI 用的就是这条）：
 
 ```bash
-PRIVACY_RANGE=<from>..<to> sh .githooks/pre-commit
+CHECK_RANGE=<from>..<to> sh .githooks/pre-commit
 ```
 
 输出**只给「文件:行号 + 命中规则」，刻意不打印命中内容**——避免在 CI 日志里二次泄露。
 确认无风险时可临时跳过（会在输出里留记录）：
 
 ```bash
-ALLOW_PRIVACY=1 git commit -m "…"
+ALLOW_COMMIT_CHECK=1 git commit -m "…"
 ```
 
 > 钩子只能防**新增**，历史里已有的旧内容不会因此消失；如需处理已有历史，

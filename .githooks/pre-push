@@ -26,7 +26,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   case "$remote_ref" in
     refs/backup/*|refs/tmp/*)
-      echo "[check] 拒绝推送 $remote_ref —— 本地备份 ref 保存着清洗前的历史（可能含真机 SN）。" >&2
+      echo "[check] 拒绝推送 $remote_ref —— 该 ref 属本地留档，不在推送范围内。" >&2
       echo "[check] 若确实要推，请显式指定目标引用或先删除该备份 ref。" >&2
       fail=1
       continue

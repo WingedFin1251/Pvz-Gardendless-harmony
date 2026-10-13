@@ -184,7 +184,7 @@ entry/src/main/resources/rawfile/
 （`.github/workflows/privacy-guard.yml`），用于阻止隐私信息进入提交或推向远端：
 
 - **pre-commit**：检查暂存内容，命中即拒绝提交；
-- **pre-push**：① 拒绝推送本地备份 ref（`refs/backup/*` 保存着"清洗前"的历史，可能含真机 SN）；
+- **pre-push**：① 拒绝推送本地备份 ref（`refs/backup/*` 属本地留档，不在推送范围）；
   ② 对每个被推送的分支区间再跑一遍 pre-commit 的检查 —— 即使本地提交时用
   `ALLOW_PRIVACY=1` 跳过，push 前仍会拦一次。
 

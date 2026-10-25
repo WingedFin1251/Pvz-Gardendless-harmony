@@ -19,6 +19,12 @@ import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
  *  - `read_dir` 的条目必须带正确的 `isFile`（假 FS 就是把这个判反了，导致 `*.zip` 被当成目录跳过）。
  *
  * 未兼容命令**刻意抛错**而不是返回 null：宁可让面板看到明确的失败，也不要"看似成功、实际没做"。
+ *
+ * ⚠️ 例外：0.16.1 起 payload 在**启动最前面**加了一道"云存档日志"检查 —— 它调 `cloud_journal_read`，
+ * 返回 null 表示"没有未完成的云操作"（放行），而**抛错会被当成致命错误**：
+ * 实测缺该命令时游戏停在「云存档恢复尚未完成 / CLOUD_RECOVERY_INVALID」页面，完全不启动。
+ * 因此云存档这一组命令按"本壳层没有云后端"的**真实语义**回值：
+ * 日志不存在 ⇒ null；信任通道不可用 ⇒ {available:false}；纯上报型 ⇒ 静默接受。
  */
 
 interface GpNextHeaders {
@@ -377,6 +383,19 @@ export class GpNextBridge {
         await this.importPackagesHandler();
         return 'null';
       }
+
+      // ---- 云存档（payload 0.16.1 新增；本壳层没有云后端，按真实语义回值）----
+      // 启动最前面那道检查：null = "没有未完成的云操作" ⇒ 放行。
+      // ⚠️ 这条**不能抛错**，否则 payload 会判成 CLOUD_RECOVERY_INVALID 并停止启动。
+      case 'cloud_journal_read':
+        return 'null';
+      // 云面板会读 .available；false ⇒ 面板显示"云端已阻止"，而不是抛错或假装可用
+      case 'cloud_trusted_status':
+        return '{"available":false}';
+      // 纯上报型（启动结果 / 保存失败原因）：本壳层没有接收方，静默接受
+      case 'cloud_startup_result':
+      case 'cloud_save_failed':
+        return 'null';
 
       // ---- 以下为移动端无意义或未接的能力，按"静默成功"处理 ----
       case 'plugin:deep-link|get_current':

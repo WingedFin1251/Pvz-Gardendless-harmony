@@ -399,12 +399,14 @@ export class GpNextBridge {
         this.ensureDir(this.incomingDir);
         const accepted: string[] = [];
         for (const uri of picked) {
-          const destination: string = this.uniquePath(this.incomingDir, this.fileNameOf(uri));
           if (directory) {
-            await this.copyDirectoryFromUri(uri, destination);
-          } else {
-            this.copyPath(uri, destination);
+            const landed: string = await this.copyDirectoryFromUri(uri, this.incomingDir);
+            accepted.push(landed);
+            console.info(`[gp-next-bridge] 已接收用户选择（目录）: ${landed}`);
+            continue;
           }
+          const destination: string = this.uniquePath(this.incomingDir, this.fileNameOf(uri));
+          this.copyPath(uri, destination);
           accepted.push(destination);
           console.info(`[gp-next-bridge] 已接收用户选择: ${destination}`);
         }
@@ -997,19 +999,46 @@ export class GpNextBridge {
   /**
    * @throws { BusinessError } 复制失败时向上抛出，由 invoke 统一转成失败响应
    */
-  private async copyDirectoryFromUri(sourceUri: string, destination: string): Promise<void> {
+  /**
+   * 把用户选中的**整个目录**（picker 给的 uri）复制进沙箱的 incomingDir，返回复制后的沙箱路径。
+   *
+   * 踩过的坑：
+   *  1) fs.copyFileSync(目录uri, 沙箱路径) ⇒ 13900002：copyFileSync 的 dest 也必须是 URI；
+   *  2) fs.copy(目录uri, 不存在的目标uri) ⇒ 13900020 Invalid argument：
+   *     目标 URI 必须指向**已存在**的目录，让系统把源目录**复制进去**（而不是当作"目标路径"）。
+   * 所以这里固定复制进 incomingDir（存在），再把实际落地路径算出来返回给负载。
+   */
+  private async copyDirectoryFromUri(sourceUri: string, incomingParent: string): Promise<string> {
+    const detail: string[] = [];
+    const parentUri: string = fileUri.getUriFromPath(incomingParent);
+    const src: string = sourceUri.endsWith('/') ? sourceUri.substring(0, sourceUri.length - 1) : sourceUri;
+    const attempts: string[] = [];
     try {
-      this.ensureDir(this.dirname(destination));
-      if (fs.accessSync(destination)) {
-        this.safeRemove(destination);
+      await fs.copy(src, parentUri);
+      attempts.push('copy-intro-existing-ok');
+    } catch (first) {
+      detail.push(`copy(${src} → ${parentUri}) 失败: ${errorText(first as Object)}`);
+      try {
+        const parentWithSlash: string = parentUri.endsWith('/') ? parentUri : `${parentUri}/`;
+        await fs.copy(`${src}/`, parentWithSlash);
+        attempts.push('copy-with-trailing-slash-ok');
+      } catch (second) {
+        detail.push(`copy(${src}/ → ${parentUri}/) 失败: ${errorText(second as Object)}`);
+        throw new Error(`复制文件夹失败（incoming=${incomingParent}）：${detail.join(' | ')}`);
       }
-      // ⚠️ 整目录复制要用 fs.copy：它两参都是 URI，且文档明确支持"文件或目录"。
-      // copyFileSync 的 dest 也必须传 URI，传沙箱路径会报 13900002 No such file or directory。
-      const destUri: string = fileUri.getUriFromPath(destination);
-      await fs.copy(sourceUri, destUri);
-    } catch (err) {
-      throw new Error(`复制文件夹失败：${errorText(err as Object)}`);
     }
+    const landed: string = `${incomingParent}/${this.fileNameOf(src)}`;
+    let exists = false;
+    try {
+      exists = fs.accessSync(landed);
+    } catch (inner) {
+      exists = false;
+    }
+    if (!exists) {
+      // 个别实现会把目录内容直接铺进父目录，而不建同名子目录
+      throw new Error(`复制文件夹失败：落地路径不存在（${landed}）；尝试=${attempts.join(',')}`);
+    }
+    return landed;
   }
 
   /** 「打开目录」用：列出 gp-next 下的顶层条目（名字 + 文件数/大小），供壳层展示 */

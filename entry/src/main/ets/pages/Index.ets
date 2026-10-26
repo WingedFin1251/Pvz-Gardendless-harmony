@@ -170,7 +170,7 @@ struct CocosJSApp {
         this.openExternal(url);
       },
       (fileName: string) => this.pickSaveTarget(fileName),
-      () => this.importPackages(),
+      () => this.showDataDir(),
       (extensions: string[], multiple: boolean, directory: boolean) =>
         this.pickOpenTargets(extensions, multiple, directory));
 
@@ -681,10 +681,32 @@ struct CocosJSApp {
   /** 网页点"打开数据包目录"：移动端没有能让用户丢文件的目录，改成从系统选择器导入 */
   /** 新版模组导入：把用户选中的文件交给桥（桥负责拷进沙箱并返回路径） */
   private async pickOpenTargets(extensions: string[], multiple: boolean, directory: boolean): Promise<string[]> {
-    if (!this.filePickerHelper || directory) {
+    if (!this.filePickerHelper) {
       return [];
     }
+    if (directory) {
+      const folder = await this.filePickerHelper.selectFolder();
+      return folder ? [folder] : [];
+    }
     return await this.filePickerHelper.selectFilesWithExtensions(extensions, multiple);
+  }
+
+  /**
+   * 「打开目录」：桌面版会拉起资源管理器；鸿蒙的应用沙箱是私有的，系统文件管理器进不来，
+   * 所以改成**把 gp-next 目录内容列出来**（比之前会弹一个不相关的导入选择器要诚实）。
+   */
+  private async showDataDir(): Promise<void> {
+    if (!this.gpNextBridge) {
+      return;
+    }
+    try {
+      const summary = this.gpNextBridge.summarizeDataDir();
+      this.showStatusMessage(summary, 8000);
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`读取 gp-next 目录失败: ${error.message}`);
+      this.showStatusMessage(`读取目录失败：${error.message}`, 4000);
+    }
   }
 
   private async importPackages(): Promise<void> {

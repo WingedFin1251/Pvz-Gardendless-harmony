@@ -170,7 +170,9 @@ struct CocosJSApp {
         this.openExternal(url);
       },
       (fileName: string) => this.pickSaveTarget(fileName),
-      () => this.importPackages());
+      () => this.importPackages(),
+      (extensions: string[], multiple: boolean, directory: boolean) =>
+        this.pickOpenTargets(extensions, multiple, directory));
 
     // 读入 touchPatch.js，与 GPNEXT_SHIM 拼成一条注入脚本（原因见 injectedScript 的注释）。
     // 这样负载更新时不会再冲掉对 touchPatch.js 的引用 —— 原先它靠 index.html 里的一行 <script src>。
@@ -677,6 +679,14 @@ struct CocosJSApp {
   }
 
   /** 网页点"打开数据包目录"：移动端没有能让用户丢文件的目录，改成从系统选择器导入 */
+  /** 新版模组导入：把用户选中的文件交给桥（桥负责拷进沙箱并返回路径） */
+  private async pickOpenTargets(extensions: string[], multiple: boolean, directory: boolean): Promise<string[]> {
+    if (!this.filePickerHelper || directory) {
+      return [];
+    }
+    return await this.filePickerHelper.selectFilesWithExtensions(extensions, multiple);
+  }
+
   private async importPackages(): Promise<void> {
     if (!this.filePickerHelper || !this.gpNextBridge) {
       return;

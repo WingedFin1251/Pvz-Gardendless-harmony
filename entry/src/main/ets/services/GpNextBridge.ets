@@ -38,6 +38,9 @@ interface GpNextOptions {
   oldPathBaseDir?: number;
   newPathBaseDir?: number;
   recursive?: boolean;
+  /** 仅 plugin:dialog|open 使用：多选 / 选目录（对应 Tauri open 的选项） */
+  multiple?: boolean;
+  directory?: boolean;
   encoding?: string;
   headers?: GpNextHeaders;
   defaultPath?: string;
@@ -139,6 +142,17 @@ interface GpNextNativeSnapshot {
 export type GpNextOpenExternal = (url: string) => void;
 export type GpNextPickSaveTarget = (fileName: string) => Promise<string | null>;
 export type GpNextImportPackages = () => Promise<void>;
+/**
+ * 选文件（新版模组导入）：extensions 是**不带点**的后缀数组，multiple 为多选。
+ * 返回用户选中的 uri 列表；用户取消时返回空数组（与"选择失败"合并处理，因为桥里两者结果都是"没有文件"）。
+ */
+export type GpNextPickOpenTargets = (extensions: string[], multiple: boolean, directory: boolean) => Promise<string[]>;
+
+/** plugin:dialog|open 的 filters 元素 */
+interface GpNextDialogFilter {
+  name?: string;
+  extensions?: string[];
+}
 
 /** gp-next/settings.json 的结构（与 payload 内 polyfill 预置的默认值保持一致） */
 interface GpNextScrollSensitivity {
@@ -170,6 +184,7 @@ export class GpNextBridge {
   private openExternalHandler: GpNextOpenExternal;
   private pickSaveTargetHandler: GpNextPickSaveTarget;
   private importPackagesHandler: GpNextImportPackages;
+  private pickOpenTargetsHandler: GpNextPickOpenTargets;
   private baseDir: string;
   private root: string;
   private exportDir: string;
@@ -181,10 +196,12 @@ export class GpNextBridge {
   constructor(context: common.UIAbilityContext,
     openExternal: GpNextOpenExternal,
     pickSaveTarget: GpNextPickSaveTarget,
-    importPackages: GpNextImportPackages) {
+    importPackages: GpNextImportPackages,
+    pickOpenTargets: GpNextPickOpenTargets) {
     this.openExternalHandler = openExternal;
     this.pickSaveTargetHandler = pickSaveTarget;
     this.importPackagesHandler = importPackages;
+    this.pickOpenTargetsHandler = pickOpenTargets;
     this.baseDir = GpNextBridge.trimTrailingSlash(context.filesDir);
     this.root = `${this.baseDir}/${GP_NEXT_DIR}`;
     this.exportDir = `${this.root}/${EXPORT_DIR}`;
@@ -362,6 +379,35 @@ export class GpNextBridge {
         // Tauri 的 remove 只有显式传 recursive:true 才删非空目录；这里保持一致（默认 false）
         this.removePath(target, options !== undefined && options.recursive === true);
         return 'null';
+      }
+
+      // ---- 文件选择（payload 1.5.5 起，新版模组导入走这里）----
+      // 桌面版把选中文件的路径直接交出去即可；移动端原生 fs 只能读沙箱（resolve() 会拒绝沙箱外路径），
+      // 所以先把用户选中的文件拷进 .incoming/，再返回沙箱内的真实路径。
+      // 负载随后用 lstat / read_dir / read_file 读它；zip 由负载自己的 inflate 解析，壳层不需要解压。
+      case 'plugin:dialog|open': {
+        const pickOptions: GpNextOptions | undefined = args ? args.options : undefined;
+        const multiple: boolean = pickOptions !== undefined && pickOptions.multiple === true;
+        const directory: boolean = pickOptions !== undefined && pickOptions.directory === true;
+        if (directory) {
+          // 系统文档选择器不支持"选文件夹"：返回取消让负载走正常分支，不要抛错
+          console.warn('[gp-next-bridge] 新版导入的"选择文件夹"在移动端不可用，请改用 zip 导入');
+          return 'null';
+        }
+        const picked: string[] = await this.pickOpenTargetsHandler(this.openExtensionsOf(args), multiple, directory);
+        if (picked.length === 0) {
+          console.info('[gp-next-bridge] 用户取消了文件选择');
+          return 'null';
+        }
+        this.ensureDir(this.incomingDir);
+        const accepted: string[] = [];
+        for (const uri of picked) {
+          const destination: string = this.uniquePath(this.incomingDir, this.fileNameOf(uri));
+          this.copyPath(uri, destination);
+          accepted.push(destination);
+          console.info(`[gp-next-bridge] 已接收用户选择: ${destination}`);
+        }
+        return multiple ? JSON.stringify(accepted) : JSON.stringify(accepted[0]);
       }
 
       // ---- 对话框 ----
@@ -765,6 +811,29 @@ export class GpNextBridge {
     } catch (err) {
       console.error(`[gp-next-bridge] 导出落盘失败: ${errorText(err as Object)}`);
     }
+  }
+
+  /** plugin:dialog|open 的 filters → 不带点的后缀数组 */
+  private openExtensionsOf(args: GpNextArgs | undefined): string[] {
+    const result: string[] = [];
+    const options: GpNextOptions | undefined = args ? args.options : undefined;
+    if (options === undefined || options.filters === undefined) {
+      return result;
+    }
+    for (let index = 0; index < options.filters.length; index++) {
+      const filter: GpNextDialogFilter = options.filters[index] as GpNextDialogFilter;
+      const extensions: string[] | undefined = filter.extensions;
+      if (extensions === undefined) {
+        continue;
+      }
+      for (let item = 0; item < extensions.length; item++) {
+        const text: string = extensions[item].trim();
+        if (text.length > 0) {
+          result.push(text.startsWith('.') ? text.substring(1) : text);
+        }
+      }
+    }
+    return result;
   }
 
   private safeFileName(raw: string): string {

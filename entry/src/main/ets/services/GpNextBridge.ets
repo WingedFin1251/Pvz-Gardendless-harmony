@@ -1,4 +1,5 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
+import fileUri from '@ohos.file.fileuri';
 import { zlib } from '@kit.BasicServicesKit';
 import { util, process } from '@kit.ArkTS';
 import { common, bundleManager } from '@kit.AbilityKit';
@@ -400,7 +401,7 @@ export class GpNextBridge {
         for (const uri of picked) {
           const destination: string = this.uniquePath(this.incomingDir, this.fileNameOf(uri));
           if (directory) {
-            this.copyDirectoryFromUri(uri, destination);
+            await this.copyDirectoryFromUri(uri, destination);
           } else {
             this.copyPath(uri, destination);
           }
@@ -996,13 +997,16 @@ export class GpNextBridge {
   /**
    * @throws { BusinessError } 复制失败时向上抛出，由 invoke 统一转成失败响应
    */
-  private copyDirectoryFromUri(sourceUri: string, destination: string): void {
+  private async copyDirectoryFromUri(sourceUri: string, destination: string): Promise<void> {
     try {
       this.ensureDir(this.dirname(destination));
       if (fs.accessSync(destination)) {
         this.safeRemove(destination);
       }
-      fs.copyFileSync(sourceUri, destination);
+      // ⚠️ 整目录复制要用 fs.copy：它两参都是 URI，且文档明确支持"文件或目录"。
+      // copyFileSync 的 dest 也必须传 URI，传沙箱路径会报 13900002 No such file or directory。
+      const destUri: string = fileUri.getUriFromPath(destination);
+      await fs.copy(sourceUri, destUri);
     } catch (err) {
       throw new Error(`复制文件夹失败：${errorText(err as Object)}`);
     }

@@ -1,9 +1,10 @@
 # 发布说明
 
-按版本倒序。当前线：**0.16.1**（仅 GP-Next 变体；`lite` / `base` 仍在上一个版本）。规划见工作区 `.clean-staging/NEXT-RELEASE.md`。
+按版本倒序。当前线：**0.16.1(fix1)**（仅 GP-Next 变体；`lite` / `base` 仍在上一个版本）。规划见工作区 `.clean-staging/NEXT-RELEASE.md`。
 
 | 版本 | 说明 |
 | :--- | :--- |
+| [v0.16.1-fix1](v0.16.1-fix1.md) | 修复新版模组管理无法导入（补 `plugin:dialog|open`）—— 仅 GP-Next |
 | [v0.16.1](v0.16.1.md) | 负载 0.16.1（GP-Next 1.5.5）+ 云存档命令语义补齐 —— 仅 GP-Next 变体 |
 | [v0.15.0-fix1](v0.15.0-fix1.md) | 期望刷新率投票、设置面板、提示条对比度等壳层改进 |
 | [v0.15.0](v0.15.0.md) | 负载 0.15.0 + 壳层改进 |

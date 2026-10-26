@@ -63,6 +63,28 @@ export class FilePickerHelper {
   }
 
   /**
+   * 选任意文件（payload 1.5.5 起新版模组导入用）：
+   * 给了后缀就按后缀过滤；multiple 为真时最多 20 个。
+   * @returns 用户选中的 uri 列表；取消时返回空数组
+   */
+  async selectFilesWithExtensions(extensions: string[], multiple: boolean): Promise<string[]> {
+    const options = new picker.DocumentSelectOptions();
+    options.maxSelectNumber = multiple ? 20 : 1;
+    if (extensions.length > 0) {
+      const suffixes = extensions.map((item: string) => `.${item}`).join(',');
+      options.fileSuffixFilters = [`文件|${suffixes}`];
+    }
+    const documentPicker = new picker.DocumentViewPicker(this.context);
+    try {
+      const uris = await documentPicker.select(options);
+      return uris ? uris : [];
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`选择文件失败: code=${error.code}, message=${error.message}`);
+      return [];
+    }
+  }
+  /**
    * A6：选一个"数据备份文件"（.json）用于导入。
    * @returns 用户选中的 uri 列表（取消时为空数组）
    */

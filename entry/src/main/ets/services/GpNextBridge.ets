@@ -389,21 +389,21 @@ export class GpNextBridge {
         const pickOptions: GpNextOptions | undefined = args ? args.options : undefined;
         const multiple: boolean = pickOptions !== undefined && pickOptions.multiple === true;
         const directory: boolean = pickOptions !== undefined && pickOptions.directory === true;
-        if (directory) {
-          // 系统文档选择器不支持"选文件夹"：返回取消让负载走正常分支，不要抛错
-          console.warn('[gp-next-bridge] 新版导入的"选择文件夹"在移动端不可用，请改用 zip 导入');
-          return 'null';
-        }
+
         const picked: string[] = await this.pickOpenTargetsHandler(this.openExtensionsOf(args), multiple, directory);
         if (picked.length === 0) {
-          console.info('[gp-next-bridge] 用户取消了文件选择');
+          console.info('[gp-next-bridge] 用户取消了选择');
           return 'null';
         }
         this.ensureDir(this.incomingDir);
         const accepted: string[] = [];
         for (const uri of picked) {
           const destination: string = this.uniquePath(this.incomingDir, this.fileNameOf(uri));
-          this.copyPath(uri, destination);
+          if (directory) {
+            this.copyDirectoryFromUri(uri, destination);
+          } else {
+            this.copyPath(uri, destination);
+          }
           accepted.push(destination);
           console.info(`[gp-next-bridge] 已接收用户选择: ${destination}`);
         }
@@ -987,6 +987,72 @@ export class GpNextBridge {
     } finally {
       fs.closeSync(sourceFile);
     }
+  }
+
+  /**
+   * 把用户选中的**整个目录**（picker 给的是 uri）复制进沙箱。
+   * fs.copyFileSync 的文档明确写了可传"文件或目录的 URI"并会递归复制，所以不用自己遍历。
+   */
+  /**
+   * @throws { BusinessError } 复制失败时向上抛出，由 invoke 统一转成失败响应
+   */
+  private copyDirectoryFromUri(sourceUri: string, destination: string): void {
+    try {
+      this.ensureDir(this.dirname(destination));
+      if (fs.accessSync(destination)) {
+        this.safeRemove(destination);
+      }
+      fs.copyFileSync(sourceUri, destination);
+    } catch (err) {
+      throw new Error(`复制文件夹失败：${errorText(err as Object)}`);
+    }
+  }
+
+  /** 「打开目录」用：列出 gp-next 下的顶层条目（名字 + 文件数/大小），供壳层展示 */
+  summarizeDataDir(): string {
+    let names: string[] = [];
+    try {
+      if (!fs.accessSync(this.root)) {
+        return 'gp-next 目录尚未创建';
+      }
+      names = fs.listFileSync(this.root);
+    } catch (err) {
+      return `读取 gp-next 目录失败：${errorText(err as Object)}`;
+    }
+    const rows: string[] = [];
+    for (const name of names) {
+      const full: string = `${this.root}/${name}`;
+      try {
+        const stat: fs.Stat = fs.lstatSync(full);
+        if (stat.isDirectory()) {
+          let count = 0;
+          try {
+            count = fs.listFileSync(full).length;
+          } catch (inner) {
+            count = 0;
+          }
+          rows.push(`${name}/ · ${count} 项`);
+        } else {
+          rows.push(`${name} · ${this.humanSize(stat.size)}`);
+        }
+      } catch (err) {
+        continue;
+      }
+    }
+    if (rows.length === 0) {
+      return 'gp-next 目录为空';
+    }
+    return `gp-next：${rows.join('　|　')}`;
+  }
+
+  private humanSize(bytes: number): string {
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    if (bytes >= 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${bytes} B`;
   }
 
   private safeRemove(path: string): void {

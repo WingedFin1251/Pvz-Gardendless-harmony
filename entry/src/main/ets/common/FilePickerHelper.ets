@@ -67,6 +67,56 @@ export class FilePickerHelper {
    * 给了后缀就按后缀过滤；multiple 为真时最多 20 个。
    * @returns 用户选中的 uri 列表；取消时返回空数组
    */
+  /**
+   * 选一个文件夹（新版模组的「导入文件夹」用）。
+   * @returns 用户选中的目录 uri；取消时返回 null
+   */
+  async selectFolder(): Promise<string | null> {
+    const options = new picker.DocumentSelectOptions();
+    options.maxSelectNumber = 1;
+    options.selectMode = picker.DocumentSelectMode.FOLDER;
+    const documentPicker = new picker.DocumentViewPicker(this.context);
+    try {
+      // 实测：本机的"选文件夹"页面会崩（系统 filePicker 报 Observed/Navigation 未定义），
+      // 此时 select() 可能**永不返回** ⇒ 必须带超时，否则调用方会一直等着。
+      const uris = await this.withTimeout(documentPicker.select(options), 180000);
+      if (uris && uris.length > 0) {
+        return uris[0];
+      }
+      return null;
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`选择文件夹失败或超时: code=${error.code}, message=${error.message}`);
+      return null;
+    }
+  }
+
+  /** 给可能永不返回的系统调用套一层超时；超时按"失败"处理（调用方会当成取消） */
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return new Promise<T>((resolve: (value: T) => void, reject: (reason: Error) => void) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          reject(new Error(`等待系统选择器超时（${timeoutMs} 毫秒；选择器仍开着的话请关掉重试）`));
+        }
+      }, timeoutMs);
+      promise.then((value: T) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(value);
+        }
+      }).catch((error: Object) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          reject(error as Error);
+        }
+      });
+    });
+  }
+
   async selectFilesWithExtensions(extensions: string[], multiple: boolean): Promise<string[]> {
     const options = new picker.DocumentSelectOptions();
     options.maxSelectNumber = multiple ? 20 : 1;
@@ -76,11 +126,12 @@ export class FilePickerHelper {
     }
     const documentPicker = new picker.DocumentViewPicker(this.context);
     try {
-      const uris = await documentPicker.select(options);
+      // 同样带超时：系统选择器若异常退出，select() 可能永不返回
+      const uris = await this.withTimeout(documentPicker.select(options), 180000);
       return uris ? uris : [];
     } catch (err) {
       const error = err as BusinessError;
-      console.error(`选择文件失败: code=${error.code}, message=${error.message}`);
+      console.error(`选择文件失败或超时: code=${error.code}, message=${error.message}`);
       return [];
     }
   }

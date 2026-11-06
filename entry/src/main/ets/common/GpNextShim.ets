@@ -22,6 +22,46 @@ export const GPNEXT_SHIM: string = `(function () {
   'use strict';
   if (window.__gpNextNativeReady) { return; }
 
+  // A7：0.16.15 起负载主启动流程会调 ElectronAPI.window() → window.electronAPI.window()。
+  // 但该负载在非 Electron 环境只补了 7 个 electronAPI 方法（音乐包 / 说明窗口），没有 window()，
+  // 于是启动时抛 "TypeError: n.window is not a function" ⇒ 后面的 loadScene("splashScene")
+  // 永远不执行 ⇒ 画面全黑（看门狗报 scene=preSplashScene、assets=48）。
+  // 这里在 document-start 装一层代理：
+  //   · 已存在的方法原样生效（音乐包 / getVersionInfo 仍是负载的真实实现）；
+  //   · 未知方法一律返回空函数（window/center/fullScreen/setSize 等桌面窗口控制，移动端无意义）；
+  //   · 负载用 host.electronAPI ||= {} 写入 ⇒ 只会往代理目标上加方法，不会覆盖本访问器。
+  (function () {
+    try {
+      var target = {};
+      var SKIP = { toString: 1, valueOf: 1, toJSON: 1, constructor: 1, then: 1, inspect: 1 };
+      var handler = {
+        get: function (t, key) {
+          if (typeof key === 'symbol') { return undefined; }
+          if (key in t) { return t[key]; }
+          if (SKIP[key]) { return undefined; }
+          return function () { return undefined; };
+        },
+        set: function (t, key, value) { t[key] = value; return true; },
+        has: function (t, key) { return key in t; }
+      };
+      var proxy = new Proxy(target, handler);
+      Object.defineProperty(window, 'electronAPI', {
+        configurable: true,
+        enumerable: true,
+        get: function () { return proxy; },
+        set: function (value) {
+          if (value && typeof value === 'object') {
+            for (var key in value) {
+              if (Object.prototype.hasOwnProperty.call(value, key)) { target[key] = value[key]; }
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[A7] electronAPI 兼容垫片安装失败: ' + (e && e.message));
+    }
+  })();
+
   var callbacks = {};
   var nextCallbackId = 1;
 

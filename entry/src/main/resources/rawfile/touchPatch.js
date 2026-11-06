@@ -47,6 +47,12 @@ function eventTarget(hitTarget) {
  * 判定沿祖先链向上找，命中任一即放行。
  */
 function isGpPanelElement(target) {
+    // A8：负载自己用 <dialog>.showModal() 弹的窗口（更新说明 / 音乐包 / Github 关卡窗口）
+    // 会盖在页面最上层，属于"模态 UI"：此时触摸必须交给 DOM，不能再翻译成游戏点击 ——
+    // 否则框里的关闭按钮点不动（实测：0.16.15 的更新内容提示框关不掉，只能退出重启）。
+    if (typeof document.querySelector === 'function' && document.querySelector('dialog[open]')) {
+        return true;
+    }
     var el = target;
     while (el && el !== document.body) {
         if (el.id === 'gp-overlay' || el.id === 'ge-toast-wrap') {

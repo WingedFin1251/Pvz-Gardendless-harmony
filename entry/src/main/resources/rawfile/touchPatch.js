@@ -521,11 +521,43 @@ console.log('[TouchPatch] 触摸转鼠标事件已启用（优化版：MOVE阈�
                 // 会被 GpNextShim 在 document-start 写入 jsModding 开关，于是它永远恢复不了；
                 // 去掉该条件后，jsModding 也会随之进入持久化副本（shim 的写入同样走 setItem 覆写）。
                 if (nativeValue) {
+                    // ⭐ A6 修复：本次页面加载如果刚刚导入过数据，**不能**再拿原生旧值覆盖。
+                    //   回填是异步的（persistedKeys/loadFromNative 都是 Promise），而导入是在注入脚本
+                    //   末尾同步执行的 ⇒ 不加这道判断时，回填晚一步到达就会把导入结果整键盖回旧值
+                    //   （症状：导出→导入后"没有用 / 数据像失效了"）。
+                    if (window.__pvzImportedKeys && window.__pvzImportedKeys[key]) {
+                        console.warn('[localStorage] 跳过回填（本次已导入）: ' + key);
+                        return;
+                    }
                     originalSetItem.call(localStorage, key, nativeValue);
                     console.log('[localStorage] 恢复 ' + key + ' 成功');
                 }
             }).catch(function(e) { console.error('恢复 ' + key + ' 失败', e); });
-        })).then(function() { console.log('[localStorage] 存档恢复完成'); });
+        })).then(function() {
+            console.log('[localStorage] 存档恢复完成');
+            // ⭐ A6 修复（第二道保险）：回填过程中可能已经把某些导入键写回来了（比如回填先于导入
+            //   的 Promise 结算、或者回填只覆盖了部分键）。这里在回填**全部结束后**把导入值再写一遍：
+            //   · 写 localStorage 用的是**打过钩子的** setItem ⇒ 同时镜像进原生副本，
+            //     下一次启动回填读到的就是导入后的值；
+            //   · 因为 __pvzImportedKeys 已在前一步挡住覆盖，这里通常是空操作，只在竞态下有用。
+            var imported = window.__pvzImportedEntries;
+            if (imported && typeof imported === 'object') {
+                var reapplied = 0;
+                for (var ik in imported) {
+                    if (Object.prototype.hasOwnProperty.call(imported, ik)
+                        && typeof imported[ik] === 'string'
+                        && localStorage.getItem(ik) !== imported[ik]) {
+                        localStorage.setItem(ik, imported[ik]);
+                        reapplied++;
+                    }
+                }
+                console.warn('[A6] 回填结束后复核导入数据: ' + (reapplied === 0
+                    ? '全部一致，无需重写'
+                    : '重写 ' + reapplied + ' 个键'));
+                delete window.__pvzImportedEntries;
+                delete window.__pvzImportedKeys;
+            }
+        });
         });
     });
 })();
@@ -647,14 +679,19 @@ window.__pvzApplyImportSync = function (jsonText) {
         var obj = JSON.parse(jsonText);
         if (!obj || typeof obj !== 'object') { return -1; }
         var n = 0;
+        // ⭐ A6 修复：登记"本次导入涉及哪些键"。A1 的启动回填是异步的，会晚于这里发生，
+        //   必须让它知道这些键已经是"用户导入的新值"，不许再拿原生旧值盖回去。
+        window.__pvzImportedEntries = obj;
+        window.__pvzImportedKeys = {};
         for (var k in obj) {
             if (Object.prototype.hasOwnProperty.call(obj, k) && typeof obj[k] === 'string') {
                 // 只覆盖、从不删除：文件里没有的键一律保留
                 localStorage.setItem(k, obj[k]);
+                window.__pvzImportedKeys[k] = true;
                 n++;
             }
         }
-        console.info('[A6] 已在文档开头同步应用导入数据: ' + n + ' 个键');
+        console.warn('[A6] 已在文档开头同步应用导入数据: ' + n + ' 个键');
         // 应用成功即清掉暂存位（写空串；读取侧把空串视为"没有待应用数据"），保证只应用一次。
         // 复用既有的 saveToNative：PreferenceStore.save 不做键名白名单校验，只限值大小。
         if (window.NativeStorage && typeof window.NativeStorage.saveToNative === 'function') {

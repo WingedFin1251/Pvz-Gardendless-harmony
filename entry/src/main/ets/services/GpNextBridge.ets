@@ -50,6 +50,14 @@ interface GpNextOptions {
 
 interface GpNextArgs {
   path?: string;
+  /** plugin:path|join 用：任意段，前面段会被后面的绝对路径段替换（Tauri 语义） */
+  paths?: string[];
+  /** 0.16.27 包存储（gp_next_*）：内容寻址的包 digest */
+  digest?: string;
+  /** gp_next_install_pack 用：包内文件列表 */
+  files?: GpNextPackFile[];
+  /** gp_next_capture_local_pack 用：本地包源路径（如 gp-next/packs/xxx） */
+  source?: string;
   oldPath?: string;
   newPath?: string;
   url?: string;
@@ -97,6 +105,27 @@ interface GpNextDirEntry {
   isDirectory: boolean;
   isFile: boolean;
   isSymlink: boolean;
+}
+
+/**
+ * `gp_next_local_package_inventory` 的返回元素（0.16.27 新增）。
+ * payload 只把它当作 Map 用：path → fingerprint，指纹只比相等，格式随意。
+ */
+interface GpNextLocalPackEntry {
+  path: string;
+  fingerprint: string;
+}
+
+/** 0.16.27 包存储里"一个包内文件"的传输形态（path + base64 内容） */
+interface GpNextPackFile {
+  path: string;
+  base64: string;
+}
+
+/** gp_next_capture_local_pack 的返回：目录包给 files，zip 包给 zip 的 base64 */
+interface GpNextCaptureResult {
+  zip: string | null;
+  files: GpNextPackFile[];
 }
 
 /**
@@ -337,6 +366,14 @@ export class GpNextBridge {
         const path = this.requirePath(args);
         return JSON.stringify(this.dirname(path));
       }
+      // 0.16.27 新增：Tauri 的 path.join(...segments)。见 joinPath 的语义说明。
+      case 'plugin:path|join': {
+        const segments: string[] = args && args.paths ? args.paths : [];
+        return JSON.stringify(this.joinPath(segments));
+      }
+      // 0.16.27 新增：多屏全屏（移动端没有显示器概念）⇒ 静默接受
+      case 'plugin:window|set_fullscreen_on_monitor':
+        return 'null';
 
       // ---- 文件系统 ----
       case 'plugin:fs|read_text_file':
@@ -442,6 +479,153 @@ export class GpNextBridge {
         return 'null';
       }
 
+      // ---- 本地数据包清单（0.16.27 新增，启动时 beforeEngineImport 会调）----
+      // payload 用法：const m = new Map((await readInventory()).map(e => [e.path, e.fingerprint]))
+      // 用来判断 gp-next/packs 下哪些包"自上次记录后没变"，从而跳过重复同步。
+      // 之前未兼容 ⇒ 启动日志里一条 WARN「Local source synchronization failed」。
+      case 'gp_next_local_package_inventory': {
+        const inventory: GpNextLocalPackEntry[] = [];
+        const packsDir: string = `${this.root}/packs`;
+        try {
+          if (fs.accessSync(packsDir)) {
+            const names: string[] = fs.listFileSync(packsDir);
+            for (let index = 0; index < names.length; index++) {
+              const name: string = names[index];
+              const full: string = `${packsDir}/${name}`;
+              try {
+                const info = fs.statSync(full);
+                // 指纹只用于"是否变化"的相等比较：大小 + 修改时间（毫秒）
+                inventory.push({
+                  path: `gp-next/packs/${name}`,
+                  fingerprint: `${info.size}-${Math.floor(info.mtime * 1000)}`
+                });
+              } catch (statErr) {
+                console.warn(`[gp-next-bridge] 读取本地包信息失败: ${full}`);
+              }
+            }
+          }
+        } catch (listErr) {
+          console.warn(`[gp-next-bridge] 列本地包目录失败: ${errorText(listErr as Object)}`);
+        }
+        return JSON.stringify(inventory);
+      }
+
+      // ---- 本地包存储后端（0.16.27 新增 gp_next_*，内容寻址）----
+      // ⚠️ 语义要点：**抛错会被 payload 包成 `INSTALL_CORRUPT`**（启动日志里
+      //    「Installed package is corrupt」就是这么来的）；返回 `null` 则被当成"没有这个包"，无害。
+      // 读类命令：返回真实内容或 null；写类命令（安装/抓取）：明确报未实现，不假装成功。
+      case 'gp_next_read_package_index': {
+        // 本壳层没有维护包索引文件（install_pack 未实现）⇒ 一律"没有该包"
+        const digest: string = args && args.digest ? args.digest : '';
+        const packDir: string = `${this.root}/installed/${digest}`;
+        let hasContent: boolean = false;
+        try {
+          if (digest.length > 0 && fs.accessSync(packDir)) {
+            hasContent = fs.listFileSync(packDir).length > 0;
+          }
+        } catch (indexErr) {
+          hasContent = false;
+        }
+        if (!hasContent) {
+          return 'null';
+        }
+        // 目录里有内容但没有索引：返回"没有索引"比编造一份更诚实
+        console.warn(`[gp-next-bridge] 包 ${digest} 有内容但无索引，按无索引处理`);
+        return 'null';
+      }
+      case 'gp_next_read_installed_pack': {
+        const digest: string = args && args.digest ? args.digest : '';
+        const packDir: string = `${this.root}/installed/${digest}`;
+        if (digest.length === 0 || !fs.accessSync(packDir)) {
+          return 'null';
+        }
+        const files: GpNextPackFile[] = [];
+        try {
+          const names: string[] = fs.listFileSync(packDir);
+          for (let index = 0; index < names.length; index++) {
+            const name: string = names[index];
+            const full: string = `${packDir}/${name}`;
+            const info = fs.statSync(full);
+            if (!info.isFile()) {
+              continue;
+            }
+            files.push({ path: name, base64: this.base64.encodeToStringSync(this.readBytes(full)) });
+          }
+        } catch (readErr) {
+          console.warn(`[gp-next-bridge] 读取已安装包失败: ${errorText(readErr as Object)}`);
+          return 'null';
+        }
+        return JSON.stringify(files);
+      }
+      case 'gp_next_read_package_file': {
+        const digest: string = args && args.digest ? args.digest : '';
+        const relative: string = args && args.path ? args.path : '';
+        const full: string = `${this.root}/installed/${digest}/${relative}`;
+        const resolved: string = this.resolve(full, undefined);
+        const value: GpNextPackFile = {
+          path: relative,
+          base64: this.base64.encodeToStringSync(this.readBytes(resolved))
+        };
+        return JSON.stringify(value);
+      }
+      // 写类：安装本地包到内容寻址目录（0.16.27 的包存储）
+      // ⚠️ 这里**不能抛错**：它跑在 beforeEngineImport 里，抛错 = Cocos 启动失败。
+      case 'gp_next_install_pack': {
+        const digest: string = args && args.digest ? args.digest : '';
+        if (digest.length === 0) {
+          return 'null';
+        }
+        const files: GpNextPackFile[] = args && args.files ? args.files : [];
+        const packDir: string = `${this.root}/installed/${digest}`;
+        this.ensureDir(packDir);
+        for (let index = 0; index < files.length; index++) {
+          const entry: GpNextPackFile = files[index];
+          const relative: string = entry.path.replace(/^\/+/, '');
+          if (relative.length === 0) {
+            continue;
+          }
+          const target: string = this.resolve(`${packDir}/${relative}`, undefined);
+          this.ensureDir(this.dirname(target));
+          const bytes: Uint8Array = this.base64.decodeSync(entry.base64);
+          const file = fs.openSync(target, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+          try {
+            fs.writeSync(file.fd, bytes.buffer as ArrayBuffer);
+          } finally {
+            fs.closeSync(file);
+          }
+        }
+        console.info(`[gp-next-bridge] 已安装本地包 ${digest}（${files.length} 个文件）`);
+        return 'null';
+      }
+      // 抓取本地包源（目录 → 文件列表；zip 文件 → zip 的 base64）
+      // 返回 null 会让 payload 抛 "Package source is missing" ⇒ 启动失败，所以空目录返回空 files。
+      case 'gp_next_capture_local_pack': {
+        const source: string = args && args.source ? args.source : '';
+        const captured: GpNextCaptureResult = { zip: null, files: [] };
+        if (source.length === 0) {
+          return JSON.stringify(captured);
+        }
+        let resolved: string;
+        try {
+          resolved = this.resolve(source, { baseDir: 14 });
+        } catch (resolveErr) {
+          console.warn(`[gp-next-bridge] capture 路径越界: ${source}`);
+          return JSON.stringify(captured);
+        }
+        if (!fs.accessSync(resolved)) {
+          return JSON.stringify(captured);
+        }
+        const info = fs.statSync(resolved);
+        if (info.isFile()) {
+          captured.zip = this.base64.encodeToStringSync(this.readBytes(resolved));
+          return JSON.stringify(captured);
+        }
+        const collected: GpNextPackFile[] = [];
+        this.collectFiles(resolved, '', collected, 0);
+        captured.files = collected;
+        return JSON.stringify(captured);
+      }
+
       // ---- 云存档（payload 0.16.1 新增；本壳层没有云后端，按真实语义回值）----
       // 启动最前面那道检查：null = "没有未完成的云操作" ⇒ 放行。
       // ⚠️ 这条**不能抛错**，否则 payload 会判成 CLOUD_RECOVERY_INVALID 并停止启动。
@@ -528,8 +712,73 @@ export class GpNextBridge {
     return path.substring(0, index);
   }
 
-  private requirePath(args: GpNextArgs | undefined): string {
-    const path: string | undefined = args ? args.path : undefined;
+  /**
+   * Tauri `path.join(...segments)` 的语义（= Rust `PathBuf::push`）：
+   * 逐段拼接；遇到**绝对段**（以 `/` 开头）就丢弃之前的结果重新开始；
+   * 空段忽略；重复斜杠折叠。
+   * 注意：这里不做 `..` 归一（Rust 的 push 也不做），交给后续 resolve() 去拒绝越界。
+   */
+  private joinPath(segments: string[]): string {
+    let joined: string = '';
+    for (let index = 0; index < segments.length; index++) {
+      const raw: string = segments[index];
+      if (raw === undefined || raw === null) {
+        continue;
+      }
+      const segment: string = raw.trim().replace(/\\/g, '/');
+      if (segment.length === 0) {
+        continue;
+      }
+      if (segment.startsWith('/')) {
+        joined = segment;
+        continue;
+      }
+      if (joined.length === 0) {
+        joined = segment;
+      } else if (joined.endsWith('/')) {
+        joined = joined + segment;
+      } else {
+        joined = joined + '/' + segment;
+      }
+    }
+    return joined;
+  }
+
+  /**
+   * 递归收集目录下的文件（供 gp_next_capture_local_pack 用）。
+   * 深度上限 8、文件数上限 4000，避免异常目录把内存/时间打爆。
+   */
+  private collectFiles(dir: string, prefix: string, out: GpNextPackFile[], depth: number): void {
+    if (depth > 8 || out.length >= 4000) {
+      return;
+    }
+    let names: string[];
+    try {
+      names = fs.listFileSync(dir);
+    } catch (listErr) {
+      return;
+    }
+    for (let index = 0; index < names.length; index++) {
+      if (out.length >= 4000) {
+        return;
+      }
+      const name: string = names[index];
+      const full: string = `${dir}/${name}`;
+      const relative: string = prefix.length === 0 ? name : `${prefix}/${name}`;
+      try {
+        const info = fs.statSync(full);
+        if (info.isDirectory()) {
+          this.collectFiles(full, relative, out, depth + 1);
+        } else if (info.isFile()) {
+          out.push({ path: relative, base64: this.base64.encodeToStringSync(this.readBytes(full)) });
+        }
+      } catch (statErr) {
+        continue;
+      }
+    }
+  }
+
+  private requirePath(args: GpNextArgs | undefined): string {    const path: string | undefined = args ? args.path : undefined;
     if (!path || path.trim().length === 0) {
       throw new Error('GP-Next 文件路径为空');
     }

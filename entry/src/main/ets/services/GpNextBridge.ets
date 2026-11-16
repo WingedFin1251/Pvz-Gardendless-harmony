@@ -58,6 +58,8 @@ interface GpNextArgs {
   files?: GpNextPackFile[];
   /** gp_next_capture_local_pack 用：本地包源路径（如 gp-next/packs/xxx） */
   source?: string;
+  /** gp_next_shell_log 用：垫片侧的一行诊断文本 */
+  message?: string;
   oldPath?: string;
   newPath?: string;
   url?: string;
@@ -586,6 +588,14 @@ export class GpNextBridge {
           console.warn(`[gp-next-bridge] 列本地包目录失败: ${errorText(listErr as Object)}`);
         }
         return JSON.stringify(inventory);
+      }
+
+      // 垫片日志（A10）：页面里访问到 electronAPI 上“没人实现”的方法时，让它在 bridge.log 留痕。
+      // 以前这类访问被 Proxy 直接返回 undefined 冒充“没有数据”，功能静默失效、极难排查。
+      case 'gp_next_shell_log': {
+        const message: string = args && args.message ? args.message : '';
+        this.appendLog(`[shim] ${message.substring(0, 300)}`);
+        return 'null';
       }
 
       // ---- 本地包存储后端（0.16.27 新增 gp_next_*，内容寻址）----

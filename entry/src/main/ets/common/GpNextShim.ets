@@ -39,12 +39,25 @@ export const GPNEXT_SHIM: string = `(function () {
           if (typeof key === 'symbol') { return undefined; }
           if (key in t) { return t[key]; }
           if (SKIP[key]) { return undefined; }
+          // A10：未知方法仍返回空函数（保持旧行为，避免未加保护的调用直接 TypeError），
+          // 但**首次**访问时在 bridge.log 留一行 [shim] unimpl:xxx。
+          // 目的：把“静默失效”变成“可见”——2026-11-16 的 GitHub 关卡就是被这种静默坑了三轮。
+          if (!unimplWarned[key]) {
+            unimplWarned[key] = true;
+            try {
+              invoke('gp_next_shell_log', { message: 'unimpl:' + String(key) });
+            } catch (logErr) {
+              // 记不上也不影响业务
+            }
+          }
           return function () { return undefined; };
         },
         set: function (t, key, value) { t[key] = value; return true; },
         has: function (t, key) { return key in t; }
       };
-      var proxy = new Proxy(target, handler);
+      // A10：记录已经告警过的未知方法名（每个只记一次，避免刷屏）
+    var unimplWarned = {};
+    var proxy = new Proxy(target, handler);
       Object.defineProperty(window, 'electronAPI', {
         configurable: true,
         enumerable: true,
@@ -407,5 +420,190 @@ export const GPNEXT_SHIM: string = `(function () {
     console.info('[A9] GitHub 关卡本地库已接管 electronAPI.loadLevel/saveLevel');
   } catch (e) {
     console.warn('[A9] 关卡本地库安装失败: ' + (e && e.message));
+  }
+})();
+
+// A11：补齐 electronAPI 上“窗口/全屏/分辨率/焦点”这几个桌面 preload 会挂的方法。
+// 它们以前全是 Proxy 空桩（返回 undefined），A10 的 [shim] unimpl 日志把真实调用暴露出来后才补的。
+(function () {
+  try {
+    if (!window.electronAPI) { return; }
+    var api = window.electronAPI;
+    var win = window;
+
+    function isFullScreenNow() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement);
+    }
+
+    // ⚠️ 这里必须**无条件覆盖**：读 api.xxx 会先命中 Proxy 空桩（总是返回函数），
+    //    用 typeof 判断会把自己跳过，导致 A11 形同虚设（2026-11-16 实测踩过）。
+    api.isFullScreen = function () { return isFullScreenNow(); };
+    api.getCurrentResolutionSync = function () {
+      return Math.round(win.innerWidth) + 'x' + Math.round(win.innerHeight);
+    };
+    api.onWindowFocused = function (callback) {
+      if (typeof callback !== 'function') { return function () {}; }
+      var handler = function () {
+        try { callback(); } catch (err) { }
+      };
+      win.addEventListener('focus', handler);
+      return function () { win.removeEventListener('focus', handler); };
+    };
+    api.onWindowUnfocused = function (callback) {
+      if (typeof callback !== 'function') { return function () {}; }
+      var handler = function () {
+        try { callback(); } catch (err) { }
+      };
+      win.addEventListener('blur', handler);
+      document.addEventListener('visibilitychange', handler);
+      return function () {
+        win.removeEventListener('blur', handler);
+        document.removeEventListener('visibilitychange', handler);
+      };
+    };
+
+    // electronAPI.window：桌面端是 Tauri 的窗口对象（可当函数调用，也可取属性）。
+    // 这里给一个"函数 + 属性"的兼容体：调用返回对象，属性上是同样的一批空实现。
+    var windowMethods = ['hide', 'show', 'minimize', 'maximize', 'unmaximize', 'close', 'destroy',
+      'center', 'setTitle', 'setSize', 'setPosition', 'setFullscreen', 'setAlwaysOnTop', 'setDecorations'];
+    var windowApi = {};
+    windowMethods.forEach(function (name) {
+      windowApi[name] = function () { return undefined; };
+    });
+    windowApi.isFullscreen = function () { return isFullScreenNow(); };
+    windowApi.isFullScreen = windowApi.isFullscreen;
+    var windowCallable = function () { return windowApi; };
+    windowMethods.forEach(function (name) {
+      windowCallable[name] = windowApi[name];
+    });
+    api.window = windowCallable;
+
+    console.info('[A11] electronAPI 窗口/全屏/焦点方法已补齐');
+  } catch (e) {
+    console.warn('[A11] 窗口方法补齐失败: ' + (e && e.message));
+  }
+})();
+
+// A12：音乐包的“选文件 + 读成 Blob”也由桌面 preload 提供（pickMusicPackFiles / readMusicPackFiles），
+// 缺了它页面会退回 <input type=file>（ArkWeb 里不可用）。这里用桥的 fs 命令实现同样语义：
+//   目录 → 递归列出 [{path(相对), blob}]
+//   .zip → [{path: 文件名, blob(zip)}]（zip 解压由负载自己做）
+//   .json → pack.json + 同目录音频（移动端只拿得到被选中的那一个文件，音频读不到会明确报错）
+(function () {
+  try {
+    if (!window.electronAPI) { return; }
+    var api = window.electronAPI;
+    var bridgeInvoke = window.__gpNextInvoke;
+    if (typeof bridgeInvoke !== 'function') { return; }
+
+    function nameOf(path) {
+      var parts = String(path || '').split('/');
+      return parts[parts.length - 1] || '';
+    }
+
+    function dirOf(path) {
+      var text = String(path || '');
+      var index = text.lastIndexOf('/');
+      return index > 0 ? text.substring(0, index) : '';
+    }
+
+    function mimeOf(path) {
+      var name = nameOf(path).toLowerCase();
+      if (/[.](zip)$/.test(name)) { return 'application/zip'; }
+      if (/[.](json)$/.test(name)) { return 'application/json'; }
+      if (/[.](mp3)$/.test(name)) { return 'audio/mpeg'; }
+      if (/[.](ogg)$/.test(name)) { return 'audio/ogg'; }
+      if (/[.](wav)$/.test(name)) { return 'audio/wav'; }
+      if (/[.](m4a|aac)$/.test(name)) { return 'audio/mp4'; }
+      return 'application/octet-stream';
+    }
+
+    function toBlob(bytes, path) {
+      return new Blob([bytes], { type: mimeOf(path) });
+    }
+
+    function readFileBlob(path) {
+      return bridgeInvoke('plugin:fs|read_file', { path: path }).then(function (value) {
+        if (value instanceof Uint8Array) { return toBlob(value, path); }
+        if (value && typeof value.__gpNextBytes === 'string') {
+          return toBlob(window.__gpNextBase64ToBytes(value.__gpNextBytes), path);
+        }
+        throw new Error('读取失败: ' + path);
+      });
+    }
+
+    function walk(dir, prefix, out) {
+      return bridgeInvoke('plugin:fs|read_dir', { path: dir }).then(function (entries) {
+        if (!Array.isArray(entries)) { return out; }
+        return entries.reduce(function (chain, entry) {
+          return chain.then(function () {
+            if (!entry || !entry.name) { return; }
+            var relative = prefix ? prefix + '/' + entry.name : entry.name;
+            var full = dir + '/' + entry.name;
+            if (entry.isDirectory) { return walk(full, relative, out); }
+            if (!entry.isFile) { return; }
+            return readFileBlob(full).then(function (blob) {
+              out.push({ path: relative, blob: blob });
+            });
+          });
+        }, Promise.resolve()).then(function () { return out; });
+      }, function () { return out; });
+    }
+
+    api.readMusicPackFiles = function (path) {
+      if (typeof path !== 'string' || path.length === 0) {
+        return Promise.resolve([]);
+      }
+      return bridgeInvoke('plugin:fs|stat', { path: path }).then(function (info) {
+        if (info && info.isDirectory) {
+          return walk(path, '', []);
+        }
+        var name = nameOf(path);
+        return readFileBlob(path).then(function (blob) {
+          if (/[.]zip$/i.test(name)) {
+            return [{ path: name, blob: new Blob([blob], { type: 'application/zip' }) }];
+          }
+          if (!/[.]json$/i.test(name)) {
+            throw new Error('请选择 ZIP 或 pack.json 形式的音乐包');
+          }
+          return blob.text().then(function (text) {
+            var manifest = JSON.parse(text);
+            var result = [{ path: 'pack.json', blob: new Blob([text], { type: 'application/json' }) }];
+            var audio = manifest && manifest.audio ? manifest.audio : {};
+            var keys = Object.keys(audio);
+            var base = dirOf(path);
+            return keys.reduce(function (chain, key) {
+              return chain.then(function () {
+                // ⚠️ 不能用正则里的反斜杠（模板字面量会塌成一个 \，生成非法正则）
+                var relative = String(audio[key] || '').split(String.fromCharCode(92)).join('/');
+                if (!relative) { return; }
+                if (result.some(function (item) { return item.path === relative; })) { return; }
+                return readFileBlob(base + '/' + relative).then(function (audioBlob) {
+                  result.push({ path: relative, blob: audioBlob });
+                }, function () {
+                  // 移动端只拿得到被选中的那一个文件：音频读不到时明确告知，别让用户以为导入成功
+                  throw new Error('音频文件读不到：' + relative + '（请改用 ZIP 形式的音乐包）');
+                });
+              });
+            }, Promise.resolve()).then(function () { return result; });
+          });
+        });
+      });
+    };
+
+    api.pickMusicPackFiles = function (options) {
+      var directory = !!(options && options.directory);
+      var request = directory
+        ? { options: { multiple: false, directory: true } }
+        : { options: { multiple: false, filters: [{ name: 'Music pack', extensions: ['zip', 'json'] }] } };
+      return bridgeInvoke('plugin:dialog|open', request).then(function (picked) {
+        if (!picked) { return null; }
+        return api.readMusicPackFiles(String(picked));
+      });
+    };
+
+    console.info('[A12] 音乐包选文件/读取已接管 electronAPI.pickMusicPackFiles/readMusicPackFiles');
+  } catch (e) {
+    console.warn('[A12] 音乐包适配安装失败: ' + (e && e.message));
   }
 })();`;

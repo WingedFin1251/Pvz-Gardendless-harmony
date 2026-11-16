@@ -149,6 +149,12 @@ export type GpNextImportPackages = () => Promise<void>;
  */
 export type GpNextPickOpenTargets = (extensions: string[], multiple: boolean, directory: boolean) => Promise<string[]>;
 
+/**
+ * 顶部提示（宿主页面实现）。导出失败时**必须**让用户看见原因：
+ * 之前只写日志，用户只看到系统选择器建的空文件，完全不知道发生了什么。
+ */
+export type GpNextNotify = (message: string, duration: number) => void;
+
 /** plugin:dialog|open 的 filters 元素 */
 interface GpNextDialogFilter {
   name?: string;
@@ -186,6 +192,7 @@ export class GpNextBridge {
   private pickSaveTargetHandler: GpNextPickSaveTarget;
   private importPackagesHandler: GpNextImportPackages;
   private pickOpenTargetsHandler: GpNextPickOpenTargets;
+  private notifyHandler: GpNextNotify;
   private baseDir: string;
   private root: string;
   private exportDir: string;
@@ -198,11 +205,13 @@ export class GpNextBridge {
     openExternal: GpNextOpenExternal,
     pickSaveTarget: GpNextPickSaveTarget,
     importPackages: GpNextImportPackages,
-    pickOpenTargets: GpNextPickOpenTargets) {
+    pickOpenTargets: GpNextPickOpenTargets,
+    notify: GpNextNotify) {
     this.openExternalHandler = openExternal;
     this.pickSaveTargetHandler = pickSaveTarget;
     this.importPackagesHandler = importPackages;
     this.pickOpenTargetsHandler = pickOpenTargets;
+    this.notifyHandler = notify;
     this.baseDir = GpNextBridge.trimTrailingSlash(context.filesDir);
     this.root = `${this.baseDir}/${GP_NEXT_DIR}`;
     this.exportDir = `${this.root}/${EXPORT_DIR}`;
@@ -675,6 +684,11 @@ export class GpNextBridge {
     const bytes: Uint8Array = args && args.__gpNextBytes
       ? this.base64.decodeSync(args.__gpNextBytes)
       : new Uint8Array(0);
+    // 导出链路：0 字节是"内容没到桥"的硬故障，不能把空文件交给用户。
+    if (this.pendingExports.has(target) && bytes.byteLength === 0) {
+      this.pendingExports.delete(target);
+      throw new Error('导出内容为空（0 字节），已中止');
+    }
     this.ensureDir(this.dirname(target));
     const file = fs.openSync(target, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
     try {
@@ -802,17 +816,31 @@ export class GpNextBridge {
     }
     this.ensureDir(this.exportDir);
     const tempPath: string = `${this.exportDir}/${Date.now()}-${suggested}`;
+    // 记录"临时路径 → 用户位置"的登记，便于排查交付是否命中
+    console.info(`[gp-next-bridge] 另存为登记 temp=${tempPath}, target=${targetUri}`);
     this.pendingExports.set(tempPath, targetUri);
     return tempPath;
   }
 
   private deliverExport(tempPath: string, targetUri: string): void {
+    let tempSize: number = -1;
+    try {
+      tempSize = fs.statSync(tempPath).size;
+    } catch (sizeErr) {
+      tempSize = -1;
+    }
     try {
       this.copyPath(tempPath, targetUri);
       fs.unlinkSync(tempPath);
-      console.info(`[gp-next-bridge] 已导出到用户选择的位置: ${targetUri}`);
+      console.info(`[gp-next-bridge] 已导出到用户选择的位置: ${targetUri} (${tempSize} 字节)`);
+      this.notifyHandler(`存档已导出（${Math.max(1, Math.round(tempSize / 1024))} KB）`, 3000);
     } catch (err) {
-      console.error(`[gp-next-bridge] 导出落盘失败: ${errorText(err as Object)}`);
+      const error = err as BusinessError;
+      // 失败必须让用户看见：以前只写日志，用户只看到系统选择器建的空文件。
+      // 临时文件**保留**（里面是完整的存档内容），并提示用户路径，便于反馈。
+      console.warn(`[gp-next-bridge] 导出落盘失败 code=${error.code}, message=${error.message}, ` +
+        `tempSize=${tempSize}, isUri=${targetUri.startsWith('file://')}`);
+      this.notifyHandler(`导出失败：${error.message}（数据已暂存在应用目录）`, 6000);
     }
   }
 
@@ -977,11 +1005,19 @@ export class GpNextBridge {
   /**
    * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
    */  private copyPath(source: string, destination: string): void {
-    this.ensureDir(this.dirname(destination));
+    // ⚠️ 只有目标是**沙箱路径**时才建父目录。目标是选择器给的 `file://docs/...` 时：
+    //    · 父目录已存在（系统选择器保证），建目录纯属多余；
+    //    · 那层权限只覆盖"这一个文件"，别去碰它的父目录。
+    if (!destination.startsWith('file://')) {
+      this.ensureDir(this.dirname(destination));
+    }
     const sourceFile = fs.openSync(source, fs.OpenMode.READ_ONLY);
     try {
+      // ⚠️ 必须是 **WRITE_ONLY**：系统选择器对目标文件只授予"写"权限，
+      //    用 READ_WRITE 打开会报 13900012 Permission denied（真机实测：
+      //    gpnext 用 READ_WRITE 失败、A6 与 base 用 WRITE_ONLY 都成功）。
       const destinationFile = fs.openSync(destination,
-        fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+        fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
       try {
         fs.copyFileSync(sourceFile.fd, destinationFile.fd);
       } finally {

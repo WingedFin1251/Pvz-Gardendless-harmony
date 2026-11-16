@@ -172,7 +172,11 @@ struct CocosJSApp {
       (fileName: string) => this.pickSaveTarget(fileName),
       () => this.showDataDir(),
       (extensions: string[], multiple: boolean, directory: boolean) =>
-        this.pickOpenTargets(extensions, multiple, directory));
+        this.pickOpenTargets(extensions, multiple, directory),
+      // 导出失败必须让用户看见（以前只写日志，用户只看到空文件）
+      (message: string, duration: number): void => {
+        this.showStatusMessage(message, duration);
+      });
 
     // 读入 touchPatch.js，与 GPNEXT_SHIM 拼成一条注入脚本（原因见 injectedScript 的注释）。
     // 这样负载更新时不会再冲掉对 touchPatch.js 的引用 —— 原先它靠 index.html 里的一行 <script src>。

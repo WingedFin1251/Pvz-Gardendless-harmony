@@ -221,6 +221,191 @@ export const GPNEXT_SHIM: string = `(function () {
     else { document.addEventListener('DOMContentLoaded', installHintCss); }
   }
 
+  // A9 的关卡本地库在下面另一个 IIFE 里，需要复用这里的 invoke / base64 辅助函数。
+  window.__gpNextInvoke = invoke;
+  window.__gpNextBytesToBase64 = bytesToBase64;
+  window.__gpNextBase64ToBytes = base64ToBytes;
+
   window.__gpNextNativeReady = true;
   console.info('[gp-next-shim] 原生桥已接管 __TAURI_INTERNALS__');
+})();
+
+// A9：GitHub 关卡本地库（对齐桌面 preload 的 saveLevel/loadLevel/removeLevel/listLevels）。
+// 桌面端由 preload 暴露这四个方法，页面通过 electronAPI.loadLevel(path) 读关卡；
+// 缺失时 index.js 的 ea() 拿到空值就直接弹 i18n "LevelNonExist"（中文：关卡文件不存在），
+// 而且**不会产生任何原生调用** —— 这正是真机上"下载了却玩不了"的原因。
+// 存储格式与桌面一致：gp-next/github-levels/<sha256(相对路径)>.json = {"path":…,"content":…}
+(function () {
+  try {
+    if (!window.electronAPI) { return; }
+    // invoke / base64 是上面主 IIFE 里的局部函数，这里通过 window 上的出口复用
+    // （之前直接调 invoke 报 "invoke is not defined"，页面因此弹错误）。
+    var bridgeInvoke = window.__gpNextInvoke;
+    var toBase64 = window.__gpNextBytesToBase64;
+    var fromBase64 = window.__gpNextBase64ToBytes;
+    if (typeof bridgeInvoke !== 'function') {
+      console.warn('[A9] 原生桥入口不可用，跳过关卡本地库安装');
+      return;
+    }
+    var LEVEL_DIR = 'gp-next/github-levels';
+
+    function levelValidPath(p) {
+      if (typeof p !== 'string' || p.length === 0 || p.length > 512) { return false; }
+      // ⚠️ 本段是 TS 模板字面量的一部分：不要写反斜杠转义或 NUL 字面量
+      //    （反斜杠对会塌成未闭合字符串，NUL 会变成真字符），一律用 fromCharCode。
+      if (p.indexOf('..') >= 0 || p.indexOf(String.fromCharCode(0)) >= 0) { return false; }
+      if (p.indexOf(String.fromCharCode(92)) >= 0 || p.indexOf(':') >= 0) { return false; }
+      return p.split('/').every(function (part) {
+        return part.length > 0 && part !== '.' && part !== '..';
+      });
+    }
+
+    function sha256HexOf(text) {
+      var subtle = window.crypto && window.crypto.subtle ? window.crypto.subtle : null;
+      if (!subtle || typeof subtle.digest !== 'function') {
+        return Promise.reject(new Error('crypto.subtle 不可用'));
+      }
+      var bytes = new TextEncoder().encode(String(text));
+      return subtle.digest('SHA-256', bytes).then(function (buf) {
+        var view = new Uint8Array(buf);
+        var out = '';
+        for (var i = 0; i < view.length; i++) {
+          var hex = view[i].toString(16);
+          out += hex.length === 1 ? '0' + hex : hex;
+        }
+        return out;
+      });
+    }
+
+    function levelFileOf(relativePath) {
+      return sha256HexOf(relativePath).then(function (hex) {
+        return LEVEL_DIR + '/' + hex + '.json';
+      });
+    }
+
+    // ⚠️ 主 IIFE 的 invoke() 已经把 __gpNextBytes **自动解码成 Uint8Array** 再返回
+    //    （见它末尾的 base64ToBytes 分支），所以这里必须先按 Uint8Array 处理，
+    //    否则会拿不到内容 → 游戏判定关卡不存在。
+    function textFromValue(value) {
+      if (!value) { return null; }
+      try {
+        if (value instanceof Uint8Array) {
+          return new TextDecoder().decode(value);
+        }
+        if (typeof value === 'string') {
+          return value;
+        }
+        if (typeof value.__gpNextBytes === 'string') {
+          return new TextDecoder().decode(fromBase64(value.__gpNextBytes));
+        }
+      } catch (decodeErr) {
+        return null;
+      }
+      return null;
+    }
+
+    function readTextFileText(path) {
+      return bridgeInvoke('plugin:fs|read_text_file', { path: path }).then(function (value) {
+        return textFromValue(value);
+      }, function () {
+        return null;
+      });
+    }
+
+    function writeTextFileText(path, text) {
+      var payload = { __gpNextBytes: toBase64(new TextEncoder().encode(text)) };
+      return bridgeInvoke('plugin:fs|write_text_file', payload, { headers: { path: encodeURIComponent(path) } });
+    }
+
+    function levelSave(relativePath, content) {
+      if (!levelValidPath(relativePath) || typeof content !== 'string') {
+        return Promise.reject(new Error('Invalid level payload'));
+      }
+      return levelFileOf(relativePath).then(function (file) {
+        return writeTextFileText(file, JSON.stringify({ path: relativePath, content: content }));
+      });
+    }
+
+    function levelLoad(relativePath) {
+      if (!levelValidPath(relativePath)) { return Promise.resolve(null); }
+      return levelFileOf(relativePath).then(function (file) {
+        return readTextFileText(file).then(function (raw) {
+          if (!raw) { return null; }
+          try {
+            var data = JSON.parse(raw);
+            if (data && data.path === relativePath && typeof data.content === 'string') {
+              return data.content;
+            }
+            return null;
+          } catch (parseErr) {
+            return null;
+          }
+        }, function () {
+          return null;
+        });
+      }, function () {
+        return null;
+      });
+    }
+
+    function levelRemove(relativePath) {
+      if (!levelValidPath(relativePath)) { return Promise.resolve(null); }
+      return levelFileOf(relativePath).then(function (file) {
+        return bridgeInvoke('plugin:fs|remove', { path: file }).then(function () {
+          return null;
+        }, function () {
+          return null;
+        });
+      }, function () {
+        return null;
+      });
+    }
+
+    function levelList() {
+      return bridgeInvoke('plugin:fs|read_dir', { path: LEVEL_DIR }).then(function (entries) {
+        if (!Array.isArray(entries)) { return []; }
+        var jobs = [];
+        entries.forEach(function (entry) {
+          if (!entry || !entry.isFile || !/^[a-f0-9]{64}\.json$/.test(String(entry.name))) { return; }
+          var fileName = String(entry.name);
+          jobs.push(readTextFileText(LEVEL_DIR + '/' + fileName).then(function (raw) {
+            if (!raw) { return null; }
+            try {
+              var data = JSON.parse(raw);
+              if (!data || typeof data.path !== 'string' || typeof data.content !== 'string') { return null; }
+              return sha256HexOf(data.path).then(function (hex) {
+                return hex + '.json' === fileName ? data.path : null;
+              });
+            } catch (parseErr) {
+              return null;
+            }
+          }, function () {
+            return null;
+          }));
+        });
+        return Promise.all(jobs).then(function (values) {
+          var result = [];
+          for (var k = 0; k < values.length; k++) {
+            if (typeof values[k] === 'string') { result.push(values[k]); }
+          }
+          return result;
+        });
+      }, function () {
+        return [];
+      });
+    }
+
+    var levelApi = {
+      saveLevel: levelSave,
+      loadLevel: levelLoad,
+      removeLevel: levelRemove,
+      listLevels: levelList
+    };
+    Object.keys(levelApi).forEach(function (name) {
+      window.electronAPI[name] = levelApi[name];
+    });
+    console.info('[A9] GitHub 关卡本地库已接管 electronAPI.loadLevel/saveLevel');
+  } catch (e) {
+    console.warn('[A9] 关卡本地库安装失败: ' + (e && e.message));
+  }
 })();`;

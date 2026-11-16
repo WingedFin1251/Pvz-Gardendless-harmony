@@ -205,7 +205,12 @@ interface GpNextSettingsFile {
 }
 
 const GP_NEXT_DIR: string = 'gp-next';
-const EXPORT_DIR: string = '.exports';
+// P1：导出件改为**持久目录**（旧版是隐藏的 .exports，交付后还会删掉源文件）。
+// 语义对齐桌面端：dialog|save 返回的路径必须长期可读，用户位置那份只是副本。
+// 见 agent/persistence.md §8（RC-1/RC-3）。
+const EXPORT_DIR: string = 'exports';
+/** 旧版临时导出目录，仅用于启动时一次性迁移 */
+const LEGACY_EXPORT_DIR: string = '.exports';
 const INCOMING_DIR: string = '.incoming';
 
 function errorText(err: Object): string {
@@ -247,7 +252,42 @@ export class GpNextBridge {
     this.incomingDir = `${this.root}/${INCOMING_DIR}`;
     this.ensureBaseDirs();
     console.info(`[gp-next-bridge] 数据根目录: ${this.root}`);
+    this.migrateLegacyExports();
     this.seedDefaultSettings();
+  }
+
+  /**
+   * 一次性把旧版 `.exports/` 里残留的导出件搬进持久目录 `exports/`。
+   * 旧版交付成功后就会删源，所以这里通常没什么可搬；搬不动的只记日志，不阻塞启动。
+   */
+  private migrateLegacyExports(): void {
+    const legacyDir: string = `${this.root}/${LEGACY_EXPORT_DIR}`;
+    try {
+      if (!fs.accessSync(legacyDir)) {
+        return;
+      }
+      const names: string[] = fs.listFileSync(legacyDir);
+      let moved: number = 0;
+      for (let index = 0; index < names.length; index++) {
+        const name: string = names[index];
+        const from: string = `${legacyDir}/${name}`;
+        try {
+          if (!fs.statSync(from).isFile()) {
+            continue;
+          }
+          this.ensureDir(this.exportDir);
+          fs.renameSync(from, `${this.exportDir}/${name}`);
+          moved++;
+        } catch (moveErr) {
+          console.warn(`[gp-next-bridge] 迁移旧导出件失败: ${name}`);
+        }
+      }
+      if (moved > 0) {
+        console.info(`[gp-next-bridge] 已迁移 ${moved} 个旧导出件到 ${this.exportDir}`);
+      }
+    } catch (err) {
+      console.warn(`[gp-next-bridge] 旧导出目录迁移跳过: ${errorText(err as Object)}`);
+    }
   }
 
   /**
@@ -335,10 +375,48 @@ export class GpNextBridge {
       // 文件不存在是它的正常分支。打 ERROR 会在每次启动时刷出上百行 hilog，这里降到 debug。
       if (message.startsWith('File not found:')) {
         console.debug(`[gp-next-bridge] ${command} 未命中: ${message}`);
+        this.appendLog(`[miss] ${command} ${message}`);
       } else {
         console.error(`[gp-next-bridge] ${command} 失败: ${message}`);
+        this.appendLog(`[fail] ${command} ${message}`);
       }
       return `{"ok":false,"error":${JSON.stringify(message)},"code":"gp_next_error"}`;
+    }
+  }
+
+
+  /**
+   * 把一行诊断写进 `<filesDir>/gp-next/logs/bridge.log`（可按需 hdc 拉取）。
+   * hilog 流式抓取会被并发 hdc 命令打断、持久化日志又是字典压缩的，所以自带一份。
+   * 超过 512KB 轮转成 bridge.log.1（只保留一代，避免无限增长）。
+   */
+  private appendLog(line: string): void {
+    try {
+      const logDir: string = `${this.root}/logs`;
+      const logFile: string = `${logDir}/bridge.log`;
+      this.ensureDir(logDir);
+      let size: number = 0;
+      try {
+        size = fs.statSync(logFile).size;
+      } catch (sizeErr) {
+        size = 0;
+      }
+      if (size > 512 * 1024) {
+        try {
+          fs.renameSync(logFile, `${logDir}/bridge.log.1`);
+        } catch (rotateErr) {
+          // 轮转失败就继续追加
+        }
+      }
+      const stamp: string = new Date().toISOString();
+      const file = fs.openSync(logFile, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.APPEND);
+      try {
+        fs.writeSync(file.fd, `${stamp} ${line}\n`);
+      } finally {
+        fs.closeSync(file);
+      }
+    } catch (logErr) {
+      // 日志失败不影响业务
     }
   }
 
@@ -939,28 +1017,67 @@ export class GpNextBridge {
       throw new Error('导出内容为空（0 字节），已中止');
     }
     this.ensureDir(this.dirname(target));
-    const file = fs.openSync(target, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+    // P1：沙箱内写入改**原子发布**（同目录 tmp → rename），避免写一半被杀留下半截 JSON。
+    // ⚠️ 只对沙箱路径做；picker 返回的外部 URI 不支持 rename（见 copyPath 的分支）。
+    const written: number = this.writeBytesAtomic(target, bytes);
+
+    // 命中"另存为"登记 → 复制到用户选定的位置；**源文件保留**（路径必须长期可读，见 agent/persistence.md §8）
+    const exportUri: string | undefined = this.pendingExports.get(target);
+    if (exportUri) {
+      this.pendingExports.delete(target);
+      this.deliverExport(target, exportUri);
+    } else {
+      console.info(`[gp-next-bridge] 已原子写入 ${target} (${written} 字节)`);
+    }
+    return null;
+  }
+
+  /**
+   * 原子写入：同目录写 `xxx.tmp-<ts>` → close → 校验大小 → rename 覆盖目标。
+   * 返回写入字节数；失败时清理 tmp 并抛出（由 invoke 统一转成失败响应）。
+   * @throws { BusinessError } 文件系统调用失败时向上抛出
+   */
+  private writeBytesAtomic(target: string, bytes: Uint8Array): number {
+    const dir: string = this.dirname(target);
+    const stamp: number = Date.now();
+    const tmpPath: string = `${target}.tmp-${stamp}`;
+    const file = fs.openSync(tmpPath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
     try {
       // ⚠️ 不能写 bytes.buffer：那会忽略视图的 byteOffset/byteLength。
       // 也不能用 WriteOptions.offset —— 官方语义是"**文件**写入位置"，不是缓冲区偏移。
-      // 视图覆盖整块（最常见）时直接写，零拷贝；否则先切出精确区间。
       if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) {
         fs.writeSync(file.fd, bytes.buffer as ArrayBuffer);
       } else {
         const exact = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
         fs.writeSync(file.fd, exact as ArrayBuffer);
       }
-    } finally {
-      fs.closeSync(file);
+    } catch (writeErr) {
+      try {
+        fs.closeSync(file);
+      } catch (closeErr) {
+        // 忽略：下面统一清理
+      }
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch (cleanupErr) {
+        // 忽略：残留的 .tmp-* 由 P3 的 TTL 清理兜底
+      }
+      throw writeErr as Error;
     }
-
-    // 命中"另存为"登记的临时路径 → 复制到用户选定的位置并清掉临时文件
-    const exportUri: string | undefined = this.pendingExports.get(target);
-    if (exportUri) {
-      this.pendingExports.delete(target);
-      this.deliverExport(target, exportUri);
+    fs.closeSync(file);
+    // 校验：大小必须完全一致，否则不发布
+    const landedSize: number = fs.statSync(tmpPath).size;
+    if (landedSize !== bytes.byteLength) {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch (cleanupErr2) {
+        // 忽略
+      }
+      throw new Error(`原子写入校验失败：期望 ${bytes.byteLength} 字节，实际 ${landedSize}`);
     }
-    return null;
+    fs.renameSync(tmpPath, target);
+    this.ensureDir(dir);
+    return landedSize;
   }
 
   /**
@@ -1050,8 +1167,9 @@ export class GpNextBridge {
   // ==================== 另存为 ====================
 
   /**
-   * Tauri 的 save 对话框语义：先问用户存哪儿，再返回一个可写路径。
-   * 这里返回沙箱内的临时路径，等 GP-Next 写完再由 deliverExport 复制到用户选定的 uri。
+   * Tauri 的 save 对话框语义：先问用户存哪儿，再返回一个**可长期读写的沙箱路径**。
+   * P1 之后返回的路径落在持久目录 `gp-next/exports/`，payload 稍后再读也读得到；
+   * 用户选定的位置只是**副本**（见 deliverExport）。
    */
   /**
    * @throws { BusinessError } 文件系统调用失败时向上抛出，由 invoke 统一转成失败响应
@@ -1065,8 +1183,8 @@ export class GpNextBridge {
     }
     this.ensureDir(this.exportDir);
     const tempPath: string = `${this.exportDir}/${Date.now()}-${suggested}`;
-    // 记录"临时路径 → 用户位置"的登记，便于排查交付是否命中
-    console.info(`[gp-next-bridge] 另存为登记 temp=${tempPath}, target=${targetUri}`);
+    // 记录"应用内持久路径 → 用户位置"的登记，便于排查交付是否命中
+    console.info(`[gp-next-bridge] 另存为登记 persistent=${tempPath}, target=${targetUri}`);
     this.pendingExports.set(tempPath, targetUri);
     return tempPath;
   }
@@ -1080,15 +1198,17 @@ export class GpNextBridge {
     }
     try {
       this.copyPath(tempPath, targetUri);
-      fs.unlinkSync(tempPath);
-      console.info(`[gp-next-bridge] 已导出到用户选择的位置: ${targetUri} (${tempSize} 字节)`);
+      // ⭐ 源文件**保留**（不再 unlink）：返回给 payload 的路径必须长期可读，
+      //    否则它稍后再读就是"文件不存在"（GitHub 关卡/导出复查都会踩）。
+      console.info(`[gp-next-bridge] 已导出到用户选择的位置: ${targetUri} (${tempSize} 字节)，应用内副本保留: ${tempPath}`);
+      this.appendLog(`[export-ok] ${targetUri} ${tempSize}B kept=${tempPath}`);
       this.notifyHandler(`存档已导出（${Math.max(1, Math.round(tempSize / 1024))} KB）`, 3000);
     } catch (err) {
       const error = err as BusinessError;
       // 失败必须让用户看见：以前只写日志，用户只看到系统选择器建的空文件。
-      // 临时文件**保留**（里面是完整的存档内容），并提示用户路径，便于反馈。
+      // 应用内副本同样保留（里面是完整内容），并提示用户路径，便于反馈。
       console.warn(`[gp-next-bridge] 导出落盘失败 code=${error.code}, message=${error.message}, ` +
-        `tempSize=${tempSize}, isUri=${targetUri.startsWith('file://')}`);
+        `tempSize=${tempSize}, isUri=${targetUri.startsWith('file://')}, kept=${tempPath}`);
       this.notifyHandler(`导出失败：${error.message}（数据已暂存在应用目录）`, 6000);
     }
   }
@@ -1257,24 +1377,58 @@ export class GpNextBridge {
     // ⚠️ 只有目标是**沙箱路径**时才建父目录。目标是选择器给的 `file://docs/...` 时：
     //    · 父目录已存在（系统选择器保证），建目录纯属多余；
     //    · 那层权限只覆盖"这一个文件"，别去碰它的父目录。
-    if (!destination.startsWith('file://')) {
+    const isExternal: boolean = destination.startsWith('file://');
+    if (!isExternal) {
       this.ensureDir(this.dirname(destination));
     }
+    // 外部 URI：跨文件系统、不支持 rename ⇒ 直接写（WRITE_ONLY：picker 只授予"写"权限）
+    // 沙箱目标：写同目录 tmp → 校验大小 → rename ⇒ 原子发布（RC-3）
+    const tmpPath: string = isExternal ? destination : `${destination}.tmp-${Date.now()}`;
     const sourceFile = fs.openSync(source, fs.OpenMode.READ_ONLY);
     try {
-      // ⚠️ 必须是 **WRITE_ONLY**：系统选择器对目标文件只授予"写"权限，
-      //    用 READ_WRITE 打开会报 13900012 Permission denied（真机实测：
-      //    gpnext 用 READ_WRITE 失败、A6 与 base 用 WRITE_ONLY 都成功）。
-      const destinationFile = fs.openSync(destination,
+      const destinationFile = fs.openSync(tmpPath,
         fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
       try {
         fs.copyFileSync(sourceFile.fd, destinationFile.fd);
       } finally {
         fs.closeSync(destinationFile);
       }
+    } catch (copyErr) {
+      if (!isExternal) {
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch (cleanupErr) {
+          // 残留 tmp 由 P3 的 TTL 清理兜底
+        }
+      }
+      throw copyErr as Error;
     } finally {
       fs.closeSync(sourceFile);
     }
+    if (isExternal) {
+      return;
+    }
+    let sourceSize: number = -1;
+    let copiedSize: number = -1;
+    try {
+      sourceSize = fs.statSync(source).size;
+    } catch (srcErr) {
+      sourceSize = -1;
+    }
+    try {
+      copiedSize = fs.statSync(tmpPath).size;
+    } catch (dstErr) {
+      copiedSize = -1;
+    }
+    if (sourceSize >= 0 && copiedSize !== sourceSize) {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch (cleanupErr2) {
+        // 忽略
+      }
+      throw new Error(`复制校验失败：源 ${sourceSize} 字节，副本 ${copiedSize} 字节`);
+    }
+    fs.renameSync(tmpPath, destination);
   }
 
   /**

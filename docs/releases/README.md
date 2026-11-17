@@ -1,6 +1,6 @@
 # 发布说明
 
-按版本倒序。当前线：**0.16.27**（待发布；仅 GP-Next 变体，`lite` / `base` 未跟进）。规划见工作区 `.clean-staging/NEXT-RELEASE.md`。
+按版本倒序。当前线：**0.16.27**（已发布；仅 GP-Next 变体，`lite` / `base` 未跟进）。规划见工作区 `.clean-staging/NEXT-RELEASE.md`。
 
 | 版本 | 说明 |
 | :--- | :--- |

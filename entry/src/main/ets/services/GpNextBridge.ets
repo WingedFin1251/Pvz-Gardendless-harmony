@@ -124,6 +124,22 @@ interface GpNextPackFile {
   base64: string;
 }
 
+/** gp_next_read_package_index 的返回：{ digest, files:[{path,length}] } */
+interface GpNextPackIndexFile {
+  path: string;
+  length: number;
+}
+
+/** gp_next_read_package_index 的外层包装：负载按 `{index, eager}` 解构 */
+interface GpNextPackIndexEnvelope {
+  index: GpNextPackIndex;
+  eager: GpNextPackFile[];
+}
+interface GpNextPackIndex {
+  digest: string;
+  files: GpNextPackIndexFile[];
+}
+
 /** gp_next_capture_local_pack 的返回：目录包给 files，zip 包给 zip 的 base64 */
 interface GpNextCaptureResult {
   zip: string | null;
@@ -603,27 +619,31 @@ export class GpNextBridge {
       //    「Installed package is corrupt」就是这么来的）；返回 `null` 则被当成"没有这个包"，无害。
       // 读类命令：返回真实内容或 null；写类命令（安装/抓取）：明确报未实现，不假装成功。
       case 'gp_next_read_package_index': {
-        // 本壳层没有维护包索引文件（install_pack 未实现）⇒ 一律"没有该包"
+        // 期望结构（见 pack-install-store 的重建函数）：
+        //   { digest, files: [ { path(相对), length(字节数) } ] }
+        // 之前这里一律返回 null ⇒ payload 认为"快照缺失或不同" ⇒ 已装模组全部显示失效 ✗
         const digest: string = args && args.digest ? args.digest : '';
-        const packDir: string = `${this.root}/installed/${digest}`;
-        let hasContent: boolean = false;
-        try {
-          if (digest.length > 0 && fs.accessSync(packDir)) {
-            hasContent = fs.listFileSync(packDir).length > 0;
-          }
-        } catch (indexErr) {
-          hasContent = false;
-        }
-        if (!hasContent) {
+        if (digest.length === 0) {
           return 'null';
         }
-        // 目录里有内容但没有索引：返回"没有索引"比编造一份更诚实
-        console.warn(`[gp-next-bridge] 包 ${digest} 有内容但无索引，按无索引处理`);
-        return 'null';
+        const packDir: string = this.packDirOf(digest);
+        if (!fs.accessSync(packDir)) {
+          this.appendLog(`[index-miss] digest=${digest} dir=${packDir}`);
+          return 'null';
+        }
+        const entries: GpNextPackIndexFile[] = [];
+        this.collectIndexFiles(packDir, '', entries, 0);
+        const index: GpNextPackIndex = { digest: digest, files: entries };
+        this.appendLog(`[index] digest=${digest} dir=${packDir} files=${entries.length}`);
+        // ⚠️ 必须**再包一层**：负载的重建函数是 `m({index, eager}, fetcher)`，
+        //    直接返回 {digest, files} 会让它的 `index` 为 undefined ⇒ `e.files.map` 抛错
+        //    ⇒ 统一被包成 "Installed package is corrupt"（真机实测：启用永远失败）。
+        const wrapped: GpNextPackIndexEnvelope = { index: index, eager: [] };
+        return JSON.stringify(wrapped);
       }
       case 'gp_next_read_installed_pack': {
         const digest: string = args && args.digest ? args.digest : '';
-        const packDir: string = `${this.root}/installed/${digest}`;
+        const packDir: string = this.packDirOf(digest);
         if (digest.length === 0 || !fs.accessSync(packDir)) {
           return 'null';
         }
@@ -643,17 +663,19 @@ export class GpNextBridge {
           console.warn(`[gp-next-bridge] 读取已安装包失败: ${errorText(readErr as Object)}`);
           return 'null';
         }
+        this.appendLog('[pack] digest=' + digest + ' files=' + files.length + ' dir=' + packDir);
         return JSON.stringify(files);
       }
       case 'gp_next_read_package_file': {
         const digest: string = args && args.digest ? args.digest : '';
         const relative: string = args && args.path ? args.path : '';
-        const full: string = `${this.root}/installed/${digest}/${relative}`;
+        const full: string = `${this.packDirOf(digest)}/${relative}`;
         const resolved: string = this.resolve(full, undefined);
-        const value: GpNextPackFile = {
-          path: relative,
-          base64: this.base64.encodeToStringSync(this.readBytes(resolved))
-        };
+        // ⚠️ 返回的必须是"字节"，不是 {path, base64}：
+        // 负载重建快照时用 `new Uint8Array(结果)`，拿到对象会得到空数组，
+        // 与索引里的 length 不符 ⇒ 抛错被包成 "Installed package is corrupt"（真机实测）。
+        // 垫片会把 __gpNextBytes 自动解码成 Uint8Array 再交给负载。
+        const value: GpNextBytesValue = { __gpNextBytes: this.base64.encodeToStringSync(this.readBytes(resolved)) };
         return JSON.stringify(value);
       }
       // 写类：安装本地包到内容寻址目录（0.16.27 的包存储）
@@ -664,7 +686,7 @@ export class GpNextBridge {
           return 'null';
         }
         const files: GpNextPackFile[] = args && args.files ? args.files : [];
-        const packDir: string = `${this.root}/installed/${digest}`;
+        const packDir: string = this.packDirOf(digest);
         this.ensureDir(packDir);
         for (let index = 0; index < files.length; index++) {
           const entry: GpNextPackFile = files[index];
@@ -683,6 +705,7 @@ export class GpNextBridge {
           }
         }
         console.info(`[gp-next-bridge] 已安装本地包 ${digest}（${files.length} 个文件）`);
+        this.appendLog(`[install] digest=${digest} files=${files.length} dir=${packDir}`);
         return 'null';
       }
       // 抓取本地包源（目录 → 文件列表；zip 文件 → zip 的 base64）
@@ -836,6 +859,54 @@ export class GpNextBridge {
    * 递归收集目录下的文件（供 gp_next_capture_local_pack 用）。
    * 深度上限 8、文件数上限 4000，避免异常目录把内存/时间打爆。
    */
+  /**
+   * 递归收集目录下的文件条目（path 相对 + 字节数），供 gp_next_read_package_index 用。
+   * payload 的 sizeOf 直接读 length；readBytesAsync 还会校验实际字节数必须相等。
+   */
+  /**
+   * digest → 实际目录。
+   * ⚠️ 0.16.27 的负载在预检时会用 **view 路径** 当 digest：
+   *   `installed/.views/<hex(mod id)>/<真实 digest>`
+   * 物理内容只在 `installed/<真实 digest>/` 下，所以这里取最后一段作为真实 digest。
+   * 返回的索引里仍原样回显请求的 digest，以满足 payload 的 `snapshot.digest === 请求值` 校验。
+   */
+  private packDirOf(digest: string): string {
+    let real: string = digest;
+    const slash: number = digest.lastIndexOf('/');
+    if (slash >= 0 && slash < digest.length - 1) {
+      real = digest.substring(slash + 1);
+    }
+    return `${this.root}/installed/${real}`;
+  }
+  private collectIndexFiles(dir: string, prefix: string, out: GpNextPackIndexFile[], depth: number): void {
+    if (depth > 12 || out.length >= 4000) {
+      return;
+    }
+    let names: string[];
+    try {
+      names = fs.listFileSync(dir);
+    } catch (listErr) {
+      return;
+    }
+    for (let index = 0; index < names.length; index++) {
+      if (out.length >= 4000) {
+        return;
+      }
+      const name: string = names[index];
+      const full: string = `${dir}/${name}`;
+      const relative: string = prefix.length === 0 ? name : `${prefix}/${name}`;
+      try {
+        const info = fs.statSync(full);
+        if (info.isDirectory()) {
+          this.collectIndexFiles(full, relative, out, depth + 1);
+        } else if (info.isFile()) {
+          out.push({ path: relative, length: info.size });
+        }
+      } catch (statErr) {
+        continue;
+      }
+    }
+  }
   private collectFiles(dir: string, prefix: string, out: GpNextPackFile[], depth: number): void {
     if (depth > 8 || out.length >= 4000) {
       return;

@@ -60,6 +60,8 @@ interface GpNextArgs {
   source?: string;
   /** gp_next_shell_log 用：垫片侧的一行诊断文本 */
   message?: string;
+  /** 0.16.31 gp_next_remove_local_sources 用：要删除的本地包源（`{path, fingerprint}` 或纯字符串） */
+  sources?: Object[];
   oldPath?: string;
   newPath?: string;
   url?: string;
@@ -130,6 +132,11 @@ interface GpNextPackIndexFile {
   length: number;
 }
 
+/** gp_next_remove_local_sources 的元素：负载传的是 {path, fingerprint} */
+interface GpNextSourceRef {
+  path: string;
+  fingerprint?: string;
+}
 /** gp_next_read_package_index 的外层包装：负载按 `{index, eager}` 解构 */
 interface GpNextPackIndexEnvelope {
   index: GpNextPackIndex;
@@ -252,6 +259,8 @@ export class GpNextBridge {
   /** 另存为登记的"临时路径 → 用户选定 uri"，写完后由壳层复制过去 */
   private pendingExports: Map<string, string> = new Map();
   private base64: util.Base64Helper = new util.Base64Helper();
+  /** 0.16.31：electronAPI.quit() 需要退出应用 */
+  private abilityContext: common.UIAbilityContext;
 
   constructor(context: common.UIAbilityContext,
     openExternal: GpNextOpenExternal,
@@ -264,6 +273,7 @@ export class GpNextBridge {
     this.importPackagesHandler = importPackages;
     this.pickOpenTargetsHandler = pickOpenTargets;
     this.notifyHandler = notify;
+    this.abilityContext = context;
     this.baseDir = GpNextBridge.trimTrailingSlash(context.filesDir);
     this.root = `${this.baseDir}/${GP_NEXT_DIR}`;
     this.exportDir = `${this.root}/${EXPORT_DIR}`;
@@ -604,6 +614,66 @@ export class GpNextBridge {
           console.warn(`[gp-next-bridge] 列本地包目录失败: ${errorText(listErr as Object)}`);
         }
         return JSON.stringify(inventory);
+      }
+
+      // 0.16.31：electronAPI.quit()（面板/更新窗口的"退出"按钮）→ 结束当前 Ability
+      case 'gp_next_quit': {
+        try {
+          await this.abilityContext.terminateSelf();
+          this.appendLog('[quit] terminateSelf 已调用');
+        } catch (quitErr) {
+          this.appendLog(`[quit-fail] ${errorText(quitErr as Object)}`);
+        }
+        return 'null';
+      }
+      // 0.16.31 新增：模组卸载时删除本地包源目录（`gp-next/packs/<name>`）。
+      // 调用方只用副作用（返回值不看），所以失败只留痕、绝不抛错打断卸载流程。
+      case 'gp_next_remove_local_sources': {
+        const rawSources: Object[] = args && args.sources ? args.sources : [];
+        const removed: string[] = [];
+        for (let index = 0; index < rawSources.length; index++) {
+          const entry: Object = rawSources[index];
+          // 0.16.31 传的是 `[{path, fingerprint}]`；早期实现传纯字符串，两种都兼容
+          let source: string = '';
+          if (typeof entry === 'string') {
+            source = entry as string;
+          } else if (entry !== null && entry !== undefined) {
+            const reference = entry as GpNextSourceRef;
+            source = reference.path ? reference.path : '';
+          }
+          if (source.length === 0) {
+            continue;
+          }
+          const relative: string = source.startsWith('gp-next/') ? source.substring(7) : source;
+          // 只允许删 packs/ 下的内容：存档、配置、关卡库一律不碰
+          if (!relative.startsWith('packs/')) {
+            this.appendLog(`[remove-sources-skip] ${source}`);
+            continue;
+          }
+          const full: string = `${this.root}/${relative}`;
+          try {
+            if (fs.accessSync(full)) {
+              this.removePath(full, true);
+              removed.push(source);
+              this.appendLog(`[remove-sources] ${source}`);
+            } else {
+              this.appendLog(`[remove-sources-miss] ${source}`);
+            }
+          } catch (removeErr) {
+            this.appendLog(`[remove-sources-fail] ${source}: ${errorText(removeErr as Object)}`);
+          }
+        }
+        return JSON.stringify({ removed: removed });
+      }
+
+      // 0.16.31 新增：GP Extension 发布者签名校验（调用方 await，抛错即拒绝该扩展）。
+      // ⚠️ 上游的 `.sig` 格式与公钥我们都没有，**不能**"校验通过"糊过去（那是假安全）。
+      // 这里显式拒绝并留痕；普通模组不受影响（只有 uuid 以 `gp-extension.` 开头的包会走到这里）。
+      case 'gp_next_verify_extension': {
+        const digest: string = args && args.digest ? args.digest : '';
+        const count: number = args && args.files ? args.files.length : 0;
+        this.appendLog(`[verify-extension] unsupported digest=${digest} files=${count}`);
+        throw new Error('GP Extension 签名校验未在鸿蒙壳层实现，无法安装带 gp-extension. 前缀的扩展包');
       }
 
       // 垫片日志（A10）：页面里访问到 electronAPI 上“没人实现”的方法时，让它在 bridge.log 留痕。

@@ -454,6 +454,19 @@ export const GPNEXT_SHIM: string = `(function () {
       var handler = function () {
         try { callback(); } catch (err) { }
       };
+
+    // A13（0.16.31）：页面会调 electronAPI.openUrl / quit，之前落到 Proxy 空桩（[shim] unimpl:openUrl / quit）。
+    // 说明：开外链走桥里已实现的 plugin:opener|open_url；退出走新增的 gp_next_quit（terminateSelf）。
+    api.openUrl = function (url) {
+      try {
+        bridgeInvoke('plugin:opener|open_url', { url: String(url == null ? '' : url) });
+      } catch (err) { }
+    };
+    api.quit = function () {
+      try {
+        bridgeInvoke('gp_next_quit', {});
+      } catch (err) { }
+    };
       win.addEventListener('blur', handler);
       document.addEventListener('visibilitychange', handler);
       return function () {
